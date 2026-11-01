@@ -27,7 +27,7 @@ The companion ZIP contains the same package plus Markdown/CSV/YAML/JSON sources,
 
 ## Phase-2 runtime slice
 
-`apps/api` (NestJS) and `apps/web` (Next.js BFF) now exist. Real local PostgreSQL/PostGIS migrations and RLS integration tests pass; see `docs/18-phase2-api-bff-rls.md`. Live Keycloak browser login and full marketplace modules are not yet proven.
+`apps/api` (NestJS) and `apps/web` (Next.js BFF) now exist. Real local PostgreSQL/PostGIS migrations and RLS integration tests pass; see `docs/18-phase2-api-bff-rls.md`. Local Keycloak OIDC login/logout smoke verification passes (`docs/19-phase2-keycloak-live.md`); TOTP/linking/recovery/step-up and full marketplace modules are not yet proven.
 
 ## Validation boundary
 

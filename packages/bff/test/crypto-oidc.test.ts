@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { encryptJson, decryptJson, csrfTokenForSession } from '../src/crypto';
-import { beginLogin, completeLogin } from '../src/oidc';
+import { beginLogin, completeLogin, discover } from '../src/oidc';
 const key = 'a'.repeat(64);
 describe('BFF crypto', () => {
   it('encrypts and decrypts JSON envelopes', () => {
@@ -10,7 +10,7 @@ describe('BFF crypto', () => {
   });
   it('rejects tampered envelopes', () => {
     const env = encryptJson({ a: 1 }, key);
-    const parsed = JSON.parse(env); parsed.data = 'x' + parsed.data.slice(1);
+    const parsed = JSON.parse(env); const tag = Buffer.from(parsed.tag, 'base64url'); tag[0] ^= 0xff; parsed.tag = tag.toString('base64url');
     expect(() => decryptJson(JSON.stringify(parsed), key)).toThrow();
   });
   it('derives stable CSRF tokens per session', () => {
@@ -27,3 +27,7 @@ describe('OIDC transaction guards', () => {
     await expect(completeLogin(cfg, new URL(cfg.redirectUri + '?state=bad&code=y'), { state: 'good', nonce: 'n', verifier: 'v', redirectUri: cfg.redirectUri, createdAt: Date.now() })).rejects.toThrow('OIDC_STATE_MISMATCH');
   });
 });
+
+  it('rejects insecure HTTP OIDC outside localhost development', async () => {
+    await expect(discover({ issuer: 'http://example.com/realms/get-stoopy', clientId: 'x', clientSecret: 'y', redirectUri: 'http://localhost:3000/api/auth/callback', allowInsecureHttp: true })).rejects.toThrow('INSECURE_OIDC_ONLY_LOCALHOST_DEV');
+  });

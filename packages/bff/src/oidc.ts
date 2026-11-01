@@ -1,8 +1,11 @@
 import * as client from 'openid-client';
-export interface OidcConfig { issuer: string; clientId: string; clientSecret: string; redirectUri: string; scope?: string; }
+export interface OidcConfig { issuer: string; clientId: string; clientSecret: string; redirectUri: string; scope?: string; allowInsecureHttp?: boolean; }
 export interface LoginTransaction { state: string; nonce: string; verifier: string; redirectUri: string; createdAt: number; }
 export async function discover(cfg: OidcConfig): Promise<client.Configuration> {
-  return client.discovery(new URL(cfg.issuer), cfg.clientId, cfg.clientSecret);
+  const issuer = new URL(cfg.issuer);
+  const localDev = cfg.allowInsecureHttp === true && issuer.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(issuer.hostname);
+  if (cfg.allowInsecureHttp && !localDev) throw new Error('INSECURE_OIDC_ONLY_LOCALHOST_DEV');
+  return client.discovery(issuer, cfg.clientId, cfg.clientSecret, undefined, localDev ? { execute: [client.allowInsecureRequests] } : undefined);
 }
 export async function beginLogin(cfg: OidcConfig, config?: client.Configuration): Promise<{ url: URL; transaction: LoginTransaction }> {
   const c = config ?? await discover(cfg);

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
@@ -17,7 +18,8 @@ export async function createApp() {
   SwaggerModule.setup('api/docs', app, document);
   return app;
 }
-if (process.argv[1] && process.argv[1].endsWith('main.js')) {
+const isMain = process.argv[1] && /main\.(js|ts)$/.test(process.argv[1]);
+if (isMain) {
   const env = loadApiEnv(process.env);
   createApp().then(app => app.listen(env.PORT, '0.0.0.0')).then(() => new Logger('Bootstrap').log(`API listening on ${env.PORT}`));
 }

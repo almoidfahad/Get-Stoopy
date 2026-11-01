@@ -25,6 +25,10 @@ Status: **IN PROGRESS — second foundation slice implemented and integration-te
 
 Integration coverage includes: PostGIS containment query, invalid geometry rejection, unscoped runtime denial, runtime self-scope isolation, session token-hash lookup, no runtime self-elevation, admin-scope/RBAC write denial, user security-field guard, audit/outbox append-only behavior, API health, opaque-session resolution, geographic admin denial, CSRF/Origin denial and BFF secret denial.
 
+## Live Keycloak update
+
+Local Keycloak OIDC login/logout smoke verification now passes; see `19-phase2-keycloak-live.md`. TOTP, linking, recovery and step-up remain pending.
+
 ## Still not proven
 
 - Live Keycloak realm import, browser login, TOTP enrollment, OAuth linking, recovery and step-up against a running Keycloak instance.

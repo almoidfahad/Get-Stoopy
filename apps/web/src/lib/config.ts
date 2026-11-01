@@ -14,6 +14,7 @@ export function webConfig() {
     bffSecret: process.env['BFF_API_SHARED_SECRET']!,
     encryptionKey: process.env['SESSION_TOKEN_ENCRYPTION_KEY']!,
     sessionCookieName,
-    redirectUri: `${process.env['WEB_ORIGIN']}/api/auth/callback`
+    redirectUri: `${process.env['WEB_ORIGIN']}/api/auth/callback`,
+    allowInsecureHttp: process.env['NODE_ENV'] !== 'production'
   };
 }
