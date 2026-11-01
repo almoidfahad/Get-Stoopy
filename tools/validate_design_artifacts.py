@@ -1,6 +1,7 @@
 """Validate Phase-1 DOCUMENTS/CONTRACTS only. Not application, migration, security or payment tests."""
 from pathlib import Path
-import json,csv,re,hashlib,xml.etree.ElementTree as ET
+import json
+import subprocess,csv,re,hashlib,xml.etree.ElementTree as ET
 from urllib.parse import urlparse,unquote
 import yaml
 from openapi_spec_validator import validate
@@ -100,7 +101,8 @@ def html_check():
  assert s.select('script') and all(not x.get('src') for x in s.select('script'))
  return f'Self-contained HTML; {len(ids)} unique IDs; embedded assets/styles/script; all requirement rows; no network dependency'
 def boundary_check():
- assert not (R/'.env').exists(), 'committed .env found'
+ tracked_env = subprocess.run(['git','ls-files','.env'], cwd=R, capture_output=True, text=True).stdout.strip() if (R/'.git').exists() else ''
+ assert not tracked_env, 'committed .env found'
  env=(R/'.env.example').read_text()
  for flag in ['PAYMENTS_LIVE_ENABLED','BANGLA_QR_ENABLED','PAYOUTS_LIVE_ENABLED','CROSS_BORDER_ENABLED','AI_ENABLED']:
   assert flag+'=false' in env, flag

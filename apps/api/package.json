@@ -1,0 +1,17 @@
+{
+  "name": "@getstoopy/api",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@getstoopy/bff": "0.2.0",
+    "@getstoopy/auth": "0.2.0",
+    "@getstoopy/config": "0.2.0",
+    "@getstoopy/core": "0.2.0",
+    "@getstoopy/observability": "0.2.0"
+  }
+}

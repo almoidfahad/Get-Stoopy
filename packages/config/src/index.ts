@@ -18,6 +18,23 @@ export const envSchema = z.object({
   CROSS_BORDER_ENABLED: bool.default('false'),
   AI_ENABLED: bool.default('false')
 });
+export const apiEnvSchema = envSchema.extend({
+  BFF_API_SHARED_SECRET: z.string().min(32),
+  SESSION_TOKEN_ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i),
+  DATABASE_PRIVILEGED_URL: z.string().startsWith('postgresql://'),
+  API_INTERNAL_URL: z.string().url().default('http://localhost:4000')
+});
+export type ApiEnv = z.infer<typeof apiEnvSchema>;
+export function loadApiEnv(input: NodeJS.ProcessEnv): ApiEnv {
+  const env = apiEnvSchema.parse(input);
+  if (env.NODE_ENV === 'production') {
+    if (env.WEB_ORIGIN.startsWith('http://')) throw new Error('PROD_HTTP_FORBIDDEN');
+    if (env.KEYCLOAK_ISSUER.startsWith('http://')) throw new Error('PROD_HTTP_IDP_FORBIDDEN');
+    if (!env.SESSION_COOKIE_NAME.startsWith('__Host-')) throw new Error('HOST_COOKIE_REQUIRED');
+  }
+  if (env.CROSS_BORDER_ENABLED) throw new Error('CROSS_BORDER_NOT_AUTHORIZED');
+  return env;
+}
 export type Env = z.infer<typeof envSchema>;
 export function loadEnv(input: NodeJS.ProcessEnv): Env {
   const env = envSchema.parse(input);

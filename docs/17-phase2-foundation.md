@@ -36,7 +36,16 @@ Status: **IN PROGRESS — first foundation slice implemented and unit-tested.** 
 
 Copy `.env.example` to `.env` and replace local-only placeholders before starting containers. Do not commit `.env`. The compose file binds services to localhost for development; it is not a production deployment. Keycloak realm template disables public registration and implicit/direct-grant flows and configures TOTP policy, but the privileged-admin mandatory MFA flow, Argon2id selection and safe linking still require implementation/testing.
 
-## Next Phase-2 tasks
+## Superseded next-task list
+
+The API/BFF/RLS slice is recorded in `18-phase2-api-bff-rls.md`. Remaining Phase-2 work:
+
+1. Live Keycloak realm import and browser OIDC/TOTP/linking/recovery verification.
+2. Expand schema toward approved logical model in reviewed increments.
+3. Add worker/outbox/inbox and private-storage interfaces.
+4. Add visual design-system components and Playwright E2E before Phase 3.
+
+## Original next-task list (historical)
 
 1. Add NestJS API shell with health, request ID, structured logging, session resolution and guarded example resource.
 2. Add Next.js BFF shell and OIDC callback/session flow against local Keycloak.

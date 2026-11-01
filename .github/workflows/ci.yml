@@ -19,3 +19,46 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       - run: python -m pip install --quiet openapi-spec-validator==0.7.2 markdown-it-py beautifulsoup4 PyYAML Pillow
       - run: python tools/validate_design_artifacts.py
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgis:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: getstoopy_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d getstoopy_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      DB_OWNER_PASSWORD: ci_owner_password
+      DB_RUNTIME_PASSWORD: ci_runtime_password
+      DB_PRIVILEGED_PASSWORD: ci_privileged_password
+      DATABASE_MIGRATION_URL: postgresql://gs_owner:ci_owner_password@localhost:5432/getstoopy_test?schema=public
+      DATABASE_URL: postgresql://gs_runtime:ci_runtime_password@localhost:5432/getstoopy_test?schema=public
+      DATABASE_PRIVILEGED_URL: postgresql://gs_privileged:ci_privileged_password@localhost:5432/getstoopy_test?schema=public
+      TEST_DATABASE_MIGRATION_URL: postgresql://gs_owner:ci_owner_password@localhost:5432/getstoopy_test?schema=public
+      TEST_DATABASE_URL: postgresql://gs_runtime:ci_runtime_password@localhost:5432/getstoopy_test?schema=public
+      TEST_DATABASE_PRIVILEGED_URL: postgresql://gs_privileged:ci_privileged_password@localhost:5432/getstoopy_test?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: bash scripts/setup-db-roles.sh
+      - run: psql -v ON_ERROR_STOP=1 -d getstoopy_test -c 'CREATE EXTENSION IF NOT EXISTS postgis;'
+      - run: psql -v ON_ERROR_STOP=1 -d getstoopy_test -c 'GRANT ALL ON SCHEMA public TO gs_owner;'
+      - run: npm run db:migrate
+      - run: PGPASSWORD=ci_owner_password psql -h localhost -U gs_owner -v ON_ERROR_STOP=1 -d getstoopy_test -f scripts/db-grants.sql
+      - run: npm run test:integration

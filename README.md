@@ -25,6 +25,10 @@ The companion ZIP contains the same package plus Markdown/CSV/YAML/JSON sources,
 - Source review: 460 recovered visible messages (209 user / 251 assistant), five current upload hashes, and explicit unavailable-artifact/fidelity limitations.
 - Roadmap, progress/decision log and document-only validation report.
 
+## Phase-2 runtime slice
+
+`apps/api` (NestJS) and `apps/web` (Next.js BFF) now exist. Real local PostgreSQL/PostGIS migrations and RLS integration tests pass; see `docs/18-phase2-api-bff-rls.md`. Live Keycloak browser login and full marketplace modules are not yet proven.
+
 ## Validation boundary
 
 `python tools/validate_design_artifacts.py` checks documents/contracts only. Current result: 10 passed / 0 failed. This is **not** an application, migration, endpoint, security, payment or performance test. Phase 1 is not complete until the owner reviews/approves the architecture; Phases 2–11 have not started.

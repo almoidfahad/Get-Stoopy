@@ -1,0 +1,6 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+:root { --gs-red: #D71920; --gs-black: #111111; --gs-white: #FFFFFF; --gs-gray: #F5F5F5; --gs-gold: #C9A227; }
+body { @apply bg-white text-neutral-900 antialiased; }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--gs-red); outline-offset: 2px; }

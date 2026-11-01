@@ -1,7 +1,12 @@
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { config } from 'dotenv';
-if (existsSync('.env')) config({ path: '.env', quiet: true });
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+if (existsSync(path.join(root, '.env'))) config({ path: path.join(root, '.env'), quiet: true });
 const args = process.argv.slice(2);
-const r = spawnSync('prisma', [...args, '--schema', 'packages/db/prisma/schema.prisma'], { stdio: 'inherit', env: process.env });
+const env = { ...process.env, PATH: `${path.join(root, 'node_modules', '.bin')}${path.delimiter}${process.env.PATH ?? ''}` };
+if (args[0] === 'migrate' && process.env.DATABASE_MIGRATION_URL) env.DATABASE_URL = process.env.DATABASE_MIGRATION_URL;
+const r = spawnSync('prisma', [...args, '--schema', 'packages/db/prisma/schema.prisma'], { stdio: 'inherit', env, cwd: root });
 process.exit(r.status ?? 1);

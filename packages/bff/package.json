@@ -1,0 +1,1 @@
+{"name":"@getstoopy/bff","version":"0.2.0","private":true,"type":"module","main":"dist/index.js","types":"dist/index.d.ts","scripts":{"build":"tsc -b"},"dependencies":{"@getstoopy/auth":"0.2.0","openid-client":"6.8.1","jose":"6.1.0"}}
