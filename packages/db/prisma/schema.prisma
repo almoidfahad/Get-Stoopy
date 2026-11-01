@@ -266,7 +266,11 @@ model OutboxEvent {
   occurredAt    DateTime  @default(now())
   publishedAt   DateTime?
   attempts      Int       @default(0)
+  availableAt   DateTime  @default(now())
+  lastError     String?
+  failedAt      DateTime?
   @@index([publishedAt, occurredAt])
+  @@index([availableAt, occurredAt])
 }
 
 model InboxReceipt {

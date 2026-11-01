@@ -12,14 +12,14 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "npm run build:packages && npm run build:api && npm run build:web",
-    "typecheck": "npm run build:packages && tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",
+    "build": "npm run build:packages && npm run build:api && npm run build:worker && npm run build:web",
+    "typecheck": "npm run build:packages && tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/worker/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "node scripts/prisma.mjs generate",
     "db:validate": "node scripts/prisma.mjs validate",
     "db:format": "node scripts/prisma.mjs format",
-    "build:packages": "tsc -b packages/core packages/config packages/auth packages/observability packages/bff",
+    "build:packages": "tsc -b packages/core packages/config packages/auth packages/observability packages/bff packages/events",
     "dev:api": "npm run build:api && node --env-file=.env apps/api/dist/main.js",
     "dev:web": "node --env-file=.env node_modules/next/dist/bin/next dev apps/web --hostname 0.0.0.0 --port 3000",
     "build:api": "tsc -p apps/api/tsconfig.build.json",
@@ -27,7 +27,9 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "db:migrate": "node scripts/prisma.mjs migrate deploy",
     "db:seed": "tsx scripts/seed-local.ts",
-    "verify:oidc:local": "bash scripts/verify-keycloak-local.sh"
+    "verify:oidc:local": "bash scripts/verify-keycloak-local.sh",
+    "build:worker": "tsc -p apps/worker/tsconfig.build.json",
+    "dev:worker": "npm run build:worker && node --env-file=.env apps/worker/dist/main.js"
   },
   "devDependencies": {
     "@types/express": "5.0.3",
@@ -53,12 +55,14 @@
     "@nestjs/swagger": "11.2.3",
     "@nestjs/throttler": "6.4.0",
     "@prisma/client": "6.16.3",
+    "bullmq": "6.5.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "cookie": "1.0.2",
     "helmet": "8.1.0",
+    "ioredis": "5.11.1",
     "jose": "6.1.0",
     "lucide-react": "0.544.0",
     "next": "15.5.28",
