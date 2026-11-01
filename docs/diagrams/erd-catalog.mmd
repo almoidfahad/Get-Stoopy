@@ -1,0 +1,70 @@
+erDiagram
+  Category {
+    uuid id PK
+    uuid_nullable parentId
+    string_UNIQUE slug
+    json nameTranslations
+    int sortOrder
+    CategoryStatus status
+    json requiredPermits
+  }
+  Product {
+    uuid id PK
+    uuid vendorId FK
+    uuid categoryId FK
+    string title
+    string description
+    string_nullable brand
+    ProductStatus status
+    ModerationState moderationState
+    json attributes
+    int version
+  }
+  ProductVariant {
+    uuid id PK
+    uuid productId FK
+    string sku
+    json optionValues
+    bigint priceAmount
+    bigint_nullable compareAtAmount
+    string currency
+    int_nullable weightGrams
+    boolean active
+    int version
+  }
+  ProductImage {
+    uuid id PK
+    uuid productId FK
+    uuid_nullable variantId
+    string storageKey
+    string altText
+    int sortOrder
+    int width
+    int height
+    bytes checksum
+  }
+  Inventory {
+    uuid id PK
+    uuid variantId FK
+    uuid storeId FK
+    int onHand
+    int reserved
+    int reorderLevel
+    int version
+  }
+  InventoryReservation {
+    uuid id PK
+    uuid variantId FK
+    uuid storeId FK
+    uuid quoteId FK
+    int quantity
+    datetime expiresAt
+    ReservationState state
+  }
+  Category ||--o{ Product : "categoryId"
+  Product ||--o{ ProductVariant : "productId"
+  Product ||--o{ ProductImage : "productId"
+  ProductVariant ||--o{ Inventory : "variantId"
+  Category |o--o{ Category : "parentId"
+  ProductVariant |o--o{ ProductImage : "variantId"
+  ProductVariant ||--o{ InventoryReservation : "variantId"

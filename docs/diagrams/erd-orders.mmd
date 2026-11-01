@@ -1,0 +1,103 @@
+erDiagram
+  CheckoutQuote {
+    uuid id PK
+    uuid_UNIQUE checkoutId
+    uuid customerId FK
+    json recipientSnapshot
+    json destinationAddressSnapshot
+    uuid destinationZoneId FK
+    json totals
+    json groupQuotes
+    string pricingVersion
+    datetime expiresAt
+    bytes quoteHash
+  }
+  OrderRecipient {
+    uuid id PK
+    uuid_UNIQUE orderId
+    string name
+    string phoneEncrypted
+    bytes phoneHash
+    json addressSnapshot
+    uuid destinationZoneId FK
+    VerificationStatus verificationStatus
+  }
+  Order {
+    uuid id PK
+    string_UNIQUE publicReference
+    uuid buyerId FK
+    uuid countryId FK
+    uuid destinationCountryId FK
+    uuid destinationZoneId FK
+    ParentOrderStatus status
+    bigint subtotalAmount
+    bigint deliveryFeeAmount
+    bigint discountAmount
+    bigint taxAmount
+    bigint totalAmount
+    string currency
+    json pricingSnapshot
+    uuid_nullable riskCaseId
+    string idempotencyKey
+    int version
+  }
+  VendorSuborder {
+    uuid id PK
+    uuid orderId FK
+    uuid vendorId FK
+    uuid storeId FK
+    uuid destinationZoneId FK
+    string_UNIQUE publicReference
+    SuborderStatus status
+    int_nullable preparationMinutes
+    uuid_nullable readyConfirmedBy
+    datetime_nullable readyConfirmedAt
+    bigint subtotalAmount
+    bigint allocatedDeliveryAmount
+    bigint allocatedDiscountAmount
+    bigint taxAmount
+    bigint totalAmount
+    int version
+  }
+  OrderItem {
+    uuid id PK
+    uuid suborder_id FK
+    uuid variantId FK
+    json productSnapshot
+    int quantity
+    bigint unitPriceAmount
+    bigint lineDiscountAmount
+    bigint taxAmount
+    bigint lineTotalAmount
+    uuid_nullable commissionSnapshotId
+  }
+  OrderStatusEvent {
+    uuid id PK
+    uuid_nullable orderId
+    uuid_nullable suborderId
+    string_nullable fromStatus
+    string toStatus
+    uuid_nullable actorId
+    string_nullable reason
+    string_UNIQUE commandId
+    datetime occurredAt
+  }
+  ReturnRequest {
+    uuid id PK
+    uuid orderId FK
+    uuid suborderId FK
+    uuid customerId FK
+    ReturnStatus status
+    string reason
+    json requestedItems
+    json evidenceObjectKeys
+    uuid_nullable approvedBy
+    uuid_nullable refundId
+  }
+  Order ||--o| OrderRecipient : "orderId"
+  Order ||--o{ VendorSuborder : "orderId"
+  VendorSuborder ||--o{ OrderItem : "suborder_id"
+  Order |o--o{ OrderStatusEvent : "orderId"
+  Order ||--o{ ReturnRequest : "orderId"
+  VendorSuborder |o--o{ OrderStatusEvent : "suborderId"
+  VendorSuborder ||--o{ ReturnRequest : "suborderId"

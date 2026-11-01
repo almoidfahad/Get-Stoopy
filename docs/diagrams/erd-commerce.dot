@@ -1,0 +1,128 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.35",nodesep="0.35",ranksep="0.8"];
+node [shape=plain,fontname="Arial"];
+edge [color="#68717d",fontcolor="#47505c",fontsize=9,fontname="Arial"];
+Campaign [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>Campaign</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>name</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>kind</B></TD><TD ALIGN="LEFT">CampaignKind</TD></TR><TR><TD ALIGN="LEFT"><B>audiencePolicy</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>placements</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>content</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>startsAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>endsAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>countryId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">CampaignStatus</TD></TR></TABLE>>];
+Cart [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>Cart</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>customerId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>guestTokenHash</B></TD><TD ALIGN="LEFT">bytes nullable</TD></TR><TR><TD ALIGN="LEFT"><B>destinationAddressSnapshot</B></TD><TD ALIGN="LEFT">json nullable</TD></TR><TR><TD ALIGN="LEFT"><B>currency</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>version</B></TD><TD ALIGN="LEFT">int</TD></TR></TABLE>>];
+CartItem [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>CartItem</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>cartId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>variantId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>storeId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>quantity</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>addedAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR></TABLE>>];
+Coupon [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>Coupon</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>codeHash</B></TD><TD ALIGN="LEFT">bytes</TD></TR><TR><TD ALIGN="LEFT"><B>codeDisplay</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>policy</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">CouponStatus</TD></TR><TR><TD ALIGN="LEFT"><B>startsAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>endsAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>usageLimit</B></TD><TD ALIGN="LEFT">int nullable</TD></TR><TR><TD ALIGN="LEFT"><B>perCustomerLimit</B></TD><TD ALIGN="LEFT">int nullable</TD></TR><TR><TD ALIGN="LEFT"><B>version</B></TD><TD ALIGN="LEFT">int</TD></TR></TABLE>>];
+CouponRedemption [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>CouponRedemption</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>couponId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>customerId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>orderId</B></TD><TD ALIGN="LEFT">uuid UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>amount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>state</B></TD><TD ALIGN="LEFT">RedemptionState</TD></TR></TABLE>>];
+Customer [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>Customer</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>userId</B></TD><TD ALIGN="LEFT">uuid UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>locale</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>defaultAddressId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>riskStatus</B></TD><TD ALIGN="LEFT">CustomerRiskStatus</TD></TR></TABLE>>];
+LoyaltyAccount [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>LoyaltyAccount</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>customerId</B></TD><TD ALIGN="LEFT">uuid UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>programVersion</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">LoyaltyStatus</TD></TR></TABLE>>];
+LoyaltyEvent [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>LoyaltyEvent</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>accountId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>eventKey</B></TD><TD ALIGN="LEFT">string UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>kind</B></TD><TD ALIGN="LEFT">LoyaltyEventKind</TD></TR><TR><TD ALIGN="LEFT"><B>points</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>sourceReference</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>journalId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>occurredAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR></TABLE>>];
+NewsletterSubscription [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>NewsletterSubscription</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>emailHash</B></TD><TD ALIGN="LEFT">bytes UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>emailEncrypted</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>consentId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">SubscriptionStatus</TD></TR><TR><TD ALIGN="LEFT"><B>verifiedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR></TABLE>>];
+Referral [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>Referral</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>referrerId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>referredCustomerId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>codeHash</B></TD><TD ALIGN="LEFT">bytes UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">ReferralStatus</TD></TR><TR><TD ALIGN="LEFT"><B>qualifiedOrderId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>rewardEventId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR></TABLE>>];
+Review [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>Review</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>customerId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>productId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>orderItemId</B></TD><TD ALIGN="LEFT">uuid UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>rating</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>body</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">ReviewStatus</TD></TR><TR><TD ALIGN="LEFT"><B>verifiedPurchase</B></TD><TD ALIGN="LEFT">boolean</TD></TR></TABLE>>];
+Store [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>Store</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>vendorId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>name</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>addressId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>pickupPoint</B></TD><TD ALIGN="LEFT">geometry_Point_4326</TD></TR><TR><TD ALIGN="LEFT"><B>cityId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">StoreStatus</TD></TR><TR><TD ALIGN="LEFT"><B>operatingHours</B></TD><TD ALIGN="LEFT">json</TD></TR></TABLE>>];
+SupportMessage [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>SupportMessage</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>ticketId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>authorId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>body</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>attachmentKeys</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>createdAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR></TABLE>>];
+SupportTicket [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>SupportTicket</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>requesterId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>subjectType</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>subjectId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>category</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">TicketStatus</TD></TR><TR><TD ALIGN="LEFT"><B>assignedStaffId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>priority</B></TD><TD ALIGN="LEFT">TicketPriority</TD></TR><TR><TD ALIGN="LEFT"><B>countryId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>zoneId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR></TABLE>>];
+Vendor [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>Vendor</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>legalName</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>displayName</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>ownerUserId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>businessType</B></TD><TD ALIGN="LEFT">VendorBusinessType</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">VendorStatus</TD></TR><TR><TD ALIGN="LEFT"><B>kycCaseId</B></TD><TD ALIGN="LEFT">uuid nullable UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>homeCountryId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>contactPhone</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>slug</B></TD><TD ALIGN="LEFT">string UNIQUE</TD></TR></TABLE>>];
+VendorMembership [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>VendorMembership</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>vendorId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>userId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>storeId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>vendorRole</B></TD><TD ALIGN="LEFT">VendorRole</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">MembershipStatus</TD></TR></TABLE>>];
+VendorServiceArea [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>VendorServiceArea</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>storeId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>serviceZoneId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>active</B></TD><TD ALIGN="LEFT">boolean</TD></TR><TR><TD ALIGN="LEFT"><B>approvedBy</B></TD><TD ALIGN="LEFT">uuid</TD></TR></TABLE>>];
+Wishlist [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>Wishlist</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>customerId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>name</B></TD><TD ALIGN="LEFT">string</TD></TR></TABLE>>];
+WishlistItem [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#65513e"><FONT COLOR="white"><B>WishlistItem</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>wishlistId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>productId</B></TD><TD ALIGN="LEFT">uuid</TD></TR></TABLE>>];
+Address [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Address
+(external domain)"];
+CheckoutQuote [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="CheckoutQuote
+(external domain)"];
+City [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="City
+(external domain)"];
+CommissionRule [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="CommissionRule
+(external domain)"];
+ConsentRecord [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ConsentRecord
+(external domain)"];
+Country [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Country
+(external domain)"];
+Delivery [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Delivery
+(external domain)"];
+Inventory [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Inventory
+(external domain)"];
+InventoryReservation [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="InventoryReservation
+(external domain)"];
+JournalEntry [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="JournalEntry
+(external domain)"];
+KYCCase [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="KYCCase
+(external domain)"];
+Order [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Order
+(external domain)"];
+OrderItem [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="OrderItem
+(external domain)"];
+PersonalizationProfile [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="PersonalizationProfile
+(external domain)"];
+Product [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Product
+(external domain)"];
+ProductVariant [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ProductVariant
+(external domain)"];
+ReturnRequest [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ReturnRequest
+(external domain)"];
+ServiceZone [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ServiceZone
+(external domain)"];
+Settlement [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Settlement
+(external domain)"];
+User [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="User
+(external domain)"];
+VendorKYC [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="VendorKYC
+(external domain)"];
+VendorSuborder [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="VendorSuborder
+(external domain)"];
+VendorSubscription [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="VendorSubscription
+(external domain)"];
+Address -> Customer [label="customerId (N:1, FK owner → target)"];
+Customer -> User [label="userId (1:1, FK owner → target)"];
+Vendor -> User [label="ownerUserId (N:1, FK owner → target)"];
+VendorMembership -> Vendor [label="vendorId (N:1, FK owner → target)"];
+Store -> Vendor [label="vendorId (N:1, FK owner → target)"];
+VendorServiceArea -> Store [label="storeId (N:1, FK owner → target)"];
+VendorServiceArea -> ServiceZone [label="serviceZoneId (N:1, FK owner → target)"];
+Vendor -> KYCCase [label="kycCaseId (1:1, FK owner → target)"];
+Product -> Vendor [label="vendorId (N:1, FK owner → target)"];
+Inventory -> Store [label="storeId (N:1, FK owner → target)"];
+Wishlist -> Customer [label="customerId (N:1, FK owner → target)"];
+WishlistItem -> Wishlist [label="wishlistId (N:1, FK owner → target)"];
+WishlistItem -> Product [label="productId (N:1, FK owner → target)"];
+Cart -> Customer [label="customerId (N:1, FK owner → target)"];
+CartItem -> Cart [label="cartId (N:1, FK owner → target)"];
+CartItem -> ProductVariant [label="variantId (N:1, FK owner → target)"];
+Order -> Customer [label="buyerId (N:1, FK owner → target)"];
+VendorSuborder -> Vendor [label="vendorId (N:1, FK owner → target)"];
+VendorSuborder -> Store [label="storeId (N:1, FK owner → target)"];
+Settlement -> Vendor [label="vendorId (N:1, FK owner → target)"];
+Review -> OrderItem [label="orderItemId (1:1, FK owner → target)"];
+SupportTicket -> User [label="requesterId (N:1, FK owner → target)"];
+SupportMessage -> SupportTicket [label="ticketId (N:1, FK owner → target)"];
+PersonalizationProfile -> Customer [label="customerId (1:1, FK owner → target)"];
+VendorSubscription -> Vendor [label="vendorId (N:1, FK owner → target)"];
+CouponRedemption -> Coupon [label="couponId (N:1, FK owner → target)"];
+CouponRedemption -> Order [label="orderId (1:1, FK owner → target)"];
+LoyaltyAccount -> Customer [label="customerId (1:1, FK owner → target)"];
+LoyaltyEvent -> LoyaltyAccount [label="accountId (N:1, FK owner → target)"];
+Referral -> User [label="referrerId (N:1, FK owner → target)"];
+Address -> Vendor [label="vendorId (N:1, FK owner → target)"];
+Customer -> Address [label="defaultAddressId (N:1, FK owner → target)"];
+Vendor -> Country [label="homeCountryId (N:1, FK owner → target)"];
+VendorMembership -> User [label="userId (N:1, FK owner → target)"];
+VendorMembership -> Store [label="storeId (N:1, FK owner → target)"];
+Store -> Address [label="addressId (N:1, FK owner → target)"];
+Store -> City [label="cityId (N:1, FK owner → target)"];
+VendorServiceArea -> User [label="approvedBy (N:1, FK owner → target)"];
+VendorKYC -> Vendor [label="vendorId (N:1, FK owner → target)"];
+InventoryReservation -> Store [label="storeId (N:1, FK owner → target)"];
+CartItem -> Store [label="storeId (N:1, FK owner → target)"];
+CheckoutQuote -> Customer [label="customerId (N:1, FK owner → target)"];
+Delivery -> Store [label="pickupStoreId (N:1, FK owner → target)"];
+CommissionRule -> Vendor [label="vendorId (N:1, FK owner → target)"];
+ReturnRequest -> Customer [label="customerId (N:1, FK owner → target)"];
+Review -> Customer [label="customerId (N:1, FK owner → target)"];
+Review -> Product [label="productId (N:1, FK owner → target)"];
+SupportTicket -> User [label="assignedStaffId (N:1, FK owner → target)"];
+SupportTicket -> Country [label="countryId (N:1, FK owner → target)"];
+SupportTicket -> ServiceZone [label="zoneId (N:1, FK owner → target)"];
+SupportMessage -> User [label="authorId (N:1, FK owner → target)"];
+CouponRedemption -> Customer [label="customerId (N:1, FK owner → target)"];
+Campaign -> Country [label="countryId (N:1, FK owner → target)"];
+NewsletterSubscription -> ConsentRecord [label="consentId (N:1, FK owner → target)"];
+LoyaltyEvent -> JournalEntry [label="journalId (N:1, FK owner → target)"];
+Referral -> Customer [label="referredCustomerId (N:1, FK owner → target)"];
+Referral -> Order [label="qualifiedOrderId (N:1, FK owner → target)"];
+Referral -> LoyaltyEvent [label="rewardEventId (N:1, FK owner → target)"];
+}

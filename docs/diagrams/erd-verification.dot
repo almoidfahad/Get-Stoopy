@@ -1,0 +1,38 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.35",nodesep="0.35",ranksep="0.8"];
+node [shape=plain,fontname="Arial"];
+edge [color="#68717d",fontcolor="#47505c",fontsize=9,fontname="Arial"];
+AdminKYC [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#5c496e"><FONT COLOR="white"><B>AdminKYC</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>caseId</B></TD><TD ALIGN="LEFT">uuid UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>userId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>identityVerifiedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>approvedBy</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>provisioningStatus</B></TD><TD ALIGN="LEFT">ProvisioningStatus</TD></TR></TABLE>>];
+KYCCase [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#5c496e"><FONT COLOR="white"><B>KYCCase</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>subjectType</B></TD><TD ALIGN="LEFT">PartyType</TD></TR><TR><TD ALIGN="LEFT"><B>subjectId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">KYCStatus</TD></TR><TR><TD ALIGN="LEFT"><B>policyVersion</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>level</B></TD><TD ALIGN="LEFT">KYCLevel</TD></TR><TR><TD ALIGN="LEFT"><B>submittedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>expiresAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>assignedReviewerId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR></TABLE>>];
+KYCDocument [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#5c496e"><FONT COLOR="white"><B>KYCDocument</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>caseId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>documentType</B></TD><TD ALIGN="LEFT">DocumentType</TD></TR><TR><TD ALIGN="LEFT"><B>storageKey</B></TD><TD ALIGN="LEFT">string UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>contentHash</B></TD><TD ALIGN="LEFT">bytes</TD></TR><TR><TD ALIGN="LEFT"><B>mimeType</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>sizeBytes</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>scanStatus</B></TD><TD ALIGN="LEFT">ScanStatus</TD></TR><TR><TD ALIGN="LEFT"><B>encryptedNumber</B></TD><TD ALIGN="LEFT">json nullable</TD></TR><TR><TD ALIGN="LEFT"><B>issuingCountry</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>expiresOn</B></TD><TD ALIGN="LEFT">date nullable</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">DocumentStatus</TD></TR><TR><TD ALIGN="LEFT"><B>uploadedBy</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>uploadChannel</B></TD><TD ALIGN="LEFT">UploadChannel</TD></TR></TABLE>>];
+KYCReview [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#5c496e"><FONT COLOR="white"><B>KYCReview</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>caseId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>documentId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>reviewerId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>decision</B></TD><TD ALIGN="LEFT">ReviewDecision</TD></TR><TR><TD ALIGN="LEFT"><B>reasons</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>verificationMethod</B></TD><TD ALIGN="LEFT">VerificationMethod</TD></TR><TR><TD ALIGN="LEFT"><B>authorizedSourceReference</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>occurredAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR></TABLE>>];
+RiderKYC [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#5c496e"><FONT COLOR="white"><B>RiderKYC</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>caseId</B></TD><TD ALIGN="LEFT">uuid UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>riderId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>identityProfile</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>vehicleId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>addressVerifiedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR></TABLE>>];
+VendorKYC [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#5c496e"><FONT COLOR="white"><B>VendorKYC</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>caseId</B></TD><TD ALIGN="LEFT">uuid UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>vendorId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>businessInformation</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>representativeInformationEncrypted</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>businessAddressId</B></TD><TD ALIGN="LEFT">uuid</TD></TR></TABLE>>];
+Address [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Address
+(external domain)"];
+Rider [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Rider
+(external domain)"];
+User [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="User
+(external domain)"];
+Vehicle [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Vehicle
+(external domain)"];
+Vendor [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Vendor
+(external domain)"];
+VendorKYC -> KYCCase [label="caseId (1:1, FK owner → target)"];
+RiderKYC -> KYCCase [label="caseId (1:1, FK owner → target)"];
+AdminKYC -> KYCCase [label="caseId (1:1, FK owner → target)"];
+KYCDocument -> KYCCase [label="caseId (N:1, FK owner → target)"];
+KYCReview -> KYCCase [label="caseId (N:1, FK owner → target)"];
+KYCReview -> KYCDocument [label="documentId (N:1, FK owner → target)"];
+Vendor -> KYCCase [label="kycCaseId (1:1, FK owner → target)"];
+Rider -> KYCCase [label="kycCaseId (1:1, FK owner → target)"];
+KYCCase -> User [label="assignedReviewerId (N:1, FK owner → target)"];
+VendorKYC -> Vendor [label="vendorId (N:1, FK owner → target)"];
+VendorKYC -> Address [label="businessAddressId (N:1, FK owner → target)"];
+RiderKYC -> Rider [label="riderId (N:1, FK owner → target)"];
+RiderKYC -> Vehicle [label="vehicleId (N:1, FK owner → target)"];
+AdminKYC -> User [label="userId (N:1, FK owner → target)"];
+AdminKYC -> User [label="approvedBy (N:1, FK owner → target)"];
+KYCDocument -> User [label="uploadedBy (N:1, FK owner → target)"];
+KYCReview -> User [label="reviewerId (N:1, FK owner → target)"];
+}

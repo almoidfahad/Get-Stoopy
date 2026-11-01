@@ -1,0 +1,21 @@
+name: foundation-ci
+on:
+  push:
+  pull_request:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run db:validate
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      - run: python -m pip install --quiet openapi-spec-validator==0.7.2 markdown-it-py beautifulsoup4 PyYAML Pillow
+      - run: python tools/validate_design_artifacts.py

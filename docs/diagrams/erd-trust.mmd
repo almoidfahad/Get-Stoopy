@@ -1,0 +1,33 @@
+erDiagram
+  FraudCase {
+    uuid id PK
+    string subjectType
+    uuid subjectId FK
+    uuid_nullable orderId
+    int score
+    json reasons
+    string policyVersion
+    FraudStatus status
+    uuid_nullable assignedReviewerId
+    datetime_nullable holdExpiresAt
+  }
+  FraudEvidence {
+    uuid id PK
+    uuid caseId FK
+    string signal
+    json valueRedacted
+    string source
+    datetime observedAt
+    string_nullable restrictedObjectKey
+  }
+  FraudDecision {
+    uuid id PK
+    uuid caseId FK
+    uuid_nullable reviewerId
+    FraudAction decision
+    string reason
+    boolean automated
+    datetime occurredAt
+  }
+  FraudCase ||--o{ FraudEvidence : "caseId"
+  FraudCase ||--o{ FraudDecision : "caseId"

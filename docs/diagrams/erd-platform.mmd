@@ -1,0 +1,74 @@
+erDiagram
+  Notification {
+    uuid id PK
+    uuid recipientId FK
+    NotificationChannel channel
+    string templateKey
+    string templateVersion
+    json payloadRedacted
+    NotificationStatus status
+    string_UNIQUE dedupeKey
+    datetime_nullable sentAt
+  }
+  NotificationPreference {
+    uuid id PK
+    uuid userId FK
+    NotificationChannel channel
+    string purpose
+    boolean enabled
+    string policyVersion
+  }
+  AuditLog {
+    uuid id PK
+    uuid_nullable actorId
+    ActorType actorType
+    uuid_nullable sessionId
+    string action
+    string resourceType
+    uuid_nullable resourceId
+    json scopeSnapshot
+    json_nullable beforeRedacted
+    json_nullable afterRedacted
+    string_nullable reason
+    string requestId
+    datetime occurredAt
+  }
+  OutboxEvent {
+    uuid id PK
+    string aggregateType
+    uuid aggregateId FK
+    string_UNIQUE eventKey
+    string eventType
+    json payload
+    datetime occurredAt
+    datetime_nullable publishedAt
+    int attempts
+  }
+  InboxReceipt {
+    uuid id PK
+    string consumer
+    string eventKey
+    datetime processedAt
+  }
+  IdempotencyRecord {
+    uuid id PK
+    uuid actorId FK
+    string route
+    string key
+    bytes requestHash
+    int_nullable responseStatus
+    bytes_nullable responseHash
+    string_nullable resourceReference
+    datetime expiresAt
+    IdempotencyState state
+  }
+  FeatureFlag {
+    uuid id PK
+    string key
+    uuid_nullable countryId
+    string environment
+    boolean enabled
+    json rolloutRule
+    int version
+    uuid updatedBy
+  }

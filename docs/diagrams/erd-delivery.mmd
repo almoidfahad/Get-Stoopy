@@ -1,0 +1,191 @@
+erDiagram
+  Rider {
+    uuid id PK
+    uuid_UNIQUE userId
+    RiderStatus status
+    uuid_nullable_UNIQUE kycCaseId
+    json emergencyContactEncrypted
+    uuid addressId FK
+    uuid homeCityId FK
+    int capacity
+  }
+  RiderServiceArea {
+    uuid id PK
+    uuid riderId FK
+    uuid serviceZoneId FK
+    uuid approvedBy
+    datetime validFrom
+    datetime_nullable expiresAt
+    string_nullable overrideReason
+  }
+  Vehicle {
+    uuid id PK
+    uuid riderId FK
+    VehicleType type
+    string_nullable registrationNumberEncrypted
+    string_nullable make
+    string_nullable model
+    VehicleStatus status
+  }
+  RiderShift {
+    uuid id PK
+    uuid riderId FK
+    datetime startedAt
+    datetime_nullable endedAt
+    string consentVersion
+    uuid startZoneId FK
+    TrackingState trackingState
+  }
+  RiderLocation {
+    uuid id PK
+    uuid riderId FK
+    uuid shiftId FK
+    uuid_nullable deliveryId
+    geometry_Point_4326 point
+    decimal accuracyMeters
+    datetime recordedAt
+    datetime receivedAt
+    LocationSource source
+    boolean_nullable mockSignal
+  }
+  Delivery {
+    uuid id PK
+    uuid suborderId FK
+    int attemptNumber
+    uuid pickupStoreId FK
+    uuid destinationZoneId FK
+    uuid recipientId FK
+    DeliveryStatus status
+    uuid_nullable assignedRiderId
+    uuid_nullable routeSnapshotId
+    uuid_nullable rateSnapshotId
+    datetime_nullable pickupConfirmedAt
+    datetime_nullable deliveredAt
+    datetime_nullable completedAt
+    bigint codAmount
+    int version
+  }
+  DeliveryRouteSnapshot {
+    uuid id PK
+    uuid_nullable deliveryId
+    RoutePurpose purpose
+    geometry_Point_4326 originPoint
+    geometry_Point_4326 destinationPoint
+    int distanceMeters
+    int_nullable durationSeconds
+    string routingMethod
+    string provider
+    string_nullable providerRouteReference
+    datetime capturedAt
+    datetime_nullable expiresAt
+  }
+  RiderRateRule {
+    uuid id PK
+    uuid countryId FK
+    uuid_nullable cityId
+    uuid_nullable serviceZoneId
+    int version
+    datetime effectiveFrom
+    datetime_nullable effectiveTo
+    RuleStatus status
+    bigint minimumAmount
+    bigint_nullable maximumAmount
+    string currency
+    string routingMethod
+    uuid createdBy
+  }
+  RiderRateSlab {
+    uuid id PK
+    uuid rateRuleId FK
+    int lowerMeters
+    int_nullable upperMeters
+    bigint paymentAmount
+  }
+  RiderRateSnapshot {
+    uuid id PK
+    uuid deliveryId FK
+    uuid_UNIQUE assignmentId
+    uuid rateRuleId FK
+    int rateVersion
+    int distanceMeters
+    uuid routeSnapshotId FK
+    json slabSnapshot
+    bigint payableAmount
+    string currency
+    string policyBasis
+    datetime capturedAt
+  }
+  RiderAssignment {
+    uuid id PK
+    uuid deliveryId FK
+    uuid riderId FK
+    uuid_nullable_UNIQUE offerId
+    AssignmentMode assignmentMode
+    uuid_nullable authorizedBy
+    string_nullable reason
+    datetime acceptedAt
+    datetime_nullable releasedAt
+    string_nullable releaseReason
+    uuid_nullable rateSnapshotId
+  }
+  DeliveryOffer {
+    uuid id PK
+    uuid deliveryId FK
+    uuid riderId FK
+    int attempt
+    bytes_UNIQUE sequenceTokenHash
+    OfferStatus status
+    datetime offeredAt
+    datetime expiresAt
+    datetime_nullable respondedAt
+    int roadDistanceMeters
+  }
+  DeliveryProof {
+    uuid id PK
+    uuid_UNIQUE deliveryId
+    RecipientOTP method
+    bytes recipientPhoneHash
+    bytes otpHash
+    datetime otpExpiresAt
+    int attempts
+    datetime_nullable verifiedAt
+    uuid_nullable verifiedByRiderId
+    uuid_nullable fallbackReviewId
+  }
+  DeliveryException {
+    uuid id PK
+    uuid deliveryId FK
+    DeliveryExceptionKind kind
+    uuid reportedBy
+    string reason
+    json evidenceObjectKeys
+    ExceptionStatus status
+    uuid_nullable reviewedBy
+    string_nullable resolution
+    datetime_nullable reviewedAt
+  }
+  Rider ||--o{ RiderServiceArea : "riderId"
+  Rider ||--o{ Vehicle : "riderId"
+  Rider ||--o{ RiderShift : "riderId"
+  RiderShift ||--o{ RiderLocation : "shiftId"
+  Delivery |o--o{ RiderLocation : "deliveryId"
+  Delivery |o--o{ DeliveryRouteSnapshot : "deliveryId"
+  RiderRateRule ||--o{ RiderRateSlab : "rateRuleId"
+  Delivery ||--o{ RiderRateSnapshot : "deliveryId"
+  RiderRateRule ||--o{ RiderRateSnapshot : "rateRuleId"
+  Delivery ||--o{ RiderAssignment : "deliveryId"
+  DeliveryOffer |o--o| RiderAssignment : "offerId"
+  Delivery ||--o{ DeliveryOffer : "deliveryId"
+  Rider ||--o{ DeliveryOffer : "riderId"
+  Delivery ||--o| DeliveryProof : "deliveryId"
+  Delivery ||--o{ DeliveryException : "deliveryId"
+  Rider ||--o{ RiderLocation : "riderId"
+  Rider |o--o{ Delivery : "assignedRiderId"
+  DeliveryRouteSnapshot |o--o{ Delivery : "routeSnapshotId"
+  RiderRateSnapshot |o--o{ Delivery : "rateSnapshotId"
+  RiderAssignment ||--o| RiderRateSnapshot : "assignmentId"
+  DeliveryRouteSnapshot ||--o{ RiderRateSnapshot : "routeSnapshotId"
+  Rider ||--o{ RiderAssignment : "riderId"
+  RiderRateSnapshot |o--o{ RiderAssignment : "rateSnapshotId"
+  Rider |o--o{ DeliveryProof : "verifiedByRiderId"
+  DeliveryException |o--o{ DeliveryProof : "fallbackReviewId"

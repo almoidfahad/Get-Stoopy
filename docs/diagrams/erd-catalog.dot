@@ -1,0 +1,47 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.35",nodesep="0.35",ranksep="0.8"];
+node [shape=plain,fontname="Arial"];
+edge [color="#68717d",fontcolor="#47505c",fontsize=9,fontname="Arial"];
+Category [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#42604b"><FONT COLOR="white"><B>Category</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>parentId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>slug</B></TD><TD ALIGN="LEFT">string UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>nameTranslations</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>sortOrder</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">CategoryStatus</TD></TR><TR><TD ALIGN="LEFT"><B>requiredPermits</B></TD><TD ALIGN="LEFT">json</TD></TR></TABLE>>];
+Inventory [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#42604b"><FONT COLOR="white"><B>Inventory</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>variantId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>storeId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>onHand</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>reserved</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>reorderLevel</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>version</B></TD><TD ALIGN="LEFT">int</TD></TR></TABLE>>];
+InventoryReservation [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#42604b"><FONT COLOR="white"><B>InventoryReservation</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>variantId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>storeId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>quoteId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>quantity</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>expiresAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>state</B></TD><TD ALIGN="LEFT">ReservationState</TD></TR></TABLE>>];
+Product [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#42604b"><FONT COLOR="white"><B>Product</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>vendorId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>categoryId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>title</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>description</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>brand</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">ProductStatus</TD></TR><TR><TD ALIGN="LEFT"><B>moderationState</B></TD><TD ALIGN="LEFT">ModerationState</TD></TR><TR><TD ALIGN="LEFT"><B>attributes</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>version</B></TD><TD ALIGN="LEFT">int</TD></TR></TABLE>>];
+ProductImage [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#42604b"><FONT COLOR="white"><B>ProductImage</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>productId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>variantId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>storageKey</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>altText</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>sortOrder</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>width</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>height</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>checksum</B></TD><TD ALIGN="LEFT">bytes</TD></TR></TABLE>>];
+ProductVariant [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#42604b"><FONT COLOR="white"><B>ProductVariant</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>productId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>sku</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>optionValues</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>priceAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>compareAtAmount</B></TD><TD ALIGN="LEFT">bigint nullable</TD></TR><TR><TD ALIGN="LEFT"><B>currency</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>weightGrams</B></TD><TD ALIGN="LEFT">int nullable</TD></TR><TR><TD ALIGN="LEFT"><B>active</B></TD><TD ALIGN="LEFT">boolean</TD></TR><TR><TD ALIGN="LEFT"><B>version</B></TD><TD ALIGN="LEFT">int</TD></TR></TABLE>>];
+CartItem [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="CartItem
+(external domain)"];
+CheckoutQuote [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="CheckoutQuote
+(external domain)"];
+CommissionRule [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="CommissionRule
+(external domain)"];
+OrderItem [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="OrderItem
+(external domain)"];
+ProductInteraction [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ProductInteraction
+(external domain)"];
+Review [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Review
+(external domain)"];
+Store [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Store
+(external domain)"];
+Vendor [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Vendor
+(external domain)"];
+WishlistItem [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="WishlistItem
+(external domain)"];
+Product -> Category [label="categoryId (N:1, FK owner → target)"];
+Product -> Vendor [label="vendorId (N:1, FK owner → target)"];
+ProductVariant -> Product [label="productId (N:1, FK owner → target)"];
+ProductImage -> Product [label="productId (N:1, FK owner → target)"];
+Inventory -> ProductVariant [label="variantId (N:1, FK owner → target)"];
+Inventory -> Store [label="storeId (N:1, FK owner → target)"];
+InventoryReservation -> CheckoutQuote [label="quoteId (N:1, FK owner → target)"];
+WishlistItem -> Product [label="productId (N:1, FK owner → target)"];
+CartItem -> ProductVariant [label="variantId (N:1, FK owner → target)"];
+ProductInteraction -> Product [label="productId (N:1, FK owner → target)"];
+Category -> Category [label="parentId (N:1, FK owner → target)"];
+ProductImage -> ProductVariant [label="variantId (N:1, FK owner → target)"];
+InventoryReservation -> ProductVariant [label="variantId (N:1, FK owner → target)"];
+InventoryReservation -> Store [label="storeId (N:1, FK owner → target)"];
+OrderItem -> ProductVariant [label="variantId (N:1, FK owner → target)"];
+CommissionRule -> Category [label="categoryId (N:1, FK owner → target)"];
+Review -> Product [label="productId (N:1, FK owner → target)"];
+ProductInteraction -> ProductVariant [label="variantId (N:1, FK owner → target)"];
+}

@@ -1,0 +1,153 @@
+erDiagram
+  User {
+    uuid id PK
+    string_nullable emailNormalized
+    datetime_nullable emailVerifiedAt
+    string_nullable phoneE164
+    datetime_nullable phoneVerifiedAt
+    string displayName
+    UserStatus status
+    int authorizationVersion
+  }
+  UserIdentity {
+    uuid id PK
+    uuid userId FK
+    string issuer
+    string subject
+    string providerKey
+    string_nullable providerEmailEncrypted
+    boolean providerEmailVerified
+    datetime linkedAt
+    string linkedBy
+    datetime lastVerifiedAt
+  }
+  Role {
+    uuid id PK
+    string_UNIQUE key
+    string name
+    RoleKind kind
+    string description
+  }
+  Permission {
+    uuid id PK
+    string_UNIQUE key
+    string resource
+    string action
+    PermissionSensitivity sensitivity
+  }
+  RolePermission {
+    uuid id PK
+    uuid roleId FK
+    uuid permissionId FK
+  }
+  UserRole {
+    uuid id PK
+    uuid userId FK
+    uuid roleId FK
+    uuid grantedBy
+    datetime_nullable expiresAt
+    datetime_nullable revokedAt
+  }
+  Session {
+    uuid id PK
+    uuid userId FK
+    bytes_UNIQUE tokenHash
+    AssuranceLevel assuranceLevel
+    SessionState state
+    uuid_nullable deviceId
+    string_nullable providerSessionReference
+    bytes_nullable encryptedTokenEnvelope
+    datetime expiresAt
+    datetime idleExpiresAt
+    datetime_nullable revokedAt
+    int authVersion
+  }
+  Device {
+    uuid id PK
+    uuid userId FK
+    string label
+    bytes publicBindingHash
+    datetime lastSeenAt
+    datetime_nullable trustedAt
+    datetime_nullable revokedAt
+  }
+  AdminScope {
+    uuid id PK
+    uuid userId FK
+    GeographyType geographyType
+    uuid_nullable countryId
+    uuid_nullable regionId
+    uuid_nullable districtId
+    uuid_nullable cityId
+    uuid_nullable serviceZoneId
+    uuid_nullable neighborhoodId
+    uuid grantedBy
+    datetime effectiveFrom
+    datetime_nullable expiresAt
+    datetime_nullable revokedAt
+  }
+  AdminInvitation {
+    uuid id PK
+    string emailNormalized
+    json intendedRoleIds
+    json intendedScopeSnapshot
+    bytes_UNIQUE tokenHash
+    uuid invitedBy
+    datetime expiresAt
+    datetime_nullable acceptedAt
+  }
+  MfaEnrollment {
+    uuid id PK
+    uuid userId FK
+    string_UNIQUE providerReference
+    TOTP method
+    datetime_nullable enrolledAt
+    bigint_nullable lastVerifiedStep
+    MfaStatus status
+  }
+  StepUpChallenge {
+    uuid id PK
+    uuid userId FK
+    uuid sessionId FK
+    string purpose
+    bytes resourceHash
+    bytes_UNIQUE tokenHash
+    datetime expiresAt
+    datetime_nullable consumedAt
+  }
+  ConsentRecord {
+    uuid id PK
+    uuid_nullable userId
+    bytes_nullable guestReferenceHash
+    ConsentPurpose purpose
+    string policyVersion
+    boolean granted
+    string source
+    datetime occurredAt
+  }
+  PrivacyRequest {
+    uuid id PK
+    uuid userId FK
+    PrivacyRequestKind kind
+    PrivacyRequestStatus status
+    datetime_nullable verifiedAt
+    datetime dueAt
+    string_nullable resultReference
+  }
+  User ||--o{ Session : "userId"
+  Device |o--o{ Session : "deviceId"
+  User ||--o{ UserRole : "userId"
+  Role ||--o{ UserRole : "roleId"
+  Role ||--o{ RolePermission : "roleId"
+  Permission ||--o{ RolePermission : "permissionId"
+  User ||--o{ AdminScope : "userId"
+  User ||--o{ AdminInvitation : "invitedBy"
+  User ||--o{ MfaEnrollment : "userId"
+  User ||--o{ Device : "userId"
+  Session ||--o{ StepUpChallenge : "sessionId"
+  User |o--o{ ConsentRecord : "userId"
+  User ||--o{ PrivacyRequest : "userId"
+  User ||--o{ UserIdentity : "userId"
+  User ||--o{ UserRole : "grantedBy"
+  User ||--o{ AdminScope : "grantedBy"
+  User ||--o{ StepUpChallenge : "userId"

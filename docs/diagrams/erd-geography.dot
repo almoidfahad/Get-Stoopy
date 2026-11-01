@@ -1,0 +1,111 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.35",nodesep="0.35",ranksep="0.8"];
+node [shape=plain,fontname="Arial"];
+edge [color="#68717d",fontcolor="#47505c",fontsize=9,fontname="Arial"];
+Address [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#36566f"><FONT COLOR="white"><B>Address</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>customerId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>vendorId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>riderId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>label</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>countryCode</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>regionId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>districtId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>cityId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>serviceZoneId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>neighborhoodId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>line1</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>line2</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>postalCode</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>point</B></TD><TD ALIGN="LEFT">geometry_Point_4326</TD></TR><TR><TD ALIGN="LEFT"><B>geocodeSource</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>geocodeConfidence</B></TD><TD ALIGN="LEFT">decimal nullable</TD></TR><TR><TD ALIGN="LEFT"><B>normalizedSnapshot</B></TD><TD ALIGN="LEFT">json</TD></TR></TABLE>>];
+BoundaryVersion [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#36566f"><FONT COLOR="white"><B>BoundaryVersion</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>ownerType</B></TD><TD ALIGN="LEFT">GeographyType</TD></TR><TR><TD ALIGN="LEFT"><B>ownerId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>version</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>boundary</B></TD><TD ALIGN="LEFT">geometry_MultiPolygon_4326</TD></TR><TR><TD ALIGN="LEFT"><B>source</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>validFrom</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>approvedBy</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>contentHash</B></TD><TD ALIGN="LEFT">bytes</TD></TR></TABLE>>];
+City [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#36566f"><FONT COLOR="white"><B>City</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>districtId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>code</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>name</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>kind</B></TD><TD ALIGN="LEFT">CityOrUpazila</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">AreaStatus</TD></TR><TR><TD ALIGN="LEFT"><B>boundaryVersionId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR></TABLE>>];
+Country [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#36566f"><FONT COLOR="white"><B>Country</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>iso2</B></TD><TD ALIGN="LEFT">string UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>name</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>currencyCode</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>callingCode</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>timezone</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">CountryStatus</TD></TR></TABLE>>];
+CountryConfiguration [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#36566f"><FONT COLOR="white"><B>CountryConfiguration</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>countryId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>version</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>effectiveFrom</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>localeDefaults</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>taxPolicyRef</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>kycPolicyRef</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>deliveryPolicyRef</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>settlementPolicyRef</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>legalPolicyRef</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>crossBorderEnabled</B></TD><TD ALIGN="LEFT">boolean</TD></TR><TR><TD ALIGN="LEFT"><B>featureFlags</B></TD><TD ALIGN="LEFT">json</TD></TR></TABLE>>];
+District [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#36566f"><FONT COLOR="white"><B>District</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>regionId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>code</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>name</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">AreaStatus</TD></TR></TABLE>>];
+Neighborhood [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#36566f"><FONT COLOR="white"><B>Neighborhood</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>serviceZoneId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>code</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>name</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>boundaryVersionId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR></TABLE>>];
+Region [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#36566f"><FONT COLOR="white"><B>Region</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>countryId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>code</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>name</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">AreaStatus</TD></TR></TABLE>>];
+ServiceZone [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#36566f"><FONT COLOR="white"><B>ServiceZone</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>cityId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>code</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>name</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">ZoneStatus</TD></TR><TR><TD ALIGN="LEFT"><B>activeBoundaryVersionId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>operatingHours</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>priority</B></TD><TD ALIGN="LEFT">int</TD></TR></TABLE>>];
+AdminScope [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="AdminScope
+(external domain)"];
+Campaign [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Campaign
+(external domain)"];
+CheckoutQuote [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="CheckoutQuote
+(external domain)"];
+CommissionRule [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="CommissionRule
+(external domain)"];
+Customer [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Customer
+(external domain)"];
+Delivery [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Delivery
+(external domain)"];
+FeatureFlag [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="FeatureFlag
+(external domain)"];
+Order [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Order
+(external domain)"];
+OrderRecipient [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="OrderRecipient
+(external domain)"];
+PaymentProviderAccount [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="PaymentProviderAccount
+(external domain)"];
+ProductInteraction [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ProductInteraction
+(external domain)"];
+Rider [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Rider
+(external domain)"];
+RiderRateRule [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="RiderRateRule
+(external domain)"];
+RiderServiceArea [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="RiderServiceArea
+(external domain)"];
+RiderShift [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="RiderShift
+(external domain)"];
+Store [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Store
+(external domain)"];
+SupportTicket [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="SupportTicket
+(external domain)"];
+User [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="User
+(external domain)"];
+Vendor [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Vendor
+(external domain)"];
+VendorKYC [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="VendorKYC
+(external domain)"];
+VendorServiceArea [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="VendorServiceArea
+(external domain)"];
+VendorSuborder [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="VendorSuborder
+(external domain)"];
+CountryConfiguration -> Country [label="countryId (N:1, FK owner → target)"];
+Region -> Country [label="countryId (N:1, FK owner → target)"];
+District -> Region [label="regionId (N:1, FK owner → target)"];
+City -> District [label="districtId (N:1, FK owner → target)"];
+ServiceZone -> City [label="cityId (N:1, FK owner → target)"];
+Neighborhood -> ServiceZone [label="serviceZoneId (N:1, FK owner → target)"];
+Address -> Customer [label="customerId (N:1, FK owner → target)"];
+VendorServiceArea -> ServiceZone [label="serviceZoneId (N:1, FK owner → target)"];
+RiderServiceArea -> ServiceZone [label="serviceZoneId (N:1, FK owner → target)"];
+PaymentProviderAccount -> Country [label="countryId (N:1, FK owner → target)"];
+AdminScope -> Country [label="countryId (N:1, FK owner → target)"];
+AdminScope -> Region [label="regionId (N:1, FK owner → target)"];
+AdminScope -> District [label="districtId (N:1, FK owner → target)"];
+AdminScope -> City [label="cityId (N:1, FK owner → target)"];
+AdminScope -> ServiceZone [label="serviceZoneId (N:1, FK owner → target)"];
+AdminScope -> Neighborhood [label="neighborhoodId (N:1, FK owner → target)"];
+City -> BoundaryVersion [label="boundaryVersionId (N:1, FK owner → target)"];
+ServiceZone -> BoundaryVersion [label="activeBoundaryVersionId (N:1, FK owner → target)"];
+Neighborhood -> BoundaryVersion [label="boundaryVersionId (N:1, FK owner → target)"];
+BoundaryVersion -> User [label="approvedBy (N:1, FK owner → target)"];
+Address -> Vendor [label="vendorId (N:1, FK owner → target)"];
+Address -> Rider [label="riderId (N:1, FK owner → target)"];
+Address -> Region [label="regionId (N:1, FK owner → target)"];
+Address -> District [label="districtId (N:1, FK owner → target)"];
+Address -> City [label="cityId (N:1, FK owner → target)"];
+Address -> ServiceZone [label="serviceZoneId (N:1, FK owner → target)"];
+Address -> Neighborhood [label="neighborhoodId (N:1, FK owner → target)"];
+Customer -> Address [label="defaultAddressId (N:1, FK owner → target)"];
+Vendor -> Country [label="homeCountryId (N:1, FK owner → target)"];
+Store -> Address [label="addressId (N:1, FK owner → target)"];
+Store -> City [label="cityId (N:1, FK owner → target)"];
+Rider -> Address [label="addressId (N:1, FK owner → target)"];
+Rider -> City [label="homeCityId (N:1, FK owner → target)"];
+RiderShift -> ServiceZone [label="startZoneId (N:1, FK owner → target)"];
+VendorKYC -> Address [label="businessAddressId (N:1, FK owner → target)"];
+CheckoutQuote -> ServiceZone [label="destinationZoneId (N:1, FK owner → target)"];
+OrderRecipient -> ServiceZone [label="destinationZoneId (N:1, FK owner → target)"];
+Order -> Country [label="countryId (N:1, FK owner → target)"];
+Order -> Country [label="destinationCountryId (N:1, FK owner → target)"];
+Order -> ServiceZone [label="destinationZoneId (N:1, FK owner → target)"];
+VendorSuborder -> ServiceZone [label="destinationZoneId (N:1, FK owner → target)"];
+Delivery -> ServiceZone [label="destinationZoneId (N:1, FK owner → target)"];
+RiderRateRule -> Country [label="countryId (N:1, FK owner → target)"];
+RiderRateRule -> City [label="cityId (N:1, FK owner → target)"];
+RiderRateRule -> ServiceZone [label="serviceZoneId (N:1, FK owner → target)"];
+CommissionRule -> Country [label="countryId (N:1, FK owner → target)"];
+CommissionRule -> City [label="cityId (N:1, FK owner → target)"];
+CommissionRule -> ServiceZone [label="serviceZoneId (N:1, FK owner → target)"];
+SupportTicket -> Country [label="countryId (N:1, FK owner → target)"];
+SupportTicket -> ServiceZone [label="zoneId (N:1, FK owner → target)"];
+ProductInteraction -> ServiceZone [label="zoneId (N:1, FK owner → target)"];
+FeatureFlag -> Country [label="countryId (N:1, FK owner → target)"];
+Campaign -> Country [label="countryId (N:1, FK owner → target)"];
+}

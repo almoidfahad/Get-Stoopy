@@ -1,0 +1,7105 @@
+{
+  "version": "0.1-review",
+  "status": "Logical design only; no migration or running database",
+  "entities": {
+    "User": {
+      "domain": "Identity",
+      "fields": [
+        [
+          "emailNormalized",
+          "string nullable"
+        ],
+        [
+          "emailVerifiedAt",
+          "datetime nullable"
+        ],
+        [
+          "phoneE164",
+          "string nullable"
+        ],
+        [
+          "phoneVerifiedAt",
+          "datetime nullable"
+        ],
+        [
+          "displayName",
+          "string"
+        ],
+        [
+          "status",
+          "UserStatus"
+        ],
+        [
+          "authorizationVersion",
+          "int"
+        ]
+      ],
+      "constraints": "Partial UNIQUE(emailNormalized) WHERE NOT NULL; canonical account; provider identities are separate UserIdentity rows; never merge on email alone",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "UserIdentity": {
+      "domain": "Identity",
+      "fields": [
+        [
+          "userId",
+          "uuid"
+        ],
+        [
+          "issuer",
+          "string"
+        ],
+        [
+          "subject",
+          "string"
+        ],
+        [
+          "providerKey",
+          "string"
+        ],
+        [
+          "providerEmailEncrypted",
+          "string nullable"
+        ],
+        [
+          "providerEmailVerified",
+          "boolean"
+        ],
+        [
+          "linkedAt",
+          "datetime"
+        ],
+        [
+          "linkedBy",
+          "string"
+        ],
+        [
+          "lastVerifiedAt",
+          "datetime"
+        ]
+      ],
+      "constraints": "UNIQUE(issuer,subject); UNIQUE(userId,issuer); proof-based linking only; issuer+subject is stable identity, not email",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Role": {
+      "domain": "Identity",
+      "fields": [
+        [
+          "key",
+          "string UNIQUE"
+        ],
+        [
+          "name",
+          "string"
+        ],
+        [
+          "kind",
+          "RoleKind"
+        ],
+        [
+          "description",
+          "string"
+        ]
+      ],
+      "constraints": "System roles immutable keys; permission grants versioned",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Permission": {
+      "domain": "Identity",
+      "fields": [
+        [
+          "key",
+          "string UNIQUE"
+        ],
+        [
+          "resource",
+          "string"
+        ],
+        [
+          "action",
+          "string"
+        ],
+        [
+          "sensitivity",
+          "PermissionSensitivity"
+        ]
+      ],
+      "constraints": "No permission implies geographic access",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "RolePermission": {
+      "domain": "Identity",
+      "fields": [
+        [
+          "roleId",
+          "uuid"
+        ],
+        [
+          "permissionId",
+          "uuid"
+        ]
+      ],
+      "constraints": "UNIQUE(roleId,permissionId)",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "UserRole": {
+      "domain": "Identity",
+      "fields": [
+        [
+          "userId",
+          "uuid"
+        ],
+        [
+          "roleId",
+          "uuid"
+        ],
+        [
+          "grantedBy",
+          "uuid"
+        ],
+        [
+          "expiresAt",
+          "datetime nullable"
+        ],
+        [
+          "revokedAt",
+          "datetime nullable"
+        ]
+      ],
+      "constraints": "No self-grant; scope granted separately; privileged grant requires step-up",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Session": {
+      "domain": "Identity",
+      "fields": [
+        [
+          "userId",
+          "uuid"
+        ],
+        [
+          "tokenHash",
+          "bytes UNIQUE"
+        ],
+        [
+          "assuranceLevel",
+          "AssuranceLevel"
+        ],
+        [
+          "state",
+          "SessionState"
+        ],
+        [
+          "deviceId",
+          "uuid nullable"
+        ],
+        [
+          "providerSessionReference",
+          "string nullable"
+        ],
+        [
+          "encryptedTokenEnvelope",
+          "bytes nullable"
+        ],
+        [
+          "expiresAt",
+          "datetime"
+        ],
+        [
+          "idleExpiresAt",
+          "datetime"
+        ],
+        [
+          "revokedAt",
+          "datetime nullable"
+        ],
+        [
+          "authVersion",
+          "int"
+        ]
+      ],
+      "constraints": "Opaque random token hashed at rest; tokens never in analytics; check user status and authorizationVersion every request",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Device": {
+      "domain": "Identity",
+      "fields": [
+        [
+          "userId",
+          "uuid"
+        ],
+        [
+          "label",
+          "string"
+        ],
+        [
+          "publicBindingHash",
+          "bytes"
+        ],
+        [
+          "lastSeenAt",
+          "datetime"
+        ],
+        [
+          "trustedAt",
+          "datetime nullable"
+        ],
+        [
+          "revokedAt",
+          "datetime nullable"
+        ]
+      ],
+      "constraints": "Binding cookie is a risk signal, not proof of identity or location",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "AdminScope": {
+      "domain": "Identity",
+      "fields": [
+        [
+          "userId",
+          "uuid"
+        ],
+        [
+          "geographyType",
+          "GeographyType"
+        ],
+        [
+          "countryId",
+          "uuid nullable"
+        ],
+        [
+          "regionId",
+          "uuid nullable"
+        ],
+        [
+          "districtId",
+          "uuid nullable"
+        ],
+        [
+          "cityId",
+          "uuid nullable"
+        ],
+        [
+          "serviceZoneId",
+          "uuid nullable"
+        ],
+        [
+          "neighborhoodId",
+          "uuid nullable"
+        ],
+        [
+          "grantedBy",
+          "uuid"
+        ],
+        [
+          "effectiveFrom",
+          "datetime"
+        ],
+        [
+          "expiresAt",
+          "datetime nullable"
+        ],
+        [
+          "revokedAt",
+          "datetime nullable"
+        ]
+      ],
+      "constraints": "Exactly one referenced scope level; consistent ancestry; higher-scope grantor; no self-scope modification",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "AdminInvitation": {
+      "domain": "Identity",
+      "fields": [
+        [
+          "emailNormalized",
+          "string"
+        ],
+        [
+          "intendedRoleIds",
+          "json"
+        ],
+        [
+          "intendedScopeSnapshot",
+          "json"
+        ],
+        [
+          "tokenHash",
+          "bytes UNIQUE"
+        ],
+        [
+          "invitedBy",
+          "uuid"
+        ],
+        [
+          "expiresAt",
+          "datetime"
+        ],
+        [
+          "acceptedAt",
+          "datetime nullable"
+        ]
+      ],
+      "constraints": "Single-use; authorized approver; public registration cannot create admin",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "MfaEnrollment": {
+      "domain": "Identity",
+      "fields": [
+        [
+          "userId",
+          "uuid"
+        ],
+        [
+          "providerReference",
+          "string UNIQUE"
+        ],
+        [
+          "method",
+          "TOTP"
+        ],
+        [
+          "enrolledAt",
+          "datetime nullable"
+        ],
+        [
+          "lastVerifiedStep",
+          "bigint nullable"
+        ],
+        [
+          "status",
+          "MfaStatus"
+        ]
+      ],
+      "constraints": "Secrets and recovery credentials held by identity provider encrypted; no plaintext mirror in business DB",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "StepUpChallenge": {
+      "domain": "Identity",
+      "fields": [
+        [
+          "userId",
+          "uuid"
+        ],
+        [
+          "sessionId",
+          "uuid"
+        ],
+        [
+          "purpose",
+          "string"
+        ],
+        [
+          "resourceHash",
+          "bytes"
+        ],
+        [
+          "tokenHash",
+          "bytes UNIQUE"
+        ],
+        [
+          "expiresAt",
+          "datetime"
+        ],
+        [
+          "consumedAt",
+          "datetime nullable"
+        ]
+      ],
+      "constraints": "Binds approval to actor, session, exact action and payload hash; one use",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "ConsentRecord": {
+      "domain": "Identity",
+      "fields": [
+        [
+          "userId",
+          "uuid nullable"
+        ],
+        [
+          "guestReferenceHash",
+          "bytes nullable"
+        ],
+        [
+          "purpose",
+          "ConsentPurpose"
+        ],
+        [
+          "policyVersion",
+          "string"
+        ],
+        [
+          "granted",
+          "boolean"
+        ],
+        [
+          "source",
+          "string"
+        ],
+        [
+          "occurredAt",
+          "datetime"
+        ]
+      ],
+      "constraints": "Append-only consent history; no prechecked marketing/personalization consent",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "PrivacyRequest": {
+      "domain": "Identity",
+      "fields": [
+        [
+          "userId",
+          "uuid"
+        ],
+        [
+          "kind",
+          "PrivacyRequestKind"
+        ],
+        [
+          "status",
+          "PrivacyRequestStatus"
+        ],
+        [
+          "verifiedAt",
+          "datetime nullable"
+        ],
+        [
+          "dueAt",
+          "datetime"
+        ],
+        [
+          "resultReference",
+          "string nullable"
+        ]
+      ],
+      "constraints": "Export/delete with legal-hold exceptions; propagate to search, AI profile and caches",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Country": {
+      "domain": "Geography",
+      "fields": [
+        [
+          "iso2",
+          "string UNIQUE"
+        ],
+        [
+          "name",
+          "string"
+        ],
+        [
+          "currencyCode",
+          "string"
+        ],
+        [
+          "callingCode",
+          "string"
+        ],
+        [
+          "timezone",
+          "string"
+        ],
+        [
+          "status",
+          "CountryStatus"
+        ]
+      ],
+      "constraints": "BD first; US configured but disabled; currency immutable after financial activity",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "CountryConfiguration": {
+      "domain": "Geography",
+      "fields": [
+        [
+          "countryId",
+          "uuid"
+        ],
+        [
+          "version",
+          "int"
+        ],
+        [
+          "effectiveFrom",
+          "datetime"
+        ],
+        [
+          "localeDefaults",
+          "json"
+        ],
+        [
+          "taxPolicyRef",
+          "string"
+        ],
+        [
+          "kycPolicyRef",
+          "string"
+        ],
+        [
+          "deliveryPolicyRef",
+          "string"
+        ],
+        [
+          "settlementPolicyRef",
+          "string"
+        ],
+        [
+          "legalPolicyRef",
+          "string"
+        ],
+        [
+          "crossBorderEnabled",
+          "boolean"
+        ],
+        [
+          "featureFlags",
+          "json"
+        ]
+      ],
+      "constraints": "UNIQUE(countryId,version); crossBorderEnabled default false; activation requires legal gate",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Region": {
+      "domain": "Geography",
+      "fields": [
+        [
+          "countryId",
+          "uuid"
+        ],
+        [
+          "code",
+          "string"
+        ],
+        [
+          "name",
+          "string"
+        ],
+        [
+          "status",
+          "AreaStatus"
+        ]
+      ],
+      "constraints": "UNIQUE(countryId,code); division/region/state terminology per country",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "District": {
+      "domain": "Geography",
+      "fields": [
+        [
+          "regionId",
+          "uuid"
+        ],
+        [
+          "code",
+          "string"
+        ],
+        [
+          "name",
+          "string"
+        ],
+        [
+          "status",
+          "AreaStatus"
+        ]
+      ],
+      "constraints": "UNIQUE(regionId,code)",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "City": {
+      "domain": "Geography",
+      "fields": [
+        [
+          "districtId",
+          "uuid"
+        ],
+        [
+          "code",
+          "string"
+        ],
+        [
+          "name",
+          "string"
+        ],
+        [
+          "kind",
+          "CityOrUpazila"
+        ],
+        [
+          "status",
+          "AreaStatus"
+        ],
+        [
+          "boundaryVersionId",
+          "uuid nullable"
+        ]
+      ],
+      "constraints": "UNIQUE(districtId,code); city/upazila are siblings, not ancestor/descendant",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "ServiceZone": {
+      "domain": "Geography",
+      "fields": [
+        [
+          "cityId",
+          "uuid"
+        ],
+        [
+          "code",
+          "string"
+        ],
+        [
+          "name",
+          "string"
+        ],
+        [
+          "status",
+          "ZoneStatus"
+        ],
+        [
+          "activeBoundaryVersionId",
+          "uuid nullable"
+        ],
+        [
+          "operatingHours",
+          "json"
+        ],
+        [
+          "priority",
+          "int"
+        ]
+      ],
+      "constraints": "UNIQUE(cityId,code); overlapping active coverage requires explicit deterministic resolution",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Neighborhood": {
+      "domain": "Geography",
+      "fields": [
+        [
+          "serviceZoneId",
+          "uuid"
+        ],
+        [
+          "code",
+          "string"
+        ],
+        [
+          "name",
+          "string"
+        ],
+        [
+          "boundaryVersionId",
+          "uuid nullable"
+        ]
+      ],
+      "constraints": "UNIQUE(serviceZoneId,code); optional lowest locality level",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "BoundaryVersion": {
+      "domain": "Geography",
+      "fields": [
+        [
+          "ownerType",
+          "GeographyType"
+        ],
+        [
+          "ownerId",
+          "uuid"
+        ],
+        [
+          "version",
+          "int"
+        ],
+        [
+          "boundary",
+          "geometry_MultiPolygon_4326"
+        ],
+        [
+          "source",
+          "string"
+        ],
+        [
+          "validFrom",
+          "datetime"
+        ],
+        [
+          "approvedBy",
+          "uuid"
+        ],
+        [
+          "contentHash",
+          "bytes"
+        ]
+      ],
+      "constraints": "UNIQUE(ownerType,ownerId,version); ST_IsValid; immutable after approval; GiST boundary; no geometry in client write authority",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Address": {
+      "domain": "Geography",
+      "fields": [
+        [
+          "customerId",
+          "uuid nullable"
+        ],
+        [
+          "vendorId",
+          "uuid nullable"
+        ],
+        [
+          "riderId",
+          "uuid nullable"
+        ],
+        [
+          "label",
+          "string nullable"
+        ],
+        [
+          "countryCode",
+          "string"
+        ],
+        [
+          "regionId",
+          "uuid"
+        ],
+        [
+          "districtId",
+          "uuid"
+        ],
+        [
+          "cityId",
+          "uuid"
+        ],
+        [
+          "serviceZoneId",
+          "uuid nullable"
+        ],
+        [
+          "neighborhoodId",
+          "uuid nullable"
+        ],
+        [
+          "line1",
+          "string"
+        ],
+        [
+          "line2",
+          "string nullable"
+        ],
+        [
+          "postalCode",
+          "string nullable"
+        ],
+        [
+          "point",
+          "geometry_Point_4326"
+        ],
+        [
+          "geocodeSource",
+          "string"
+        ],
+        [
+          "geocodeConfidence",
+          "decimal nullable"
+        ],
+        [
+          "normalizedSnapshot",
+          "json"
+        ]
+      ],
+      "constraints": "Exactly one customer, vendor or rider owner; store address vendor must match; ancestry checked; coordinates revalidated against active polygon at quote/checkout; customer address-book owner isolated",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Customer": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "userId",
+          "uuid UNIQUE"
+        ],
+        [
+          "locale",
+          "string"
+        ],
+        [
+          "defaultAddressId",
+          "uuid nullable"
+        ],
+        [
+          "riskStatus",
+          "CustomerRiskStatus"
+        ]
+      ],
+      "constraints": "No compulsory retail KYC; profile deletion does not erase legally retained financial records",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Vendor": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "legalName",
+          "string"
+        ],
+        [
+          "displayName",
+          "string"
+        ],
+        [
+          "ownerUserId",
+          "uuid"
+        ],
+        [
+          "businessType",
+          "VendorBusinessType"
+        ],
+        [
+          "status",
+          "VendorStatus"
+        ],
+        [
+          "kycCaseId",
+          "uuid nullable UNIQUE"
+        ],
+        [
+          "homeCountryId",
+          "uuid"
+        ],
+        [
+          "contactPhone",
+          "string"
+        ],
+        [
+          "slug",
+          "string UNIQUE"
+        ]
+      ],
+      "constraints": "Activation requires current KYC and authorized approval; one legal vendor can have multiple stores",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "VendorMembership": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "vendorId",
+          "uuid"
+        ],
+        [
+          "userId",
+          "uuid"
+        ],
+        [
+          "storeId",
+          "uuid nullable"
+        ],
+        [
+          "vendorRole",
+          "VendorRole"
+        ],
+        [
+          "status",
+          "MembershipStatus"
+        ]
+      ],
+      "constraints": "UNIQUE NULLS NOT DISTINCT(vendorId,userId,storeId); store staff limited to store; owner cannot read another vendor",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Store": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "vendorId",
+          "uuid"
+        ],
+        [
+          "name",
+          "string"
+        ],
+        [
+          "addressId",
+          "uuid"
+        ],
+        [
+          "pickupPoint",
+          "geometry_Point_4326"
+        ],
+        [
+          "cityId",
+          "uuid"
+        ],
+        [
+          "status",
+          "StoreStatus"
+        ],
+        [
+          "operatingHours",
+          "json"
+        ]
+      ],
+      "constraints": "Address and city ancestry match; pickup point verified; active KYC required",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "VendorServiceArea": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "storeId",
+          "uuid"
+        ],
+        [
+          "serviceZoneId",
+          "uuid"
+        ],
+        [
+          "active",
+          "boolean"
+        ],
+        [
+          "approvedBy",
+          "uuid"
+        ]
+      ],
+      "constraints": "UNIQUE(storeId,serviceZoneId); destination eligibility; same-country only initially",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Rider": {
+      "domain": "Delivery",
+      "fields": [
+        [
+          "userId",
+          "uuid UNIQUE"
+        ],
+        [
+          "status",
+          "RiderStatus"
+        ],
+        [
+          "kycCaseId",
+          "uuid nullable UNIQUE"
+        ],
+        [
+          "emergencyContactEncrypted",
+          "json"
+        ],
+        [
+          "addressId",
+          "uuid"
+        ],
+        [
+          "homeCityId",
+          "uuid"
+        ],
+        [
+          "capacity",
+          "int"
+        ]
+      ],
+      "constraints": "Capacity default 1 active delivery; current KYC and vehicle eligibility required",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "RiderServiceArea": {
+      "domain": "Delivery",
+      "fields": [
+        [
+          "riderId",
+          "uuid"
+        ],
+        [
+          "serviceZoneId",
+          "uuid"
+        ],
+        [
+          "approvedBy",
+          "uuid"
+        ],
+        [
+          "validFrom",
+          "datetime"
+        ],
+        [
+          "expiresAt",
+          "datetime nullable"
+        ],
+        [
+          "overrideReason",
+          "string nullable"
+        ]
+      ],
+      "constraints": "UNIQUE active grant; overrides audited and time-limited",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Vehicle": {
+      "domain": "Delivery",
+      "fields": [
+        [
+          "riderId",
+          "uuid"
+        ],
+        [
+          "type",
+          "VehicleType"
+        ],
+        [
+          "registrationNumberEncrypted",
+          "string nullable"
+        ],
+        [
+          "make",
+          "string nullable"
+        ],
+        [
+          "model",
+          "string nullable"
+        ],
+        [
+          "status",
+          "VehicleStatus"
+        ]
+      ],
+      "constraints": "Motor vehicles require applicable license/registration; bicycle does not",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "RiderShift": {
+      "domain": "Delivery",
+      "fields": [
+        [
+          "riderId",
+          "uuid"
+        ],
+        [
+          "startedAt",
+          "datetime"
+        ],
+        [
+          "endedAt",
+          "datetime nullable"
+        ],
+        [
+          "consentVersion",
+          "string"
+        ],
+        [
+          "startZoneId",
+          "uuid"
+        ],
+        [
+          "trackingState",
+          "TrackingState"
+        ]
+      ],
+      "constraints": "At most one open shift per rider; end shift blocked from new offers but active delivery finishes safely",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "RiderLocation": {
+      "domain": "Delivery",
+      "fields": [
+        [
+          "riderId",
+          "uuid"
+        ],
+        [
+          "shiftId",
+          "uuid"
+        ],
+        [
+          "deliveryId",
+          "uuid nullable"
+        ],
+        [
+          "point",
+          "geometry_Point_4326"
+        ],
+        [
+          "accuracyMeters",
+          "decimal"
+        ],
+        [
+          "recordedAt",
+          "datetime"
+        ],
+        [
+          "receivedAt",
+          "datetime"
+        ],
+        [
+          "source",
+          "LocationSource"
+        ],
+        [
+          "mockSignal",
+          "boolean nullable"
+        ]
+      ],
+      "constraints": "Append-only; GiST(riderId,recordedAt); active consent/shift required; raw retention proposed <=30 days",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "PayoutDestination": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "ownerType",
+          "PartyType"
+        ],
+        [
+          "ownerId",
+          "uuid"
+        ],
+        [
+          "rail",
+          "PayoutRail"
+        ],
+        [
+          "encryptedDetails",
+          "json"
+        ],
+        [
+          "displayMask",
+          "string"
+        ],
+        [
+          "verificationStatus",
+          "VerificationStatus"
+        ],
+        [
+          "verifiedAt",
+          "datetime nullable"
+        ],
+        [
+          "providerReference",
+          "string nullable"
+        ],
+        [
+          "active",
+          "boolean"
+        ]
+      ],
+      "constraints": "Never exposed in full to ordinary admin; ownership proof + verification; change triggers payout cooldown/step-up",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "KYCCase": {
+      "domain": "Verification",
+      "fields": [
+        [
+          "subjectType",
+          "PartyType"
+        ],
+        [
+          "subjectId",
+          "uuid"
+        ],
+        [
+          "status",
+          "KYCStatus"
+        ],
+        [
+          "policyVersion",
+          "string"
+        ],
+        [
+          "level",
+          "KYCLevel"
+        ],
+        [
+          "submittedAt",
+          "datetime nullable"
+        ],
+        [
+          "expiresAt",
+          "datetime nullable"
+        ],
+        [
+          "assignedReviewerId",
+          "uuid nullable"
+        ]
+      ],
+      "constraints": "One open case per subject/version; status separate from account suspension; no self approval",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "VendorKYC": {
+      "domain": "Verification",
+      "fields": [
+        [
+          "caseId",
+          "uuid UNIQUE"
+        ],
+        [
+          "vendorId",
+          "uuid"
+        ],
+        [
+          "businessInformation",
+          "json"
+        ],
+        [
+          "representativeInformationEncrypted",
+          "json"
+        ],
+        [
+          "businessAddressId",
+          "uuid"
+        ]
+      ],
+      "constraints": "Individual/company conditional document policy; payout destination verified separately",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "RiderKYC": {
+      "domain": "Verification",
+      "fields": [
+        [
+          "caseId",
+          "uuid UNIQUE"
+        ],
+        [
+          "riderId",
+          "uuid"
+        ],
+        [
+          "identityProfile",
+          "json"
+        ],
+        [
+          "vehicleId",
+          "uuid nullable"
+        ],
+        [
+          "addressVerifiedAt",
+          "datetime nullable"
+        ]
+      ],
+      "constraints": "Motor-vehicle conditional requirements; no unnecessary biometrics",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "AdminKYC": {
+      "domain": "Verification",
+      "fields": [
+        [
+          "caseId",
+          "uuid UNIQUE"
+        ],
+        [
+          "userId",
+          "uuid"
+        ],
+        [
+          "identityVerifiedAt",
+          "datetime nullable"
+        ],
+        [
+          "approvedBy",
+          "uuid nullable"
+        ],
+        [
+          "provisioningStatus",
+          "ProvisioningStatus"
+        ]
+      ],
+      "constraints": "Super Admin approval; bootstrap superadmins use offline two-person ceremony",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "KYCDocument": {
+      "domain": "Verification",
+      "fields": [
+        [
+          "caseId",
+          "uuid"
+        ],
+        [
+          "documentType",
+          "DocumentType"
+        ],
+        [
+          "storageKey",
+          "string UNIQUE"
+        ],
+        [
+          "contentHash",
+          "bytes"
+        ],
+        [
+          "mimeType",
+          "string"
+        ],
+        [
+          "sizeBytes",
+          "int"
+        ],
+        [
+          "scanStatus",
+          "ScanStatus"
+        ],
+        [
+          "encryptedNumber",
+          "json nullable"
+        ],
+        [
+          "issuingCountry",
+          "string"
+        ],
+        [
+          "expiresOn",
+          "date nullable"
+        ],
+        [
+          "status",
+          "DocumentStatus"
+        ],
+        [
+          "uploadedBy",
+          "uuid"
+        ],
+        [
+          "uploadChannel",
+          "UploadChannel"
+        ]
+      ],
+      "constraints": "Private quarantine bucket; object not publicly readable; document checksum and expiry; consent required",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "KYCReview": {
+      "domain": "Verification",
+      "fields": [
+        [
+          "caseId",
+          "uuid"
+        ],
+        [
+          "documentId",
+          "uuid nullable"
+        ],
+        [
+          "reviewerId",
+          "uuid"
+        ],
+        [
+          "decision",
+          "ReviewDecision"
+        ],
+        [
+          "reasons",
+          "json"
+        ],
+        [
+          "verificationMethod",
+          "VerificationMethod"
+        ],
+        [
+          "authorizedSourceReference",
+          "string nullable"
+        ],
+        [
+          "occurredAt",
+          "datetime"
+        ]
+      ],
+      "constraints": "Append-only; reviewer cannot be subject/uploader for same approval; source and evidence recorded",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Category": {
+      "domain": "Catalog",
+      "fields": [
+        [
+          "parentId",
+          "uuid nullable"
+        ],
+        [
+          "slug",
+          "string UNIQUE"
+        ],
+        [
+          "nameTranslations",
+          "json"
+        ],
+        [
+          "sortOrder",
+          "int"
+        ],
+        [
+          "status",
+          "CategoryStatus"
+        ],
+        [
+          "requiredPermits",
+          "json"
+        ]
+      ],
+      "constraints": "No category cycles; regulated goods feature-gated",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Product": {
+      "domain": "Catalog",
+      "fields": [
+        [
+          "vendorId",
+          "uuid"
+        ],
+        [
+          "categoryId",
+          "uuid"
+        ],
+        [
+          "title",
+          "string"
+        ],
+        [
+          "description",
+          "string"
+        ],
+        [
+          "brand",
+          "string nullable"
+        ],
+        [
+          "status",
+          "ProductStatus"
+        ],
+        [
+          "moderationState",
+          "ModerationState"
+        ],
+        [
+          "attributes",
+          "json"
+        ],
+        [
+          "version",
+          "int"
+        ]
+      ],
+      "constraints": "Vendor ownership enforced; publication requires approved vendor and product moderation",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "ProductVariant": {
+      "domain": "Catalog",
+      "fields": [
+        [
+          "productId",
+          "uuid"
+        ],
+        [
+          "sku",
+          "string"
+        ],
+        [
+          "optionValues",
+          "json"
+        ],
+        [
+          "priceAmount",
+          "bigint"
+        ],
+        [
+          "compareAtAmount",
+          "bigint nullable"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "weightGrams",
+          "int nullable"
+        ],
+        [
+          "active",
+          "boolean"
+        ],
+        [
+          "version",
+          "int"
+        ]
+      ],
+      "constraints": "UNIQUE(productId,sku); vendor-wide SKU policy enforced in command if required; nonnegative integer minor units; price history audited",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "ProductImage": {
+      "domain": "Catalog",
+      "fields": [
+        [
+          "productId",
+          "uuid"
+        ],
+        [
+          "variantId",
+          "uuid nullable"
+        ],
+        [
+          "storageKey",
+          "string"
+        ],
+        [
+          "altText",
+          "string"
+        ],
+        [
+          "sortOrder",
+          "int"
+        ],
+        [
+          "width",
+          "int"
+        ],
+        [
+          "height",
+          "int"
+        ],
+        [
+          "checksum",
+          "bytes"
+        ]
+      ],
+      "constraints": "Moderated media; no SVG/active content; approved CDN public product assets only",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Inventory": {
+      "domain": "Catalog",
+      "fields": [
+        [
+          "variantId",
+          "uuid"
+        ],
+        [
+          "storeId",
+          "uuid"
+        ],
+        [
+          "onHand",
+          "int"
+        ],
+        [
+          "reserved",
+          "int"
+        ],
+        [
+          "reorderLevel",
+          "int"
+        ],
+        [
+          "version",
+          "int"
+        ]
+      ],
+      "constraints": "UNIQUE(variantId,storeId); onHand>=reserved>=0; updates locked/versioned",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "InventoryReservation": {
+      "domain": "Catalog",
+      "fields": [
+        [
+          "variantId",
+          "uuid"
+        ],
+        [
+          "storeId",
+          "uuid"
+        ],
+        [
+          "quoteId",
+          "uuid"
+        ],
+        [
+          "quantity",
+          "int"
+        ],
+        [
+          "expiresAt",
+          "datetime"
+        ],
+        [
+          "state",
+          "ReservationState"
+        ]
+      ],
+      "constraints": "Positive quantity; idempotent checkout reservation; expiry releases stock; no negative inventory",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Wishlist": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "customerId",
+          "uuid"
+        ],
+        [
+          "name",
+          "string"
+        ]
+      ],
+      "constraints": "Owner-scoped; unique default list",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "WishlistItem": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "wishlistId",
+          "uuid"
+        ],
+        [
+          "productId",
+          "uuid"
+        ]
+      ],
+      "constraints": "UNIQUE(wishlistId,productId)",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Cart": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "customerId",
+          "uuid nullable"
+        ],
+        [
+          "guestTokenHash",
+          "bytes nullable"
+        ],
+        [
+          "destinationAddressSnapshot",
+          "json nullable"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "version",
+          "int"
+        ]
+      ],
+      "constraints": "Exactly one owner kind; merge only after authenticated ownership proof; never trust client totals",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "CartItem": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "cartId",
+          "uuid"
+        ],
+        [
+          "variantId",
+          "uuid"
+        ],
+        [
+          "storeId",
+          "uuid"
+        ],
+        [
+          "quantity",
+          "int"
+        ],
+        [
+          "addedAt",
+          "datetime"
+        ]
+      ],
+      "constraints": "UNIQUE(cartId,variantId,storeId); quantity >0; revalidate price/stock/destination",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "CheckoutQuote": {
+      "domain": "Orders",
+      "fields": [
+        [
+          "checkoutId",
+          "uuid UNIQUE"
+        ],
+        [
+          "customerId",
+          "uuid"
+        ],
+        [
+          "recipientSnapshot",
+          "json"
+        ],
+        [
+          "destinationAddressSnapshot",
+          "json"
+        ],
+        [
+          "destinationZoneId",
+          "uuid"
+        ],
+        [
+          "totals",
+          "json"
+        ],
+        [
+          "groupQuotes",
+          "json"
+        ],
+        [
+          "pricingVersion",
+          "string"
+        ],
+        [
+          "expiresAt",
+          "datetime"
+        ],
+        [
+          "quoteHash",
+          "bytes"
+        ]
+      ],
+      "constraints": "Server computed; country equality; expiry; binding quote hash; buyer GPS not a destination filter",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "OrderRecipient": {
+      "domain": "Orders",
+      "fields": [
+        [
+          "orderId",
+          "uuid UNIQUE"
+        ],
+        [
+          "name",
+          "string"
+        ],
+        [
+          "phoneEncrypted",
+          "string"
+        ],
+        [
+          "phoneHash",
+          "bytes"
+        ],
+        [
+          "addressSnapshot",
+          "json"
+        ],
+        [
+          "destinationZoneId",
+          "uuid"
+        ],
+        [
+          "verificationStatus",
+          "VerificationStatus"
+        ]
+      ],
+      "constraints": "Separate from buyer; restricted contact fields; snapshot survives address-book edits",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Order": {
+      "domain": "Orders",
+      "fields": [
+        [
+          "publicReference",
+          "string UNIQUE"
+        ],
+        [
+          "buyerId",
+          "uuid"
+        ],
+        [
+          "countryId",
+          "uuid"
+        ],
+        [
+          "destinationCountryId",
+          "uuid"
+        ],
+        [
+          "destinationZoneId",
+          "uuid"
+        ],
+        [
+          "status",
+          "ParentOrderStatus"
+        ],
+        [
+          "subtotalAmount",
+          "bigint"
+        ],
+        [
+          "deliveryFeeAmount",
+          "bigint"
+        ],
+        [
+          "discountAmount",
+          "bigint"
+        ],
+        [
+          "taxAmount",
+          "bigint"
+        ],
+        [
+          "totalAmount",
+          "bigint"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "pricingSnapshot",
+          "json"
+        ],
+        [
+          "riskCaseId",
+          "uuid nullable"
+        ],
+        [
+          "idempotencyKey",
+          "string"
+        ],
+        [
+          "version",
+          "int"
+        ]
+      ],
+      "constraints": "UNIQUE(buyerId,idempotencyKey); total equation; same buyer/recipient country initially; parent aggregates suborders",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "VendorSuborder": {
+      "domain": "Orders",
+      "fields": [
+        [
+          "orderId",
+          "uuid"
+        ],
+        [
+          "vendorId",
+          "uuid"
+        ],
+        [
+          "storeId",
+          "uuid"
+        ],
+        [
+          "destinationZoneId",
+          "uuid"
+        ],
+        [
+          "publicReference",
+          "string UNIQUE"
+        ],
+        [
+          "status",
+          "SuborderStatus"
+        ],
+        [
+          "preparationMinutes",
+          "int nullable"
+        ],
+        [
+          "readyConfirmedBy",
+          "uuid nullable"
+        ],
+        [
+          "readyConfirmedAt",
+          "datetime nullable"
+        ],
+        [
+          "subtotalAmount",
+          "bigint"
+        ],
+        [
+          "allocatedDeliveryAmount",
+          "bigint"
+        ],
+        [
+          "allocatedDiscountAmount",
+          "bigint"
+        ],
+        [
+          "taxAmount",
+          "bigint"
+        ],
+        [
+          "totalAmount",
+          "bigint"
+        ],
+        [
+          "version",
+          "int"
+        ]
+      ],
+      "constraints": "UNIQUE(orderId,vendorId,storeId); manual ready transition; vendors read only their own suborders",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "OrderItem": {
+      "domain": "Orders",
+      "fields": [
+        [
+          "suborder_id",
+          "uuid"
+        ],
+        [
+          "variantId",
+          "uuid"
+        ],
+        [
+          "productSnapshot",
+          "json"
+        ],
+        [
+          "quantity",
+          "int"
+        ],
+        [
+          "unitPriceAmount",
+          "bigint"
+        ],
+        [
+          "lineDiscountAmount",
+          "bigint"
+        ],
+        [
+          "taxAmount",
+          "bigint"
+        ],
+        [
+          "lineTotalAmount",
+          "bigint"
+        ],
+        [
+          "commissionSnapshotId",
+          "uuid nullable"
+        ]
+      ],
+      "constraints": "Quantity >0; immutable price/title/sku snapshot; partial cancellation by quantity",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "OrderStatusEvent": {
+      "domain": "Orders",
+      "fields": [
+        [
+          "orderId",
+          "uuid nullable"
+        ],
+        [
+          "suborderId",
+          "uuid nullable"
+        ],
+        [
+          "fromStatus",
+          "string nullable"
+        ],
+        [
+          "toStatus",
+          "string"
+        ],
+        [
+          "actorId",
+          "uuid nullable"
+        ],
+        [
+          "reason",
+          "string nullable"
+        ],
+        [
+          "commandId",
+          "string UNIQUE"
+        ],
+        [
+          "occurredAt",
+          "datetime"
+        ]
+      ],
+      "constraints": "Exactly one order or suborder reference; append-only transition history; valid state machine enforced in service",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Delivery": {
+      "domain": "Delivery",
+      "fields": [
+        [
+          "suborderId",
+          "uuid"
+        ],
+        [
+          "attemptNumber",
+          "int"
+        ],
+        [
+          "pickupStoreId",
+          "uuid"
+        ],
+        [
+          "destinationZoneId",
+          "uuid"
+        ],
+        [
+          "recipientId",
+          "uuid"
+        ],
+        [
+          "status",
+          "DeliveryStatus"
+        ],
+        [
+          "assignedRiderId",
+          "uuid nullable"
+        ],
+        [
+          "routeSnapshotId",
+          "uuid nullable"
+        ],
+        [
+          "rateSnapshotId",
+          "uuid nullable"
+        ],
+        [
+          "pickupConfirmedAt",
+          "datetime nullable"
+        ],
+        [
+          "deliveredAt",
+          "datetime nullable"
+        ],
+        [
+          "completedAt",
+          "datetime nullable"
+        ],
+        [
+          "codAmount",
+          "bigint"
+        ],
+        [
+          "version",
+          "int"
+        ]
+      ],
+      "constraints": "UNIQUE(suborderId,attemptNumber); one current nonterminal delivery per suborder by partial unique index; replacement preserves prior attempts; completion requires proof and COD accounting",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "DeliveryRouteSnapshot": {
+      "domain": "Delivery",
+      "fields": [
+        [
+          "deliveryId",
+          "uuid nullable"
+        ],
+        [
+          "purpose",
+          "RoutePurpose"
+        ],
+        [
+          "originPoint",
+          "geometry_Point_4326"
+        ],
+        [
+          "destinationPoint",
+          "geometry_Point_4326"
+        ],
+        [
+          "distanceMeters",
+          "int"
+        ],
+        [
+          "durationSeconds",
+          "int nullable"
+        ],
+        [
+          "routingMethod",
+          "string"
+        ],
+        [
+          "provider",
+          "string"
+        ],
+        [
+          "providerRouteReference",
+          "string nullable"
+        ],
+        [
+          "capturedAt",
+          "datetime"
+        ],
+        [
+          "expiresAt",
+          "datetime nullable"
+        ]
+      ],
+      "constraints": "Road-route evidence; no silent straight-line fallback; earnings route is store-to-recipient",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "RiderRateRule": {
+      "domain": "Delivery",
+      "fields": [
+        [
+          "countryId",
+          "uuid"
+        ],
+        [
+          "cityId",
+          "uuid nullable"
+        ],
+        [
+          "serviceZoneId",
+          "uuid nullable"
+        ],
+        [
+          "version",
+          "int"
+        ],
+        [
+          "effectiveFrom",
+          "datetime"
+        ],
+        [
+          "effectiveTo",
+          "datetime nullable"
+        ],
+        [
+          "status",
+          "RuleStatus"
+        ],
+        [
+          "minimumAmount",
+          "bigint"
+        ],
+        [
+          "maximumAmount",
+          "bigint nullable"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "routingMethod",
+          "string"
+        ],
+        [
+          "createdBy",
+          "uuid"
+        ]
+      ],
+      "constraints": "No overlapping active versions for same scope/effective interval; future edits immutable version; approved scope precedence",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "RiderRateSlab": {
+      "domain": "Delivery",
+      "fields": [
+        [
+          "rateRuleId",
+          "uuid"
+        ],
+        [
+          "lowerMeters",
+          "int"
+        ],
+        [
+          "upperMeters",
+          "int nullable"
+        ],
+        [
+          "paymentAmount",
+          "bigint"
+        ]
+      ],
+      "constraints": "Lower inclusive, upper exclusive; no gaps/overlaps within rule; last upper nullable only with approved policy",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "RiderRateSnapshot": {
+      "domain": "Delivery",
+      "fields": [
+        [
+          "deliveryId",
+          "uuid"
+        ],
+        [
+          "assignmentId",
+          "uuid UNIQUE"
+        ],
+        [
+          "rateRuleId",
+          "uuid"
+        ],
+        [
+          "rateVersion",
+          "int"
+        ],
+        [
+          "distanceMeters",
+          "int"
+        ],
+        [
+          "routeSnapshotId",
+          "uuid"
+        ],
+        [
+          "slabSnapshot",
+          "json"
+        ],
+        [
+          "payableAmount",
+          "bigint"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "policyBasis",
+          "string"
+        ],
+        [
+          "capturedAt",
+          "datetime"
+        ]
+      ],
+      "constraints": "One snapshot per accepted assignment; captured atomically on final rider acceptance by default; later rate/route changes do not rewrite history",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "RiderAssignment": {
+      "domain": "Delivery",
+      "fields": [
+        [
+          "deliveryId",
+          "uuid"
+        ],
+        [
+          "riderId",
+          "uuid"
+        ],
+        [
+          "offerId",
+          "uuid nullable UNIQUE"
+        ],
+        [
+          "assignmentMode",
+          "AssignmentMode"
+        ],
+        [
+          "authorizedBy",
+          "uuid nullable"
+        ],
+        [
+          "reason",
+          "string nullable"
+        ],
+        [
+          "acceptedAt",
+          "datetime"
+        ],
+        [
+          "releasedAt",
+          "datetime nullable"
+        ],
+        [
+          "releaseReason",
+          "string nullable"
+        ],
+        [
+          "rateSnapshotId",
+          "uuid nullable"
+        ]
+      ],
+      "constraints": "Partial UNIQUE(deliveryId) WHERE releasedAt IS NULL; rider capacity checked under lock; manual mode requires authorized actor/reason and same eligibility",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "DeliveryOffer": {
+      "domain": "Delivery",
+      "fields": [
+        [
+          "deliveryId",
+          "uuid"
+        ],
+        [
+          "riderId",
+          "uuid"
+        ],
+        [
+          "attempt",
+          "int"
+        ],
+        [
+          "sequenceTokenHash",
+          "bytes UNIQUE"
+        ],
+        [
+          "status",
+          "OfferStatus"
+        ],
+        [
+          "offeredAt",
+          "datetime"
+        ],
+        [
+          "expiresAt",
+          "datetime"
+        ],
+        [
+          "respondedAt",
+          "datetime nullable"
+        ],
+        [
+          "roadDistanceMeters",
+          "int"
+        ]
+      ],
+      "constraints": "UNIQUE(deliveryId,attempt); partial UNIQUE(deliveryId) WHERE status=OFFERED; 30-second database-time expiry",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "DeliveryProof": {
+      "domain": "Delivery",
+      "fields": [
+        [
+          "deliveryId",
+          "uuid UNIQUE"
+        ],
+        [
+          "method",
+          "RecipientOTP"
+        ],
+        [
+          "recipientPhoneHash",
+          "bytes"
+        ],
+        [
+          "otpHash",
+          "bytes"
+        ],
+        [
+          "otpExpiresAt",
+          "datetime"
+        ],
+        [
+          "attempts",
+          "int"
+        ],
+        [
+          "verifiedAt",
+          "datetime nullable"
+        ],
+        [
+          "verifiedByRiderId",
+          "uuid nullable"
+        ],
+        [
+          "fallbackReviewId",
+          "uuid nullable"
+        ]
+      ],
+      "constraints": "Hash OTP with server pepper; short TTL and attempt cap; rider submits but cannot mint/read code; only designated recipient receives code; fallback separately authorized",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "DeliveryException": {
+      "domain": "Delivery",
+      "fields": [
+        [
+          "deliveryId",
+          "uuid"
+        ],
+        [
+          "kind",
+          "DeliveryExceptionKind"
+        ],
+        [
+          "reportedBy",
+          "uuid"
+        ],
+        [
+          "reason",
+          "string"
+        ],
+        [
+          "evidenceObjectKeys",
+          "json"
+        ],
+        [
+          "status",
+          "ExceptionStatus"
+        ],
+        [
+          "reviewedBy",
+          "uuid nullable"
+        ],
+        [
+          "resolution",
+          "string nullable"
+        ],
+        [
+          "reviewedAt",
+          "datetime nullable"
+        ]
+      ],
+      "constraints": "Append-only decision history via audit; OTP fallback/failed delivery/return requires authorized review; never silently marks delivered",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "CODCollection": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "deliveryId",
+          "uuid UNIQUE"
+        ],
+        [
+          "riderId",
+          "uuid"
+        ],
+        [
+          "expectedAmount",
+          "bigint"
+        ],
+        [
+          "collectedAmount",
+          "bigint"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "confirmedAt",
+          "datetime"
+        ],
+        [
+          "receiptReference",
+          "string UNIQUE"
+        ],
+        [
+          "journalId",
+          "uuid"
+        ]
+      ],
+      "constraints": "Cash collection is a liability, not rider earnings; discrepancy creates review case",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "CODDeposit": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "riderId",
+          "uuid"
+        ],
+        [
+          "method",
+          "CODDepositMethod"
+        ],
+        [
+          "amount",
+          "bigint"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "depositorReference",
+          "string nullable"
+        ],
+        [
+          "merchantAccountReference",
+          "string nullable"
+        ],
+        [
+          "evidenceObjectKey",
+          "string nullable"
+        ],
+        [
+          "status",
+          "DepositStatus"
+        ],
+        [
+          "submittedAt",
+          "datetime"
+        ],
+        [
+          "verifiedBy",
+          "uuid nullable"
+        ],
+        [
+          "verifiedAt",
+          "datetime nullable"
+        ],
+        [
+          "journalId",
+          "uuid nullable"
+        ]
+      ],
+      "constraints": "Unverified deposit never reduces due balance; unique verified external reference; no screenshot-only confirmation",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "CODAllocation": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "depositId",
+          "uuid"
+        ],
+        [
+          "collectionId",
+          "uuid"
+        ],
+        [
+          "amount",
+          "bigint"
+        ]
+      ],
+      "constraints": "Verified deposit allocations cannot exceed deposit or collection outstanding; append-only reversal links",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "PaymentProviderAccount": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "countryId",
+          "uuid"
+        ],
+        [
+          "providerKey",
+          "string"
+        ],
+        [
+          "merchantReference",
+          "string"
+        ],
+        [
+          "encryptedCredentials",
+          "json"
+        ],
+        [
+          "capabilities",
+          "json"
+        ],
+        [
+          "contractReference",
+          "string"
+        ],
+        [
+          "status",
+          "ProviderStatus"
+        ]
+      ],
+      "constraints": "No credentials in frontend; live disabled until contract/capability/security gates",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Payment": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "orderId",
+          "uuid"
+        ],
+        [
+          "providerAccountId",
+          "uuid nullable"
+        ],
+        [
+          "method",
+          "PaymentMethod"
+        ],
+        [
+          "status",
+          "PaymentStatus"
+        ],
+        [
+          "amount",
+          "bigint"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "merchantReference",
+          "string"
+        ],
+        [
+          "providerTransactionReference",
+          "string nullable"
+        ],
+        [
+          "idempotencyKey",
+          "string UNIQUE"
+        ],
+        [
+          "verifiedAt",
+          "datetime nullable"
+        ],
+        [
+          "journalId",
+          "uuid nullable"
+        ]
+      ],
+      "constraints": "UNIQUE(providerAccountId,providerTransactionReference) where present; exact amount/currency/order validation",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "PaymentEvent": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "providerAccountId",
+          "uuid"
+        ],
+        [
+          "providerEventKey",
+          "string"
+        ],
+        [
+          "paymentId",
+          "uuid nullable"
+        ],
+        [
+          "eventType",
+          "string"
+        ],
+        [
+          "payloadHash",
+          "bytes"
+        ],
+        [
+          "redactedPayload",
+          "json"
+        ],
+        [
+          "verificationStatus",
+          "EventVerificationStatus"
+        ],
+        [
+          "receivedAt",
+          "datetime"
+        ],
+        [
+          "processedAt",
+          "datetime nullable"
+        ]
+      ],
+      "constraints": "UNIQUE(providerAccountId,providerEventKey); raw sensitive data minimized; replay safe",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Refund": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "orderId",
+          "uuid"
+        ],
+        [
+          "suborderId",
+          "uuid nullable"
+        ],
+        [
+          "paymentId",
+          "uuid nullable"
+        ],
+        [
+          "amount",
+          "bigint"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "reason",
+          "string"
+        ],
+        [
+          "status",
+          "RefundStatus"
+        ],
+        [
+          "approvedBy",
+          "uuid nullable"
+        ],
+        [
+          "providerReference",
+          "string nullable"
+        ],
+        [
+          "idempotencyKey",
+          "string UNIQUE"
+        ],
+        [
+          "journalId",
+          "uuid nullable"
+        ]
+      ],
+      "constraints": "Approved amount <= refundable balance; COD refund destination verified; provider acceptance is not completion",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Chargeback": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "paymentId",
+          "uuid"
+        ],
+        [
+          "providerCaseReference",
+          "string"
+        ],
+        [
+          "amount",
+          "bigint"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "status",
+          "ChargebackStatus"
+        ],
+        [
+          "evidenceDueAt",
+          "datetime nullable"
+        ],
+        [
+          "journalId",
+          "uuid nullable"
+        ]
+      ],
+      "constraints": "UNIQUE(paymentId,providerCaseReference); ledger reversal not payment-row overwrite",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "CommissionRule": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "countryId",
+          "uuid"
+        ],
+        [
+          "cityId",
+          "uuid nullable"
+        ],
+        [
+          "serviceZoneId",
+          "uuid nullable"
+        ],
+        [
+          "vendorId",
+          "uuid nullable"
+        ],
+        [
+          "categoryId",
+          "uuid nullable"
+        ],
+        [
+          "orderType",
+          "string nullable"
+        ],
+        [
+          "kind",
+          "CommissionKind"
+        ],
+        [
+          "percentageBps",
+          "int nullable"
+        ],
+        [
+          "fixedAmount",
+          "bigint nullable"
+        ],
+        [
+          "basis",
+          "CommissionBasis"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "version",
+          "int"
+        ],
+        [
+          "effectiveFrom",
+          "datetime"
+        ],
+        [
+          "status",
+          "RuleStatus"
+        ]
+      ],
+      "constraints": "Explicit precedence and overlap validation; default product subtotal excludes delivery; percent 0..10000",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "CommissionSnapshot": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "ruleId",
+          "uuid"
+        ],
+        [
+          "ruleVersion",
+          "int"
+        ],
+        [
+          "suborderId",
+          "uuid"
+        ],
+        [
+          "basisAmount",
+          "bigint"
+        ],
+        [
+          "commissionAmount",
+          "bigint"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "policy",
+          "string"
+        ],
+        [
+          "capturedAt",
+          "datetime"
+        ]
+      ],
+      "constraints": "UNIQUE(suborderId,policy); historical rule immutable; partial refund prorates by approved policy",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "LedgerAccount": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "ownerType",
+          "LedgerOwnerType"
+        ],
+        [
+          "ownerId",
+          "uuid nullable"
+        ],
+        [
+          "purpose",
+          "LedgerPurpose"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "normalSide",
+          "DebitOrCredit"
+        ],
+        [
+          "code",
+          "string UNIQUE"
+        ]
+      ],
+      "constraints": "Separate vendor receivable, rider earnings, COD custody, clearing, payout reserve and platform accounts",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "JournalEntry": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "businessEventKey",
+          "string UNIQUE"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "kind",
+          "JournalKind"
+        ],
+        [
+          "occurredAt",
+          "datetime"
+        ],
+        [
+          "effectiveAt",
+          "datetime"
+        ],
+        [
+          "createdBy",
+          "uuid"
+        ],
+        [
+          "reversalOfId",
+          "uuid nullable"
+        ],
+        [
+          "referenceType",
+          "string"
+        ],
+        [
+          "referenceId",
+          "uuid"
+        ],
+        [
+          "metadata",
+          "json"
+        ]
+      ],
+      "constraints": "Append-only; all lines and accounts match journal currency; business event unique; corrections via reversal",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "LedgerLine": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "journalId",
+          "uuid"
+        ],
+        [
+          "lineNumber",
+          "int"
+        ],
+        [
+          "accountId",
+          "uuid"
+        ],
+        [
+          "side",
+          "DebitOrCredit"
+        ],
+        [
+          "amountMinor",
+          "bigint"
+        ],
+        [
+          "referenceType",
+          "string nullable"
+        ],
+        [
+          "referenceId",
+          "uuid nullable"
+        ]
+      ],
+      "constraints": "UNIQUE(journalId,lineNumber); amount >0; deferred constraint SUM(debits)=SUM(credits); no UPDATE/DELETE",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "LedgerBalanceSnapshot": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "accountId",
+          "uuid"
+        ],
+        [
+          "asOfJournalId",
+          "uuid"
+        ],
+        [
+          "balanceMinor",
+          "bigint"
+        ],
+        [
+          "version",
+          "int"
+        ],
+        [
+          "calculatedAt",
+          "datetime"
+        ]
+      ],
+      "constraints": "Rebuildable projection, not source of truth; reconcile to immutable lines",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Payout": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "riderId",
+          "uuid"
+        ],
+        [
+          "destinationId",
+          "uuid"
+        ],
+        [
+          "periodStart",
+          "datetime"
+        ],
+        [
+          "periodEnd",
+          "datetime"
+        ],
+        [
+          "scheduleKey",
+          "string"
+        ],
+        [
+          "amount",
+          "bigint"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "mode",
+          "PayoutMode"
+        ],
+        [
+          "status",
+          "PayoutStatus"
+        ],
+        [
+          "approvedBy",
+          "uuid nullable"
+        ],
+        [
+          "reservedJournalId",
+          "uuid nullable"
+        ],
+        [
+          "completedJournalId",
+          "uuid nullable"
+        ],
+        [
+          "version",
+          "int"
+        ]
+      ],
+      "constraints": "UNIQUE(riderId,periodStart,periodEnd,scheduleKey); business payout stable across attempts; reserve before send; unknown result reconciles same attempt",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "PayoutItem": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "payoutId",
+          "uuid"
+        ],
+        [
+          "deliveryId",
+          "uuid"
+        ],
+        [
+          "earningJournalId",
+          "uuid"
+        ],
+        [
+          "grossAmount",
+          "bigint"
+        ],
+        [
+          "approvedAdjustmentAmount",
+          "bigint"
+        ],
+        [
+          "netAmount",
+          "bigint"
+        ]
+      ],
+      "constraints": "UNIQUE(deliveryId) and UNIQUE(earningJournalId); earning allocated once; failed attempt does not allocate it again; transparent COD adjustment journal if policy permits",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Settlement": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "vendorId",
+          "uuid"
+        ],
+        [
+          "destinationId",
+          "uuid"
+        ],
+        [
+          "periodStart",
+          "datetime"
+        ],
+        [
+          "periodEnd",
+          "datetime"
+        ],
+        [
+          "grossAmount",
+          "bigint"
+        ],
+        [
+          "commissionAmount",
+          "bigint"
+        ],
+        [
+          "refundAmount",
+          "bigint"
+        ],
+        [
+          "adjustmentAmount",
+          "bigint"
+        ],
+        [
+          "netAmount",
+          "bigint"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "status",
+          "SettlementStatus"
+        ],
+        [
+          "approvedBy",
+          "uuid nullable"
+        ],
+        [
+          "version",
+          "int"
+        ]
+      ],
+      "constraints": "Net equation; verified destination; maker-checker; no double settlement; direct acquirer settlement reconciled separately",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "SettlementItem": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "settlementId",
+          "uuid"
+        ],
+        [
+          "suborderId",
+          "uuid"
+        ],
+        [
+          "journalId",
+          "uuid"
+        ],
+        [
+          "amount",
+          "bigint"
+        ]
+      ],
+      "constraints": "UNIQUE(suborderId); initial release settles each eligible suborder once; later adjustments use reversals; failed transfer retries same settlement",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "ReconciliationRecord": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "kind",
+          "ReconciliationKind"
+        ],
+        [
+          "sourceReference",
+          "string"
+        ],
+        [
+          "internalReference",
+          "string"
+        ],
+        [
+          "expectedAmount",
+          "bigint"
+        ],
+        [
+          "actualAmount",
+          "bigint"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "status",
+          "ReconciliationStatus"
+        ],
+        [
+          "reviewedBy",
+          "uuid nullable"
+        ],
+        [
+          "evidence",
+          "json"
+        ]
+      ],
+      "constraints": "Daily provider/bank/COD/ledger checks; unmatched/unknown items escalated",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "FraudCase": {
+      "domain": "Trust",
+      "fields": [
+        [
+          "subjectType",
+          "string"
+        ],
+        [
+          "subjectId",
+          "uuid"
+        ],
+        [
+          "orderId",
+          "uuid nullable"
+        ],
+        [
+          "score",
+          "int"
+        ],
+        [
+          "reasons",
+          "json"
+        ],
+        [
+          "policyVersion",
+          "string"
+        ],
+        [
+          "status",
+          "FraudStatus"
+        ],
+        [
+          "assignedReviewerId",
+          "uuid nullable"
+        ],
+        [
+          "holdExpiresAt",
+          "datetime nullable"
+        ]
+      ],
+      "constraints": "Score 0..100; VPN alone insufficient for rejection; evidence preserved separately",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "FraudEvidence": {
+      "domain": "Trust",
+      "fields": [
+        [
+          "caseId",
+          "uuid"
+        ],
+        [
+          "signal",
+          "string"
+        ],
+        [
+          "valueRedacted",
+          "json"
+        ],
+        [
+          "source",
+          "string"
+        ],
+        [
+          "observedAt",
+          "datetime"
+        ],
+        [
+          "restrictedObjectKey",
+          "string nullable"
+        ]
+      ],
+      "constraints": "Least-data evidence; no covert communications or device scraping",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "FraudDecision": {
+      "domain": "Trust",
+      "fields": [
+        [
+          "caseId",
+          "uuid"
+        ],
+        [
+          "reviewerId",
+          "uuid nullable"
+        ],
+        [
+          "decision",
+          "FraudAction"
+        ],
+        [
+          "reason",
+          "string"
+        ],
+        [
+          "automated",
+          "boolean"
+        ],
+        [
+          "occurredAt",
+          "datetime"
+        ]
+      ],
+      "constraints": "Append-only; reject confirmed fraud requires evidence and authorized policy/human review",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "ReturnRequest": {
+      "domain": "Orders",
+      "fields": [
+        [
+          "orderId",
+          "uuid"
+        ],
+        [
+          "suborderId",
+          "uuid"
+        ],
+        [
+          "customerId",
+          "uuid"
+        ],
+        [
+          "status",
+          "ReturnStatus"
+        ],
+        [
+          "reason",
+          "string"
+        ],
+        [
+          "requestedItems",
+          "json"
+        ],
+        [
+          "evidenceObjectKeys",
+          "json"
+        ],
+        [
+          "approvedBy",
+          "uuid nullable"
+        ],
+        [
+          "refundId",
+          "uuid nullable"
+        ]
+      ],
+      "constraints": "Only eligible order items; vendor sees own request; return and refund states separate",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Review": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "customerId",
+          "uuid"
+        ],
+        [
+          "productId",
+          "uuid"
+        ],
+        [
+          "orderItemId",
+          "uuid UNIQUE"
+        ],
+        [
+          "rating",
+          "int"
+        ],
+        [
+          "body",
+          "string"
+        ],
+        [
+          "status",
+          "ReviewStatus"
+        ],
+        [
+          "verifiedPurchase",
+          "boolean"
+        ]
+      ],
+      "constraints": "Rating 1..5; verified purchase derived server-side; moderation audit",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "SupportTicket": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "requesterId",
+          "uuid"
+        ],
+        [
+          "subjectType",
+          "string"
+        ],
+        [
+          "subjectId",
+          "uuid nullable"
+        ],
+        [
+          "category",
+          "string"
+        ],
+        [
+          "status",
+          "TicketStatus"
+        ],
+        [
+          "assignedStaffId",
+          "uuid nullable"
+        ],
+        [
+          "priority",
+          "TicketPriority"
+        ],
+        [
+          "countryId",
+          "uuid"
+        ],
+        [
+          "zoneId",
+          "uuid nullable"
+        ]
+      ],
+      "constraints": "Scope by associated resource; private attachments; SOS uses dedicated safety workflow",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "SupportMessage": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "ticketId",
+          "uuid"
+        ],
+        [
+          "authorId",
+          "uuid"
+        ],
+        [
+          "body",
+          "string"
+        ],
+        [
+          "attachmentKeys",
+          "json"
+        ],
+        [
+          "createdAt",
+          "datetime"
+        ]
+      ],
+      "constraints": "Participants and authorized support only; immutable edit history",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "ProductInteraction": {
+      "domain": "Personalization",
+      "fields": [
+        [
+          "customerId",
+          "uuid nullable"
+        ],
+        [
+          "guestReferenceHash",
+          "bytes nullable"
+        ],
+        [
+          "productId",
+          "uuid nullable"
+        ],
+        [
+          "variantId",
+          "uuid nullable"
+        ],
+        [
+          "eventType",
+          "InteractionType"
+        ],
+        [
+          "consentId",
+          "uuid nullable"
+        ],
+        [
+          "zoneId",
+          "uuid nullable"
+        ],
+        [
+          "occurredAt",
+          "datetime"
+        ],
+        [
+          "eventKey",
+          "string UNIQUE"
+        ]
+      ],
+      "constraints": "First-party only; indexed owner/time; proposed raw TTL 180 days; clear derived interests on deletion",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "PersonalizationProfile": {
+      "domain": "Personalization",
+      "fields": [
+        [
+          "customerId",
+          "uuid UNIQUE"
+        ],
+        [
+          "consentVersion",
+          "string"
+        ],
+        [
+          "interests",
+          "json"
+        ],
+        [
+          "excludedCategories",
+          "json"
+        ],
+        [
+          "frequencyPolicy",
+          "json"
+        ],
+        [
+          "modelVersion",
+          "string"
+        ],
+        [
+          "clearedAt",
+          "datetime nullable"
+        ]
+      ],
+      "constraints": "Can opt out/clear; no raw cross-app audio; vendors get aggregates only",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "AIInvocation": {
+      "domain": "Personalization",
+      "fields": [
+        [
+          "actorUserId",
+          "uuid"
+        ],
+        [
+          "agentIdentity",
+          "string"
+        ],
+        [
+          "scopeSnapshot",
+          "json"
+        ],
+        [
+          "toolName",
+          "string"
+        ],
+        [
+          "inputHash",
+          "bytes"
+        ],
+        [
+          "outputRedacted",
+          "json"
+        ],
+        [
+          "status",
+          "AIInvocationStatus"
+        ],
+        [
+          "modelProvider",
+          "string"
+        ],
+        [
+          "costMinor",
+          "bigint nullable"
+        ],
+        [
+          "approvalId",
+          "uuid nullable"
+        ],
+        [
+          "occurredAt",
+          "datetime"
+        ]
+      ],
+      "constraints": "Scoped read-only tools by default; sensitive execution prohibited; log denials and human approval",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "AIApproval": {
+      "domain": "Personalization",
+      "fields": [
+        [
+          "invocationId",
+          "uuid UNIQUE"
+        ],
+        [
+          "actionHash",
+          "bytes"
+        ],
+        [
+          "approverId",
+          "uuid nullable"
+        ],
+        [
+          "status",
+          "ApprovalStatus"
+        ],
+        [
+          "stepUpChallengeId",
+          "uuid nullable"
+        ],
+        [
+          "expiresAt",
+          "datetime"
+        ],
+        [
+          "decidedAt",
+          "datetime nullable"
+        ]
+      ],
+      "constraints": "Human approval bound to exact action; no AI self-approval; execute via normal domain service",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Notification": {
+      "domain": "Platform",
+      "fields": [
+        [
+          "recipientId",
+          "uuid"
+        ],
+        [
+          "channel",
+          "NotificationChannel"
+        ],
+        [
+          "templateKey",
+          "string"
+        ],
+        [
+          "templateVersion",
+          "string"
+        ],
+        [
+          "payloadRedacted",
+          "json"
+        ],
+        [
+          "status",
+          "NotificationStatus"
+        ],
+        [
+          "dedupeKey",
+          "string UNIQUE"
+        ],
+        [
+          "sentAt",
+          "datetime nullable"
+        ]
+      ],
+      "constraints": "Recipient scoped; preferences and consent honored; security alerts separate lawful basis",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "NotificationPreference": {
+      "domain": "Platform",
+      "fields": [
+        [
+          "userId",
+          "uuid"
+        ],
+        [
+          "channel",
+          "NotificationChannel"
+        ],
+        [
+          "purpose",
+          "string"
+        ],
+        [
+          "enabled",
+          "boolean"
+        ],
+        [
+          "policyVersion",
+          "string"
+        ]
+      ],
+      "constraints": "UNIQUE(userId,channel,purpose); marketing opt-in separate from service messages",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "AuditLog": {
+      "domain": "Platform",
+      "fields": [
+        [
+          "actorId",
+          "uuid nullable"
+        ],
+        [
+          "actorType",
+          "ActorType"
+        ],
+        [
+          "sessionId",
+          "uuid nullable"
+        ],
+        [
+          "action",
+          "string"
+        ],
+        [
+          "resourceType",
+          "string"
+        ],
+        [
+          "resourceId",
+          "uuid nullable"
+        ],
+        [
+          "scopeSnapshot",
+          "json"
+        ],
+        [
+          "beforeRedacted",
+          "json nullable"
+        ],
+        [
+          "afterRedacted",
+          "json nullable"
+        ],
+        [
+          "reason",
+          "string nullable"
+        ],
+        [
+          "requestId",
+          "string"
+        ],
+        [
+          "occurredAt",
+          "datetime"
+        ]
+      ],
+      "constraints": "Append-only; restricted read; no passwords/OTPs/tokens; include sensitive reads/exports/denials",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "OutboxEvent": {
+      "domain": "Platform",
+      "fields": [
+        [
+          "aggregateType",
+          "string"
+        ],
+        [
+          "aggregateId",
+          "uuid"
+        ],
+        [
+          "eventKey",
+          "string UNIQUE"
+        ],
+        [
+          "eventType",
+          "string"
+        ],
+        [
+          "payload",
+          "json"
+        ],
+        [
+          "occurredAt",
+          "datetime"
+        ],
+        [
+          "publishedAt",
+          "datetime nullable"
+        ],
+        [
+          "attempts",
+          "int"
+        ]
+      ],
+      "constraints": "Written in same transaction as domain change; at-least-once delivery; consumers idempotent",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "InboxReceipt": {
+      "domain": "Platform",
+      "fields": [
+        [
+          "consumer",
+          "string"
+        ],
+        [
+          "eventKey",
+          "string"
+        ],
+        [
+          "processedAt",
+          "datetime"
+        ]
+      ],
+      "constraints": "UNIQUE(consumer,eventKey)",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "IdempotencyRecord": {
+      "domain": "Platform",
+      "fields": [
+        [
+          "actorId",
+          "uuid"
+        ],
+        [
+          "route",
+          "string"
+        ],
+        [
+          "key",
+          "string"
+        ],
+        [
+          "requestHash",
+          "bytes"
+        ],
+        [
+          "responseStatus",
+          "int nullable"
+        ],
+        [
+          "responseHash",
+          "bytes nullable"
+        ],
+        [
+          "resourceReference",
+          "string nullable"
+        ],
+        [
+          "expiresAt",
+          "datetime"
+        ],
+        [
+          "state",
+          "IdempotencyState"
+        ]
+      ],
+      "constraints": "UNIQUE(actorId,route,key); same key/different payload =>409; finance retention follows linked records",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "FeatureFlag": {
+      "domain": "Platform",
+      "fields": [
+        [
+          "key",
+          "string"
+        ],
+        [
+          "countryId",
+          "uuid nullable"
+        ],
+        [
+          "environment",
+          "string"
+        ],
+        [
+          "enabled",
+          "boolean"
+        ],
+        [
+          "rolloutRule",
+          "json"
+        ],
+        [
+          "version",
+          "int"
+        ],
+        [
+          "updatedBy",
+          "uuid"
+        ]
+      ],
+      "constraints": "UNIQUE NULLS NOT DISTINCT(key,countryId,environment); default false for unfinished/payment/cross-border/AI features",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "VendorPlan": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "code",
+          "string"
+        ],
+        [
+          "version",
+          "int"
+        ],
+        [
+          "name",
+          "string"
+        ],
+        [
+          "billingInterval",
+          "string"
+        ],
+        [
+          "priceAmount",
+          "bigint"
+        ],
+        [
+          "currency",
+          "string"
+        ],
+        [
+          "unitLimit",
+          "int nullable"
+        ],
+        [
+          "featureEntitlements",
+          "json"
+        ],
+        [
+          "effectiveFrom",
+          "datetime"
+        ],
+        [
+          "status",
+          "RuleStatus"
+        ]
+      ],
+      "constraints": "No historical plan mutation; prices are business configuration, not hardcoded",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "VendorSubscription": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "vendorId",
+          "uuid"
+        ],
+        [
+          "planId",
+          "uuid"
+        ],
+        [
+          "startsAt",
+          "datetime"
+        ],
+        [
+          "endsAt",
+          "datetime"
+        ],
+        [
+          "introductoryEndsAt",
+          "datetime nullable"
+        ],
+        [
+          "status",
+          "SubscriptionStatus"
+        ],
+        [
+          "volumePolicy",
+          "json"
+        ],
+        [
+          "version",
+          "int"
+        ]
+      ],
+      "constraints": "First-year free offer if approved; explicit start/end and renewal notice; no silent backdated charge",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Coupon": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "codeHash",
+          "bytes"
+        ],
+        [
+          "codeDisplay",
+          "string"
+        ],
+        [
+          "policy",
+          "json"
+        ],
+        [
+          "status",
+          "CouponStatus"
+        ],
+        [
+          "startsAt",
+          "datetime"
+        ],
+        [
+          "endsAt",
+          "datetime"
+        ],
+        [
+          "usageLimit",
+          "int nullable"
+        ],
+        [
+          "perCustomerLimit",
+          "int nullable"
+        ],
+        [
+          "version",
+          "int"
+        ]
+      ],
+      "constraints": "Server validates scope/eligibility; redemption lock prevents overuse",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "CouponRedemption": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "couponId",
+          "uuid"
+        ],
+        [
+          "customerId",
+          "uuid"
+        ],
+        [
+          "orderId",
+          "uuid UNIQUE"
+        ],
+        [
+          "amount",
+          "bigint"
+        ],
+        [
+          "state",
+          "RedemptionState"
+        ]
+      ],
+      "constraints": "UNIQUE(couponId,orderId); partial cancellation policy explicit",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Campaign": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "name",
+          "string"
+        ],
+        [
+          "kind",
+          "CampaignKind"
+        ],
+        [
+          "audiencePolicy",
+          "json"
+        ],
+        [
+          "placements",
+          "json"
+        ],
+        [
+          "content",
+          "json"
+        ],
+        [
+          "startsAt",
+          "datetime"
+        ],
+        [
+          "endsAt",
+          "datetime"
+        ],
+        [
+          "countryId",
+          "uuid"
+        ],
+        [
+          "status",
+          "CampaignStatus"
+        ]
+      ],
+      "constraints": "Claims such as free shipping require actual eligibility; consent-based targeting",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "NewsletterSubscription": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "emailHash",
+          "bytes UNIQUE"
+        ],
+        [
+          "emailEncrypted",
+          "string"
+        ],
+        [
+          "consentId",
+          "uuid"
+        ],
+        [
+          "status",
+          "SubscriptionStatus"
+        ],
+        [
+          "verifiedAt",
+          "datetime nullable"
+        ]
+      ],
+      "constraints": "Double opt-in proposed; unsubscribe single use signed token",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "LoyaltyAccount": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "customerId",
+          "uuid UNIQUE"
+        ],
+        [
+          "programVersion",
+          "string"
+        ],
+        [
+          "status",
+          "LoyaltyStatus"
+        ]
+      ],
+      "constraints": "Feature-flagged; points/cashback financial liability tracked through ledger where redeemable",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "LoyaltyEvent": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "accountId",
+          "uuid"
+        ],
+        [
+          "eventKey",
+          "string UNIQUE"
+        ],
+        [
+          "kind",
+          "LoyaltyEventKind"
+        ],
+        [
+          "points",
+          "bigint"
+        ],
+        [
+          "sourceReference",
+          "string"
+        ],
+        [
+          "journalId",
+          "uuid nullable"
+        ],
+        [
+          "occurredAt",
+          "datetime"
+        ]
+      ],
+      "constraints": "Append-only; expiry/reversal explicit; no duplicate campaign awards",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "Referral": {
+      "domain": "Commerce",
+      "fields": [
+        [
+          "referrerId",
+          "uuid"
+        ],
+        [
+          "referredCustomerId",
+          "uuid nullable"
+        ],
+        [
+          "codeHash",
+          "bytes UNIQUE"
+        ],
+        [
+          "status",
+          "ReferralStatus"
+        ],
+        [
+          "qualifiedOrderId",
+          "uuid nullable"
+        ],
+        [
+          "rewardEventId",
+          "uuid nullable"
+        ]
+      ],
+      "constraints": "Anti-self-referral; reward only after configured qualifying event",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "PayoutAttempt": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "payoutId",
+          "uuid"
+        ],
+        [
+          "attemptNumber",
+          "int"
+        ],
+        [
+          "providerReference",
+          "string nullable"
+        ],
+        [
+          "idempotencyKey",
+          "string UNIQUE"
+        ],
+        [
+          "status",
+          "AttemptStatus"
+        ],
+        [
+          "requestedAt",
+          "datetime"
+        ],
+        [
+          "confirmedAt",
+          "datetime nullable"
+        ],
+        [
+          "failureCode",
+          "string nullable"
+        ]
+      ],
+      "constraints": "UNIQUE(payoutId,attemptNumber); unknown result stays reserved; definitive failure releases via reversal before a new attempt",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    },
+    "SettlementAttempt": {
+      "domain": "Finance",
+      "fields": [
+        [
+          "settlementId",
+          "uuid"
+        ],
+        [
+          "attemptNumber",
+          "int"
+        ],
+        [
+          "providerReference",
+          "string nullable"
+        ],
+        [
+          "idempotencyKey",
+          "string UNIQUE"
+        ],
+        [
+          "status",
+          "AttemptStatus"
+        ],
+        [
+          "requestedAt",
+          "datetime"
+        ],
+        [
+          "confirmedAt",
+          "datetime nullable"
+        ],
+        [
+          "failureCode",
+          "string nullable"
+        ]
+      ],
+      "constraints": "UNIQUE(settlementId,attemptNumber); retries never duplicate settlement items",
+      "retention": "Business policy; see retention register",
+      "implicit": [
+        "id UUID PK",
+        "createdAt timestamptz",
+        "updatedAt timestamptz (omitted on immutable records)"
+      ]
+    }
+  },
+  "relations": [
+    {
+      "from": "Session",
+      "to": "User",
+      "field": "userId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "owns"
+    },
+    {
+      "from": "Session",
+      "to": "Device",
+      "field": "deviceId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "binds"
+    },
+    {
+      "from": "UserRole",
+      "to": "User",
+      "field": "userId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "has"
+    },
+    {
+      "from": "UserRole",
+      "to": "Role",
+      "field": "roleId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "grants"
+    },
+    {
+      "from": "RolePermission",
+      "to": "Role",
+      "field": "roleId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "has"
+    },
+    {
+      "from": "RolePermission",
+      "to": "Permission",
+      "field": "permissionId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "includes"
+    },
+    {
+      "from": "AdminScope",
+      "to": "User",
+      "field": "userId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "restricted by"
+    },
+    {
+      "from": "AdminInvitation",
+      "to": "User",
+      "field": "invitedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "invites"
+    },
+    {
+      "from": "MfaEnrollment",
+      "to": "User",
+      "field": "userId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "enrolls"
+    },
+    {
+      "from": "Device",
+      "to": "User",
+      "field": "userId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "owns"
+    },
+    {
+      "from": "StepUpChallenge",
+      "to": "Session",
+      "field": "sessionId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "authorizes"
+    },
+    {
+      "from": "ConsentRecord",
+      "to": "User",
+      "field": "userId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "controls"
+    },
+    {
+      "from": "PrivacyRequest",
+      "to": "User",
+      "field": "userId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "requests"
+    },
+    {
+      "from": "CountryConfiguration",
+      "to": "Country",
+      "field": "countryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "versions"
+    },
+    {
+      "from": "Region",
+      "to": "Country",
+      "field": "countryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "contains"
+    },
+    {
+      "from": "District",
+      "to": "Region",
+      "field": "regionId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "contains"
+    },
+    {
+      "from": "City",
+      "to": "District",
+      "field": "districtId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "contains"
+    },
+    {
+      "from": "ServiceZone",
+      "to": "City",
+      "field": "cityId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "contains"
+    },
+    {
+      "from": "Neighborhood",
+      "to": "ServiceZone",
+      "field": "serviceZoneId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "contains"
+    },
+    {
+      "from": "Address",
+      "to": "Customer",
+      "field": "customerId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "saves"
+    },
+    {
+      "from": "Customer",
+      "to": "User",
+      "field": "userId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": false,
+      "meaning": "profiles"
+    },
+    {
+      "from": "Vendor",
+      "to": "User",
+      "field": "ownerUserId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "owns"
+    },
+    {
+      "from": "VendorMembership",
+      "to": "Vendor",
+      "field": "vendorId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "members"
+    },
+    {
+      "from": "Store",
+      "to": "Vendor",
+      "field": "vendorId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "branches"
+    },
+    {
+      "from": "VendorServiceArea",
+      "to": "Store",
+      "field": "storeId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "serves"
+    },
+    {
+      "from": "VendorServiceArea",
+      "to": "ServiceZone",
+      "field": "serviceZoneId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "eligible destination"
+    },
+    {
+      "from": "Rider",
+      "to": "User",
+      "field": "userId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": false,
+      "meaning": "profiles"
+    },
+    {
+      "from": "RiderServiceArea",
+      "to": "Rider",
+      "field": "riderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "assigned"
+    },
+    {
+      "from": "RiderServiceArea",
+      "to": "ServiceZone",
+      "field": "serviceZoneId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "limits"
+    },
+    {
+      "from": "Vehicle",
+      "to": "Rider",
+      "field": "riderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "operates"
+    },
+    {
+      "from": "RiderShift",
+      "to": "Rider",
+      "field": "riderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "works"
+    },
+    {
+      "from": "RiderLocation",
+      "to": "RiderShift",
+      "field": "shiftId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "consented tracking"
+    },
+    {
+      "from": "RiderLocation",
+      "to": "Delivery",
+      "field": "deliveryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "active-delivery tracking"
+    },
+    {
+      "from": "VendorKYC",
+      "to": "KYCCase",
+      "field": "caseId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": false,
+      "meaning": "business details"
+    },
+    {
+      "from": "RiderKYC",
+      "to": "KYCCase",
+      "field": "caseId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": false,
+      "meaning": "rider details"
+    },
+    {
+      "from": "AdminKYC",
+      "to": "KYCCase",
+      "field": "caseId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": false,
+      "meaning": "admin details"
+    },
+    {
+      "from": "KYCDocument",
+      "to": "KYCCase",
+      "field": "caseId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "contains"
+    },
+    {
+      "from": "KYCReview",
+      "to": "KYCCase",
+      "field": "caseId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "reviewed"
+    },
+    {
+      "from": "KYCReview",
+      "to": "KYCDocument",
+      "field": "documentId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "per-document review"
+    },
+    {
+      "from": "Vendor",
+      "to": "KYCCase",
+      "field": "kycCaseId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": true,
+      "meaning": "current case pointer"
+    },
+    {
+      "from": "Rider",
+      "to": "KYCCase",
+      "field": "kycCaseId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": true,
+      "meaning": "current case pointer"
+    },
+    {
+      "from": "Product",
+      "to": "Category",
+      "field": "categoryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "classifies"
+    },
+    {
+      "from": "Product",
+      "to": "Vendor",
+      "field": "vendorId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "owns"
+    },
+    {
+      "from": "ProductVariant",
+      "to": "Product",
+      "field": "productId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "variants"
+    },
+    {
+      "from": "ProductImage",
+      "to": "Product",
+      "field": "productId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "media"
+    },
+    {
+      "from": "Inventory",
+      "to": "ProductVariant",
+      "field": "variantId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "stocks"
+    },
+    {
+      "from": "Inventory",
+      "to": "Store",
+      "field": "storeId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "at location"
+    },
+    {
+      "from": "InventoryReservation",
+      "to": "CheckoutQuote",
+      "field": "quoteId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "reserves"
+    },
+    {
+      "from": "Wishlist",
+      "to": "Customer",
+      "field": "customerId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "owns"
+    },
+    {
+      "from": "WishlistItem",
+      "to": "Wishlist",
+      "field": "wishlistId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "contains"
+    },
+    {
+      "from": "WishlistItem",
+      "to": "Product",
+      "field": "productId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "saved"
+    },
+    {
+      "from": "Cart",
+      "to": "Customer",
+      "field": "customerId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "owns"
+    },
+    {
+      "from": "CartItem",
+      "to": "Cart",
+      "field": "cartId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "contains"
+    },
+    {
+      "from": "CartItem",
+      "to": "ProductVariant",
+      "field": "variantId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "selected"
+    },
+    {
+      "from": "Order",
+      "to": "Customer",
+      "field": "buyerId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "buys"
+    },
+    {
+      "from": "OrderRecipient",
+      "to": "Order",
+      "field": "orderId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": false,
+      "meaning": "separate recipient"
+    },
+    {
+      "from": "VendorSuborder",
+      "to": "Order",
+      "field": "orderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "splits"
+    },
+    {
+      "from": "VendorSuborder",
+      "to": "Vendor",
+      "field": "vendorId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "fulfills"
+    },
+    {
+      "from": "VendorSuborder",
+      "to": "Store",
+      "field": "storeId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "pickup branch"
+    },
+    {
+      "from": "OrderItem",
+      "to": "VendorSuborder",
+      "field": "suborder_id",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "contains"
+    },
+    {
+      "from": "OrderStatusEvent",
+      "to": "Order",
+      "field": "orderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "history"
+    },
+    {
+      "from": "Delivery",
+      "to": "VendorSuborder",
+      "field": "suborderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "one current delivery"
+    },
+    {
+      "from": "DeliveryRouteSnapshot",
+      "to": "Delivery",
+      "field": "deliveryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "route evidence"
+    },
+    {
+      "from": "RiderRateSlab",
+      "to": "RiderRateRule",
+      "field": "rateRuleId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "defines"
+    },
+    {
+      "from": "RiderRateSnapshot",
+      "to": "Delivery",
+      "field": "deliveryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "pay snapshot"
+    },
+    {
+      "from": "RiderRateSnapshot",
+      "to": "RiderRateRule",
+      "field": "rateRuleId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "versions"
+    },
+    {
+      "from": "RiderAssignment",
+      "to": "Delivery",
+      "field": "deliveryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "assignment history"
+    },
+    {
+      "from": "RiderAssignment",
+      "to": "DeliveryOffer",
+      "field": "offerId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": true,
+      "meaning": "accepted offer"
+    },
+    {
+      "from": "DeliveryOffer",
+      "to": "Delivery",
+      "field": "deliveryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "sequential offers"
+    },
+    {
+      "from": "DeliveryOffer",
+      "to": "Rider",
+      "field": "riderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "receives"
+    },
+    {
+      "from": "DeliveryProof",
+      "to": "Delivery",
+      "field": "deliveryId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": false,
+      "meaning": "recipient proof"
+    },
+    {
+      "from": "DeliveryException",
+      "to": "Delivery",
+      "field": "deliveryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "exception history"
+    },
+    {
+      "from": "Payout",
+      "to": "Rider",
+      "field": "riderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "paid to"
+    },
+    {
+      "from": "Payout",
+      "to": "PayoutDestination",
+      "field": "destinationId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "verified rail"
+    },
+    {
+      "from": "PayoutItem",
+      "to": "Payout",
+      "field": "payoutId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "reconciles"
+    },
+    {
+      "from": "PayoutItem",
+      "to": "Delivery",
+      "field": "deliveryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "earns once"
+    },
+    {
+      "from": "CODCollection",
+      "to": "Delivery",
+      "field": "deliveryId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": false,
+      "meaning": "cash collected"
+    },
+    {
+      "from": "CODDeposit",
+      "to": "Rider",
+      "field": "riderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "deposits"
+    },
+    {
+      "from": "CODAllocation",
+      "to": "CODDeposit",
+      "field": "depositId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "allocates"
+    },
+    {
+      "from": "CODAllocation",
+      "to": "CODCollection",
+      "field": "collectionId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "settles liability"
+    },
+    {
+      "from": "PaymentProviderAccount",
+      "to": "Country",
+      "field": "countryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "contracted provider"
+    },
+    {
+      "from": "Payment",
+      "to": "Order",
+      "field": "orderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "payment attempts"
+    },
+    {
+      "from": "Payment",
+      "to": "PaymentProviderAccount",
+      "field": "providerAccountId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "processes"
+    },
+    {
+      "from": "PaymentEvent",
+      "to": "Payment",
+      "field": "paymentId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "verified events"
+    },
+    {
+      "from": "Refund",
+      "to": "Order",
+      "field": "orderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "refunds"
+    },
+    {
+      "from": "Refund",
+      "to": "Payment",
+      "field": "paymentId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "original payment"
+    },
+    {
+      "from": "Chargeback",
+      "to": "Payment",
+      "field": "paymentId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "disputes"
+    },
+    {
+      "from": "CommissionSnapshot",
+      "to": "CommissionRule",
+      "field": "ruleId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "snapshots"
+    },
+    {
+      "from": "CommissionSnapshot",
+      "to": "VendorSuborder",
+      "field": "suborderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "commission basis"
+    },
+    {
+      "from": "LedgerLine",
+      "to": "LedgerAccount",
+      "field": "accountId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "posts"
+    },
+    {
+      "from": "LedgerLine",
+      "to": "JournalEntry",
+      "field": "journalId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "balanced entry"
+    },
+    {
+      "from": "JournalEntry",
+      "to": "JournalEntry",
+      "field": "reversalOfId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "reverses"
+    },
+    {
+      "from": "LedgerBalanceSnapshot",
+      "to": "LedgerAccount",
+      "field": "accountId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "projection"
+    },
+    {
+      "from": "Settlement",
+      "to": "Vendor",
+      "field": "vendorId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "settles"
+    },
+    {
+      "from": "Settlement",
+      "to": "PayoutDestination",
+      "field": "destinationId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "verified account"
+    },
+    {
+      "from": "SettlementItem",
+      "to": "Settlement",
+      "field": "settlementId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "contains"
+    },
+    {
+      "from": "SettlementItem",
+      "to": "VendorSuborder",
+      "field": "suborderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "settles once"
+    },
+    {
+      "from": "FraudCase",
+      "to": "Order",
+      "field": "orderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "risk review"
+    },
+    {
+      "from": "FraudEvidence",
+      "to": "FraudCase",
+      "field": "caseId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "evidence"
+    },
+    {
+      "from": "FraudDecision",
+      "to": "FraudCase",
+      "field": "caseId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "decisions"
+    },
+    {
+      "from": "ReturnRequest",
+      "to": "Order",
+      "field": "orderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "returns"
+    },
+    {
+      "from": "ReturnRequest",
+      "to": "Refund",
+      "field": "refundId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "approved refund"
+    },
+    {
+      "from": "Review",
+      "to": "OrderItem",
+      "field": "orderItemId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": false,
+      "meaning": "verified purchase"
+    },
+    {
+      "from": "SupportTicket",
+      "to": "User",
+      "field": "requesterId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "opens"
+    },
+    {
+      "from": "SupportMessage",
+      "to": "SupportTicket",
+      "field": "ticketId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "conversation"
+    },
+    {
+      "from": "ProductInteraction",
+      "to": "User",
+      "field": "customerId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "consented activity"
+    },
+    {
+      "from": "ProductInteraction",
+      "to": "Product",
+      "field": "productId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "observed"
+    },
+    {
+      "from": "PersonalizationProfile",
+      "to": "Customer",
+      "field": "customerId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": false,
+      "meaning": "controls"
+    },
+    {
+      "from": "AIInvocation",
+      "to": "User",
+      "field": "actorUserId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "scoped tools"
+    },
+    {
+      "from": "AIApproval",
+      "to": "AIInvocation",
+      "field": "invocationId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": false,
+      "meaning": "human approval"
+    },
+    {
+      "from": "Notification",
+      "to": "User",
+      "field": "recipientId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "receives"
+    },
+    {
+      "from": "NotificationPreference",
+      "to": "User",
+      "field": "userId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "controls"
+    },
+    {
+      "from": "AuditLog",
+      "to": "User",
+      "field": "actorId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "acts"
+    },
+    {
+      "from": "IdempotencyRecord",
+      "to": "User",
+      "field": "actorId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "deduplicates"
+    },
+    {
+      "from": "VendorSubscription",
+      "to": "VendorPlan",
+      "field": "planId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "versions"
+    },
+    {
+      "from": "VendorSubscription",
+      "to": "Vendor",
+      "field": "vendorId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "subscribes"
+    },
+    {
+      "from": "CouponRedemption",
+      "to": "Coupon",
+      "field": "couponId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "uses"
+    },
+    {
+      "from": "CouponRedemption",
+      "to": "Order",
+      "field": "orderId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": false,
+      "meaning": "one coupon policy"
+    },
+    {
+      "from": "LoyaltyAccount",
+      "to": "Customer",
+      "field": "customerId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": false,
+      "meaning": "owns"
+    },
+    {
+      "from": "LoyaltyEvent",
+      "to": "LoyaltyAccount",
+      "field": "accountId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "history"
+    },
+    {
+      "from": "Referral",
+      "to": "User",
+      "field": "referrerId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "refers"
+    },
+    {
+      "from": "PayoutAttempt",
+      "to": "Payout",
+      "field": "payoutId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "attempt history"
+    },
+    {
+      "from": "SettlementAttempt",
+      "to": "Settlement",
+      "field": "settlementId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "attempt history"
+    },
+    {
+      "from": "UserIdentity",
+      "to": "User",
+      "field": "userId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "UserRole",
+      "to": "User",
+      "field": "grantedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "AdminScope",
+      "to": "Country",
+      "field": "countryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "AdminScope",
+      "to": "Region",
+      "field": "regionId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "AdminScope",
+      "to": "District",
+      "field": "districtId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "AdminScope",
+      "to": "City",
+      "field": "cityId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "AdminScope",
+      "to": "ServiceZone",
+      "field": "serviceZoneId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "AdminScope",
+      "to": "Neighborhood",
+      "field": "neighborhoodId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "AdminScope",
+      "to": "User",
+      "field": "grantedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "StepUpChallenge",
+      "to": "User",
+      "field": "userId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "City",
+      "to": "BoundaryVersion",
+      "field": "boundaryVersionId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "ServiceZone",
+      "to": "BoundaryVersion",
+      "field": "activeBoundaryVersionId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Neighborhood",
+      "to": "BoundaryVersion",
+      "field": "boundaryVersionId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "BoundaryVersion",
+      "to": "User",
+      "field": "approvedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Address",
+      "to": "Vendor",
+      "field": "vendorId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Address",
+      "to": "Rider",
+      "field": "riderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Address",
+      "to": "Region",
+      "field": "regionId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Address",
+      "to": "District",
+      "field": "districtId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Address",
+      "to": "City",
+      "field": "cityId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Address",
+      "to": "ServiceZone",
+      "field": "serviceZoneId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Address",
+      "to": "Neighborhood",
+      "field": "neighborhoodId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Customer",
+      "to": "Address",
+      "field": "defaultAddressId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Vendor",
+      "to": "Country",
+      "field": "homeCountryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "VendorMembership",
+      "to": "User",
+      "field": "userId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "VendorMembership",
+      "to": "Store",
+      "field": "storeId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Store",
+      "to": "Address",
+      "field": "addressId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Store",
+      "to": "City",
+      "field": "cityId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "VendorServiceArea",
+      "to": "User",
+      "field": "approvedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Rider",
+      "to": "Address",
+      "field": "addressId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Rider",
+      "to": "City",
+      "field": "homeCityId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "RiderServiceArea",
+      "to": "User",
+      "field": "approvedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "RiderShift",
+      "to": "ServiceZone",
+      "field": "startZoneId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "RiderLocation",
+      "to": "Rider",
+      "field": "riderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "KYCCase",
+      "to": "User",
+      "field": "assignedReviewerId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "VendorKYC",
+      "to": "Vendor",
+      "field": "vendorId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "VendorKYC",
+      "to": "Address",
+      "field": "businessAddressId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "RiderKYC",
+      "to": "Rider",
+      "field": "riderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "RiderKYC",
+      "to": "Vehicle",
+      "field": "vehicleId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "AdminKYC",
+      "to": "User",
+      "field": "userId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "AdminKYC",
+      "to": "User",
+      "field": "approvedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "KYCDocument",
+      "to": "User",
+      "field": "uploadedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "KYCReview",
+      "to": "User",
+      "field": "reviewerId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Category",
+      "to": "Category",
+      "field": "parentId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "ProductImage",
+      "to": "ProductVariant",
+      "field": "variantId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "InventoryReservation",
+      "to": "ProductVariant",
+      "field": "variantId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "InventoryReservation",
+      "to": "Store",
+      "field": "storeId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "CartItem",
+      "to": "Store",
+      "field": "storeId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "CheckoutQuote",
+      "to": "Customer",
+      "field": "customerId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "CheckoutQuote",
+      "to": "ServiceZone",
+      "field": "destinationZoneId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "OrderRecipient",
+      "to": "ServiceZone",
+      "field": "destinationZoneId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Order",
+      "to": "Country",
+      "field": "countryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Order",
+      "to": "Country",
+      "field": "destinationCountryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Order",
+      "to": "ServiceZone",
+      "field": "destinationZoneId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Order",
+      "to": "FraudCase",
+      "field": "riskCaseId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "VendorSuborder",
+      "to": "ServiceZone",
+      "field": "destinationZoneId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "VendorSuborder",
+      "to": "User",
+      "field": "readyConfirmedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "OrderItem",
+      "to": "ProductVariant",
+      "field": "variantId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "OrderItem",
+      "to": "CommissionSnapshot",
+      "field": "commissionSnapshotId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "OrderStatusEvent",
+      "to": "VendorSuborder",
+      "field": "suborderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "OrderStatusEvent",
+      "to": "User",
+      "field": "actorId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Delivery",
+      "to": "Store",
+      "field": "pickupStoreId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Delivery",
+      "to": "ServiceZone",
+      "field": "destinationZoneId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Delivery",
+      "to": "OrderRecipient",
+      "field": "recipientId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Delivery",
+      "to": "Rider",
+      "field": "assignedRiderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Delivery",
+      "to": "DeliveryRouteSnapshot",
+      "field": "routeSnapshotId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Delivery",
+      "to": "RiderRateSnapshot",
+      "field": "rateSnapshotId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "RiderRateRule",
+      "to": "Country",
+      "field": "countryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "RiderRateRule",
+      "to": "City",
+      "field": "cityId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "RiderRateRule",
+      "to": "ServiceZone",
+      "field": "serviceZoneId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "RiderRateRule",
+      "to": "User",
+      "field": "createdBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "RiderRateSnapshot",
+      "to": "RiderAssignment",
+      "field": "assignmentId",
+      "targetKey": "id",
+      "cardinality": "1:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "RiderRateSnapshot",
+      "to": "DeliveryRouteSnapshot",
+      "field": "routeSnapshotId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "RiderAssignment",
+      "to": "Rider",
+      "field": "riderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "RiderAssignment",
+      "to": "User",
+      "field": "authorizedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "RiderAssignment",
+      "to": "RiderRateSnapshot",
+      "field": "rateSnapshotId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "DeliveryProof",
+      "to": "Rider",
+      "field": "verifiedByRiderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "DeliveryProof",
+      "to": "DeliveryException",
+      "field": "fallbackReviewId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "DeliveryException",
+      "to": "User",
+      "field": "reportedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "DeliveryException",
+      "to": "User",
+      "field": "reviewedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "CODCollection",
+      "to": "Rider",
+      "field": "riderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "CODCollection",
+      "to": "JournalEntry",
+      "field": "journalId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "CODDeposit",
+      "to": "User",
+      "field": "verifiedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "CODDeposit",
+      "to": "JournalEntry",
+      "field": "journalId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Payment",
+      "to": "JournalEntry",
+      "field": "journalId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "PaymentEvent",
+      "to": "PaymentProviderAccount",
+      "field": "providerAccountId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Refund",
+      "to": "VendorSuborder",
+      "field": "suborderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Refund",
+      "to": "User",
+      "field": "approvedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Refund",
+      "to": "JournalEntry",
+      "field": "journalId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Chargeback",
+      "to": "JournalEntry",
+      "field": "journalId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "CommissionRule",
+      "to": "Country",
+      "field": "countryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "CommissionRule",
+      "to": "City",
+      "field": "cityId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "CommissionRule",
+      "to": "ServiceZone",
+      "field": "serviceZoneId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "CommissionRule",
+      "to": "Vendor",
+      "field": "vendorId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "CommissionRule",
+      "to": "Category",
+      "field": "categoryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "JournalEntry",
+      "to": "User",
+      "field": "createdBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "LedgerBalanceSnapshot",
+      "to": "JournalEntry",
+      "field": "asOfJournalId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Payout",
+      "to": "User",
+      "field": "approvedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Payout",
+      "to": "JournalEntry",
+      "field": "reservedJournalId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Payout",
+      "to": "JournalEntry",
+      "field": "completedJournalId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "PayoutItem",
+      "to": "JournalEntry",
+      "field": "earningJournalId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Settlement",
+      "to": "User",
+      "field": "approvedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "SettlementItem",
+      "to": "JournalEntry",
+      "field": "journalId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "ReconciliationRecord",
+      "to": "User",
+      "field": "reviewedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "FraudCase",
+      "to": "User",
+      "field": "assignedReviewerId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "FraudDecision",
+      "to": "User",
+      "field": "reviewerId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "ReturnRequest",
+      "to": "VendorSuborder",
+      "field": "suborderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "ReturnRequest",
+      "to": "Customer",
+      "field": "customerId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "ReturnRequest",
+      "to": "User",
+      "field": "approvedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Review",
+      "to": "Customer",
+      "field": "customerId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Review",
+      "to": "Product",
+      "field": "productId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "SupportTicket",
+      "to": "User",
+      "field": "assignedStaffId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "SupportTicket",
+      "to": "Country",
+      "field": "countryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "SupportTicket",
+      "to": "ServiceZone",
+      "field": "zoneId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "SupportMessage",
+      "to": "User",
+      "field": "authorId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "ProductInteraction",
+      "to": "ProductVariant",
+      "field": "variantId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "ProductInteraction",
+      "to": "ConsentRecord",
+      "field": "consentId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "ProductInteraction",
+      "to": "ServiceZone",
+      "field": "zoneId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "AIInvocation",
+      "to": "AIApproval",
+      "field": "approvalId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "AIApproval",
+      "to": "User",
+      "field": "approverId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "AIApproval",
+      "to": "StepUpChallenge",
+      "field": "stepUpChallengeId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "AuditLog",
+      "to": "Session",
+      "field": "sessionId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "FeatureFlag",
+      "to": "Country",
+      "field": "countryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "FeatureFlag",
+      "to": "User",
+      "field": "updatedBy",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "CouponRedemption",
+      "to": "Customer",
+      "field": "customerId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Campaign",
+      "to": "Country",
+      "field": "countryId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "NewsletterSubscription",
+      "to": "ConsentRecord",
+      "field": "consentId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": false,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "LoyaltyEvent",
+      "to": "JournalEntry",
+      "field": "journalId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Referral",
+      "to": "Customer",
+      "field": "referredCustomerId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Referral",
+      "to": "Order",
+      "field": "qualifiedOrderId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    },
+    {
+      "from": "Referral",
+      "to": "LoyaltyEvent",
+      "field": "rewardEventId",
+      "targetKey": "id",
+      "cardinality": "N:1",
+      "optional": true,
+      "meaning": "explicit logical foreign key"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.35",nodesep="0.35",ranksep="0.8"];
+node [shape=plain,fontname="Arial"];
+edge [color="#68717d",fontcolor="#47505c",fontsize=9,fontname="Arial"];
+AIApproval [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#4f567d"><FONT COLOR="white"><B>AIApproval</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>invocationId</B></TD><TD ALIGN="LEFT">uuid UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>actionHash</B></TD><TD ALIGN="LEFT">bytes</TD></TR><TR><TD ALIGN="LEFT"><B>approverId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">ApprovalStatus</TD></TR><TR><TD ALIGN="LEFT"><B>stepUpChallengeId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>expiresAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>decidedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR></TABLE>>];
+AIInvocation [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#4f567d"><FONT COLOR="white"><B>AIInvocation</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>actorUserId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>agentIdentity</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>scopeSnapshot</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>toolName</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>inputHash</B></TD><TD ALIGN="LEFT">bytes</TD></TR><TR><TD ALIGN="LEFT"><B>outputRedacted</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">AIInvocationStatus</TD></TR><TR><TD ALIGN="LEFT"><B>modelProvider</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>costMinor</B></TD><TD ALIGN="LEFT">bigint nullable</TD></TR><TR><TD ALIGN="LEFT"><B>approvalId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>occurredAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR></TABLE>>];
+PersonalizationProfile [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#4f567d"><FONT COLOR="white"><B>PersonalizationProfile</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>customerId</B></TD><TD ALIGN="LEFT">uuid UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>consentVersion</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>interests</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>excludedCategories</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>frequencyPolicy</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>modelVersion</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>clearedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR></TABLE>>];
+ProductInteraction [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#4f567d"><FONT COLOR="white"><B>ProductInteraction</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>customerId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>guestReferenceHash</B></TD><TD ALIGN="LEFT">bytes nullable</TD></TR><TR><TD ALIGN="LEFT"><B>productId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>variantId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>eventType</B></TD><TD ALIGN="LEFT">InteractionType</TD></TR><TR><TD ALIGN="LEFT"><B>consentId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>zoneId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>occurredAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>eventKey</B></TD><TD ALIGN="LEFT">string UNIQUE</TD></TR></TABLE>>];
+ConsentRecord [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ConsentRecord
+(external domain)"];
+Customer [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Customer
+(external domain)"];
+Product [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Product
+(external domain)"];
+ProductVariant [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ProductVariant
+(external domain)"];
+ServiceZone [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ServiceZone
+(external domain)"];
+StepUpChallenge [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="StepUpChallenge
+(external domain)"];
+User [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="User
+(external domain)"];
+ProductInteraction -> User [label="customerId (N:1, FK owner → target)"];
+ProductInteraction -> Product [label="productId (N:1, FK owner → target)"];
+PersonalizationProfile -> Customer [label="customerId (1:1, FK owner → target)"];
+AIInvocation -> User [label="actorUserId (N:1, FK owner → target)"];
+AIApproval -> AIInvocation [label="invocationId (1:1, FK owner → target)"];
+ProductInteraction -> ProductVariant [label="variantId (N:1, FK owner → target)"];
+ProductInteraction -> ConsentRecord [label="consentId (N:1, FK owner → target)"];
+ProductInteraction -> ServiceZone [label="zoneId (N:1, FK owner → target)"];
+AIInvocation -> AIApproval [label="approvalId (N:1, FK owner → target)"];
+AIApproval -> User [label="approverId (N:1, FK owner → target)"];
+AIApproval -> StepUpChallenge [label="stepUpChallengeId (N:1, FK owner → target)"];
+}

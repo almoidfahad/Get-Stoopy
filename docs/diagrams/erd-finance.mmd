@@ -1,0 +1,308 @@
+erDiagram
+  PayoutDestination {
+    uuid id PK
+    PartyType ownerType
+    uuid ownerId FK
+    PayoutRail rail
+    json encryptedDetails
+    string displayMask
+    VerificationStatus verificationStatus
+    datetime_nullable verifiedAt
+    string_nullable providerReference
+    boolean active
+  }
+  CODCollection {
+    uuid id PK
+    uuid_UNIQUE deliveryId
+    uuid riderId FK
+    bigint expectedAmount
+    bigint collectedAmount
+    string currency
+    datetime confirmedAt
+    string_UNIQUE receiptReference
+    uuid journalId FK
+  }
+  CODDeposit {
+    uuid id PK
+    uuid riderId FK
+    CODDepositMethod method
+    bigint amount
+    string currency
+    string_nullable depositorReference
+    string_nullable merchantAccountReference
+    string_nullable evidenceObjectKey
+    DepositStatus status
+    datetime submittedAt
+    uuid_nullable verifiedBy
+    datetime_nullable verifiedAt
+    uuid_nullable journalId
+  }
+  CODAllocation {
+    uuid id PK
+    uuid depositId FK
+    uuid collectionId FK
+    bigint amount
+  }
+  PaymentProviderAccount {
+    uuid id PK
+    uuid countryId FK
+    string providerKey
+    string merchantReference
+    json encryptedCredentials
+    json capabilities
+    string contractReference
+    ProviderStatus status
+  }
+  Payment {
+    uuid id PK
+    uuid orderId FK
+    uuid_nullable providerAccountId
+    PaymentMethod method
+    PaymentStatus status
+    bigint amount
+    string currency
+    string merchantReference
+    string_nullable providerTransactionReference
+    string_UNIQUE idempotencyKey
+    datetime_nullable verifiedAt
+    uuid_nullable journalId
+  }
+  PaymentEvent {
+    uuid id PK
+    uuid providerAccountId FK
+    string providerEventKey
+    uuid_nullable paymentId
+    string eventType
+    bytes payloadHash
+    json redactedPayload
+    EventVerificationStatus verificationStatus
+    datetime receivedAt
+    datetime_nullable processedAt
+  }
+  Refund {
+    uuid id PK
+    uuid orderId FK
+    uuid_nullable suborderId
+    uuid_nullable paymentId
+    bigint amount
+    string currency
+    string reason
+    RefundStatus status
+    uuid_nullable approvedBy
+    string_nullable providerReference
+    string_UNIQUE idempotencyKey
+    uuid_nullable journalId
+  }
+  Chargeback {
+    uuid id PK
+    uuid paymentId FK
+    string providerCaseReference
+    bigint amount
+    string currency
+    ChargebackStatus status
+    datetime_nullable evidenceDueAt
+    uuid_nullable journalId
+  }
+  CommissionRule {
+    uuid id PK
+    uuid countryId FK
+    uuid_nullable cityId
+    uuid_nullable serviceZoneId
+    uuid_nullable vendorId
+    uuid_nullable categoryId
+    string_nullable orderType
+    CommissionKind kind
+    int_nullable percentageBps
+    bigint_nullable fixedAmount
+    CommissionBasis basis
+    string currency
+    int version
+    datetime effectiveFrom
+    RuleStatus status
+  }
+  CommissionSnapshot {
+    uuid id PK
+    uuid ruleId FK
+    int ruleVersion
+    uuid suborderId FK
+    bigint basisAmount
+    bigint commissionAmount
+    string currency
+    string policy
+    datetime capturedAt
+  }
+  LedgerAccount {
+    uuid id PK
+    LedgerOwnerType ownerType
+    uuid_nullable ownerId
+    LedgerPurpose purpose
+    string currency
+    DebitOrCredit normalSide
+    string_UNIQUE code
+  }
+  JournalEntry {
+    uuid id PK
+    string_UNIQUE businessEventKey
+    string currency
+    JournalKind kind
+    datetime occurredAt
+    datetime effectiveAt
+    uuid createdBy
+    uuid_nullable reversalOfId
+    string referenceType
+    uuid referenceId FK
+    json metadata
+  }
+  LedgerLine {
+    uuid id PK
+    uuid journalId FK
+    int lineNumber
+    uuid accountId FK
+    DebitOrCredit side
+    bigint amountMinor
+    string_nullable referenceType
+    uuid_nullable referenceId
+  }
+  LedgerBalanceSnapshot {
+    uuid id PK
+    uuid accountId FK
+    uuid asOfJournalId FK
+    bigint balanceMinor
+    int version
+    datetime calculatedAt
+  }
+  Payout {
+    uuid id PK
+    uuid riderId FK
+    uuid destinationId FK
+    datetime periodStart
+    datetime periodEnd
+    string scheduleKey
+    bigint amount
+    string currency
+    PayoutMode mode
+    PayoutStatus status
+    uuid_nullable approvedBy
+    uuid_nullable reservedJournalId
+    uuid_nullable completedJournalId
+    int version
+  }
+  PayoutItem {
+    uuid id PK
+    uuid payoutId FK
+    uuid deliveryId FK
+    uuid earningJournalId FK
+    bigint grossAmount
+    bigint approvedAdjustmentAmount
+    bigint netAmount
+  }
+  Settlement {
+    uuid id PK
+    uuid vendorId FK
+    uuid destinationId FK
+    datetime periodStart
+    datetime periodEnd
+    bigint grossAmount
+    bigint commissionAmount
+    bigint refundAmount
+    bigint adjustmentAmount
+    bigint netAmount
+    string currency
+    SettlementStatus status
+    uuid_nullable approvedBy
+    int version
+  }
+  SettlementItem {
+    uuid id PK
+    uuid settlementId FK
+    uuid suborderId FK
+    uuid journalId FK
+    bigint amount
+  }
+  ReconciliationRecord {
+    uuid id PK
+    ReconciliationKind kind
+    string sourceReference
+    string internalReference
+    bigint expectedAmount
+    bigint actualAmount
+    string currency
+    ReconciliationStatus status
+    uuid_nullable reviewedBy
+    json evidence
+  }
+  VendorPlan {
+    uuid id PK
+    string code
+    int version
+    string name
+    string billingInterval
+    bigint priceAmount
+    string currency
+    int_nullable unitLimit
+    json featureEntitlements
+    datetime effectiveFrom
+    RuleStatus status
+  }
+  VendorSubscription {
+    uuid id PK
+    uuid vendorId FK
+    uuid planId FK
+    datetime startsAt
+    datetime endsAt
+    datetime_nullable introductoryEndsAt
+    SubscriptionStatus status
+    json volumePolicy
+    int version
+  }
+  PayoutAttempt {
+    uuid id PK
+    uuid payoutId FK
+    int attemptNumber
+    string_nullable providerReference
+    string_UNIQUE idempotencyKey
+    AttemptStatus status
+    datetime requestedAt
+    datetime_nullable confirmedAt
+    string_nullable failureCode
+  }
+  SettlementAttempt {
+    uuid id PK
+    uuid settlementId FK
+    int attemptNumber
+    string_nullable providerReference
+    string_UNIQUE idempotencyKey
+    AttemptStatus status
+    datetime requestedAt
+    datetime_nullable confirmedAt
+    string_nullable failureCode
+  }
+  PayoutDestination ||--o{ Payout : "destinationId"
+  Payout ||--o{ PayoutItem : "payoutId"
+  CODDeposit ||--o{ CODAllocation : "depositId"
+  CODCollection ||--o{ CODAllocation : "collectionId"
+  PaymentProviderAccount |o--o{ Payment : "providerAccountId"
+  Payment |o--o{ PaymentEvent : "paymentId"
+  Payment |o--o{ Refund : "paymentId"
+  Payment ||--o{ Chargeback : "paymentId"
+  CommissionRule ||--o{ CommissionSnapshot : "ruleId"
+  LedgerAccount ||--o{ LedgerLine : "accountId"
+  JournalEntry ||--o{ LedgerLine : "journalId"
+  JournalEntry |o--o{ JournalEntry : "reversalOfId"
+  LedgerAccount ||--o{ LedgerBalanceSnapshot : "accountId"
+  PayoutDestination ||--o{ Settlement : "destinationId"
+  Settlement ||--o{ SettlementItem : "settlementId"
+  VendorPlan ||--o{ VendorSubscription : "planId"
+  Payout ||--o{ PayoutAttempt : "payoutId"
+  Settlement ||--o{ SettlementAttempt : "settlementId"
+  JournalEntry ||--o{ CODCollection : "journalId"
+  JournalEntry |o--o{ CODDeposit : "journalId"
+  JournalEntry |o--o{ Payment : "journalId"
+  PaymentProviderAccount ||--o{ PaymentEvent : "providerAccountId"
+  JournalEntry |o--o{ Refund : "journalId"
+  JournalEntry |o--o{ Chargeback : "journalId"
+  JournalEntry ||--o{ LedgerBalanceSnapshot : "asOfJournalId"
+  JournalEntry |o--o{ Payout : "reservedJournalId"
+  JournalEntry |o--o{ Payout : "completedJournalId"
+  JournalEntry ||--o{ PayoutItem : "earningJournalId"
+  JournalEntry ||--o{ SettlementItem : "journalId"

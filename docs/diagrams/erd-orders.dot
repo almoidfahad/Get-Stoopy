@@ -1,0 +1,83 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.35",nodesep="0.35",ranksep="0.8"];
+node [shape=plain,fontname="Arial"];
+edge [color="#68717d",fontcolor="#47505c",fontsize=9,fontname="Arial"];
+CheckoutQuote [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#7a4b24"><FONT COLOR="white"><B>CheckoutQuote</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>checkoutId</B></TD><TD ALIGN="LEFT">uuid UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>customerId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>recipientSnapshot</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>destinationAddressSnapshot</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>destinationZoneId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>totals</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>groupQuotes</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>pricingVersion</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>expiresAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>quoteHash</B></TD><TD ALIGN="LEFT">bytes</TD></TR></TABLE>>];
+Order [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#7a4b24"><FONT COLOR="white"><B>Order</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>publicReference</B></TD><TD ALIGN="LEFT">string UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>buyerId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>countryId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>destinationCountryId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>destinationZoneId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">ParentOrderStatus</TD></TR><TR><TD ALIGN="LEFT"><B>subtotalAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>deliveryFeeAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>discountAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>taxAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>totalAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>currency</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>pricingSnapshot</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>riskCaseId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>idempotencyKey</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>version</B></TD><TD ALIGN="LEFT">int</TD></TR></TABLE>>];
+OrderItem [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#7a4b24"><FONT COLOR="white"><B>OrderItem</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>suborder_id</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>variantId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>productSnapshot</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>quantity</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>unitPriceAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>lineDiscountAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>taxAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>lineTotalAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>commissionSnapshotId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR></TABLE>>];
+OrderRecipient [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#7a4b24"><FONT COLOR="white"><B>OrderRecipient</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>orderId</B></TD><TD ALIGN="LEFT">uuid UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>name</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>phoneEncrypted</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>phoneHash</B></TD><TD ALIGN="LEFT">bytes</TD></TR><TR><TD ALIGN="LEFT"><B>addressSnapshot</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>destinationZoneId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>verificationStatus</B></TD><TD ALIGN="LEFT">VerificationStatus</TD></TR></TABLE>>];
+OrderStatusEvent [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#7a4b24"><FONT COLOR="white"><B>OrderStatusEvent</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>orderId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>suborderId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>fromStatus</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>toStatus</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>actorId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>reason</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>commandId</B></TD><TD ALIGN="LEFT">string UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>occurredAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR></TABLE>>];
+ReturnRequest [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#7a4b24"><FONT COLOR="white"><B>ReturnRequest</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>orderId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>suborderId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>customerId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">ReturnStatus</TD></TR><TR><TD ALIGN="LEFT"><B>reason</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>requestedItems</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>evidenceObjectKeys</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>approvedBy</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>refundId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR></TABLE>>];
+VendorSuborder [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#7a4b24"><FONT COLOR="white"><B>VendorSuborder</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>orderId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>vendorId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>storeId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>destinationZoneId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>publicReference</B></TD><TD ALIGN="LEFT">string UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">SuborderStatus</TD></TR><TR><TD ALIGN="LEFT"><B>preparationMinutes</B></TD><TD ALIGN="LEFT">int nullable</TD></TR><TR><TD ALIGN="LEFT"><B>readyConfirmedBy</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>readyConfirmedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>subtotalAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>allocatedDeliveryAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>allocatedDiscountAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>taxAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>totalAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>version</B></TD><TD ALIGN="LEFT">int</TD></TR></TABLE>>];
+CommissionSnapshot [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="CommissionSnapshot
+(external domain)"];
+Country [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Country
+(external domain)"];
+CouponRedemption [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="CouponRedemption
+(external domain)"];
+Customer [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Customer
+(external domain)"];
+Delivery [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Delivery
+(external domain)"];
+FraudCase [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="FraudCase
+(external domain)"];
+InventoryReservation [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="InventoryReservation
+(external domain)"];
+Payment [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Payment
+(external domain)"];
+ProductVariant [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ProductVariant
+(external domain)"];
+Referral [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Referral
+(external domain)"];
+Refund [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Refund
+(external domain)"];
+Review [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Review
+(external domain)"];
+ServiceZone [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ServiceZone
+(external domain)"];
+SettlementItem [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="SettlementItem
+(external domain)"];
+Store [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Store
+(external domain)"];
+User [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="User
+(external domain)"];
+Vendor [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Vendor
+(external domain)"];
+InventoryReservation -> CheckoutQuote [label="quoteId (N:1, FK owner → target)"];
+Order -> Customer [label="buyerId (N:1, FK owner → target)"];
+OrderRecipient -> Order [label="orderId (1:1, FK owner → target)"];
+VendorSuborder -> Order [label="orderId (N:1, FK owner → target)"];
+VendorSuborder -> Vendor [label="vendorId (N:1, FK owner → target)"];
+VendorSuborder -> Store [label="storeId (N:1, FK owner → target)"];
+OrderItem -> VendorSuborder [label="suborder_id (N:1, FK owner → target)"];
+OrderStatusEvent -> Order [label="orderId (N:1, FK owner → target)"];
+Delivery -> VendorSuborder [label="suborderId (N:1, FK owner → target)"];
+Payment -> Order [label="orderId (N:1, FK owner → target)"];
+Refund -> Order [label="orderId (N:1, FK owner → target)"];
+CommissionSnapshot -> VendorSuborder [label="suborderId (N:1, FK owner → target)"];
+SettlementItem -> VendorSuborder [label="suborderId (N:1, FK owner → target)"];
+FraudCase -> Order [label="orderId (N:1, FK owner → target)"];
+ReturnRequest -> Order [label="orderId (N:1, FK owner → target)"];
+ReturnRequest -> Refund [label="refundId (N:1, FK owner → target)"];
+Review -> OrderItem [label="orderItemId (1:1, FK owner → target)"];
+CouponRedemption -> Order [label="orderId (1:1, FK owner → target)"];
+CheckoutQuote -> Customer [label="customerId (N:1, FK owner → target)"];
+CheckoutQuote -> ServiceZone [label="destinationZoneId (N:1, FK owner → target)"];
+OrderRecipient -> ServiceZone [label="destinationZoneId (N:1, FK owner → target)"];
+Order -> Country [label="countryId (N:1, FK owner → target)"];
+Order -> Country [label="destinationCountryId (N:1, FK owner → target)"];
+Order -> ServiceZone [label="destinationZoneId (N:1, FK owner → target)"];
+Order -> FraudCase [label="riskCaseId (N:1, FK owner → target)"];
+VendorSuborder -> ServiceZone [label="destinationZoneId (N:1, FK owner → target)"];
+VendorSuborder -> User [label="readyConfirmedBy (N:1, FK owner → target)"];
+OrderItem -> ProductVariant [label="variantId (N:1, FK owner → target)"];
+OrderItem -> CommissionSnapshot [label="commissionSnapshotId (N:1, FK owner → target)"];
+OrderStatusEvent -> VendorSuborder [label="suborderId (N:1, FK owner → target)"];
+OrderStatusEvent -> User [label="actorId (N:1, FK owner → target)"];
+Delivery -> OrderRecipient [label="recipientId (N:1, FK owner → target)"];
+Refund -> VendorSuborder [label="suborderId (N:1, FK owner → target)"];
+ReturnRequest -> VendorSuborder [label="suborderId (N:1, FK owner → target)"];
+ReturnRequest -> Customer [label="customerId (N:1, FK owner → target)"];
+ReturnRequest -> User [label="approvedBy (N:1, FK owner → target)"];
+Referral -> Order [label="qualifiedOrderId (N:1, FK owner → target)"];
+}

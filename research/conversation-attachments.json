@@ -1,0 +1,44 @@
+[
+  {
+    "index": 568,
+    "role": "user",
+    "pointer": "sediment://file_000000001f8c8210af9cffffe38fbbd6?shared_conversation_id=6ae70089-14c4-83ec-aaf9-b382b6b04347",
+    "width": 1062,
+    "height": 1536
+  },
+  {
+    "index": 574,
+    "role": "user",
+    "pointer": "sediment://file_00000000c7d8821097286a2186c08089?shared_conversation_id=6ae70089-14c4-83ec-aaf9-b382b6b04347",
+    "width": 1024,
+    "height": 1536
+  },
+  {
+    "index": 578,
+    "role": "user",
+    "pointer": "sediment://file_000000007b7882108b63c63865ce4fe4?shared_conversation_id=6ae70089-14c4-83ec-aaf9-b382b6b04347",
+    "width": 1024,
+    "height": 1536
+  },
+  {
+    "index": 578,
+    "role": "user",
+    "pointer": "sediment://file_000000000b5c82109638291c5342c513?shared_conversation_id=6ae70089-14c4-83ec-aaf9-b382b6b04347",
+    "width": 688,
+    "height": 1536
+  },
+  {
+    "index": 584,
+    "role": "user",
+    "pointer": "sediment://file_000000004e1082108db0b5effd377203?shared_conversation_id=6ae70089-14c4-83ec-aaf9-b382b6b04347",
+    "width": 1024,
+    "height": 1536
+  },
+  {
+    "index": 588,
+    "role": "user",
+    "pointer": "sediment://file_00000000bce08210bccc56833d816426?shared_conversation_id=6ae70089-14c4-83ec-aaf9-b382b6b04347",
+    "width": 1024,
+    "height": 1536
+  }
+]

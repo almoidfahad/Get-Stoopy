@@ -1,0 +1,304 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum AssuranceLevel {
+  PASSWORD
+  MFA
+  STEP_UP
+}
+
+enum SessionState {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum GeographyType {
+  COUNTRY
+  REGION
+  DISTRICT
+  CITY
+  ZONE
+  NEIGHBORHOOD
+}
+
+enum AreaStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+}
+
+enum ActorType {
+  USER
+  SYSTEM
+  PROVIDER
+  AI_AGENT
+}
+
+enum IdempotencyState {
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id                   String        @id @default(uuid()) @db.Uuid
+  emailNormalized      String?       @unique
+  emailVerifiedAt      DateTime?
+  phoneE164            String?
+  phoneVerifiedAt      DateTime?
+  displayName          String
+  status               UserStatus    @default(ACTIVE)
+  authorizationVersion Int           @default(1)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  identities           UserIdentity[]
+  sessions             Session[]
+  roles                UserRole[]
+  scopes               AdminScope[]
+  auditLogs            AuditLog[]
+}
+
+model UserIdentity {
+  id                   String   @id @default(uuid()) @db.Uuid
+  userId               String   @db.Uuid
+  issuer               String
+  subject              String
+  providerKey          String
+  providerEmailVerified Boolean @default(false)
+  linkedAt             DateTime @default(now())
+  lastVerifiedAt       DateTime
+  user                 User     @relation(fields: [userId], references: [id])
+  @@unique([issuer, subject])
+  @@unique([userId, issuer])
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  name        String
+  description String?
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  resource    String
+  action      String
+  sensitivity String
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String     @db.Uuid
+  permissionId String     @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  @@id([roleId, permissionId])
+}
+
+model UserRole {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  roleId    String   @db.Uuid
+  grantedBy String   @db.Uuid
+  expiresAt DateTime?
+  revokedAt DateTime?
+  user      User     @relation(fields: [userId], references: [id])
+  role      Role     @relation(fields: [roleId], references: [id])
+  @@unique([userId, roleId])
+}
+
+model AdminScope {
+  id             String        @id @default(uuid()) @db.Uuid
+  userId         String        @db.Uuid
+  geographyType  GeographyType
+  countryId      String?       @db.Uuid
+  regionId       String?       @db.Uuid
+  districtId     String?       @db.Uuid
+  cityId         String?       @db.Uuid
+  serviceZoneId  String?       @db.Uuid
+  neighborhoodId String?       @db.Uuid
+  grantedBy      String        @db.Uuid
+  effectiveFrom  DateTime      @default(now())
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  user           User          @relation(fields: [userId], references: [id])
+  @@index([userId, revokedAt])
+}
+
+model Session {
+  id                       String         @id @default(uuid()) @db.Uuid
+  userId                   String         @db.Uuid
+  tokenHash                String         @unique
+  assuranceLevel           AssuranceLevel @default(PASSWORD)
+  state                    SessionState   @default(ACTIVE)
+  encryptedTokenEnvelope   Bytes?
+  expiresAt                DateTime
+  idleExpiresAt            DateTime
+  revokedAt                DateTime?
+  authVersion              Int
+  createdAt                DateTime       @default(now())
+  user                     User           @relation(fields: [userId], references: [id])
+  @@index([userId, state])
+}
+
+model Country {
+  id           String     @id @default(uuid()) @db.Uuid
+  iso2         String     @unique
+  name         String
+  currencyCode String
+  callingCode  String
+  timezone     String
+  status       AreaStatus @default(DRAFT)
+  regions      Region[]
+}
+
+model Region {
+  id        String     @id @default(uuid()) @db.Uuid
+  countryId String     @db.Uuid
+  code      String
+  name      String
+  status    AreaStatus @default(DRAFT)
+  country   Country    @relation(fields: [countryId], references: [id])
+  districts District[]
+  @@unique([countryId, code])
+}
+
+model District {
+  id       String  @id @default(uuid()) @db.Uuid
+  regionId String  @db.Uuid
+  code     String
+  name     String
+  status   AreaStatus @default(DRAFT)
+  region   Region  @relation(fields: [regionId], references: [id])
+  cities   City[]
+  @@unique([regionId, code])
+}
+
+model City {
+  id         String  @id @default(uuid()) @db.Uuid
+  districtId String  @db.Uuid
+  code       String
+  name       String
+  kind       String
+  status     AreaStatus @default(DRAFT)
+  district   District @relation(fields: [districtId], references: [id])
+  zones      ServiceZone[]
+  @@unique([districtId, code])
+}
+
+model ServiceZone {
+  id       String  @id @default(uuid()) @db.Uuid
+  cityId   String  @db.Uuid
+  code     String
+  name     String
+  status   AreaStatus @default(DRAFT)
+  priority Int     @default(0)
+  city     City    @relation(fields: [cityId], references: [id])
+  neighborhoods Neighborhood[]
+  @@unique([cityId, code])
+}
+
+model Neighborhood {
+  id            String      @id @default(uuid()) @db.Uuid
+  serviceZoneId String      @db.Uuid
+  code          String
+  name          String
+  zone          ServiceZone @relation(fields: [serviceZoneId], references: [id])
+  @@unique([serviceZoneId, code])
+}
+
+model BoundaryVersion {
+  id          String        @id @default(uuid()) @db.Uuid
+  ownerType   GeographyType
+  ownerId     String        @db.Uuid
+  version     Int
+  boundary    Unsupported("geometry(MultiPolygon,4326)")
+  source      String
+  validFrom   DateTime
+  approvedBy  String?       @db.Uuid
+  contentHash String
+  createdAt   DateTime      @default(now())
+  @@unique([ownerType, ownerId, version])
+}
+
+model AuditLog {
+  id            String    @id @default(uuid()) @db.Uuid
+  actorId       String?   @db.Uuid
+  actorType     ActorType
+  sessionId     String?   @db.Uuid
+  action        String
+  resourceType  String
+  resourceId    String?   @db.Uuid
+  scopeSnapshot Json
+  beforeRedacted Json?
+  afterRedacted Json?
+  reason        String?
+  requestId     String
+  occurredAt    DateTime  @default(now())
+  actor         User?     @relation(fields: [actorId], references: [id])
+  @@index([resourceType, resourceId, occurredAt])
+  @@index([actorId, occurredAt])
+}
+
+model OutboxEvent {
+  id            String    @id @default(uuid()) @db.Uuid
+  aggregateType String
+  aggregateId   String    @db.Uuid
+  eventKey      String    @unique
+  eventType     String
+  payload       Json
+  occurredAt    DateTime  @default(now())
+  publishedAt   DateTime?
+  attempts      Int       @default(0)
+  @@index([publishedAt, occurredAt])
+}
+
+model InboxReceipt {
+  consumer    String
+  eventKey    String
+  processedAt DateTime @default(now())
+  @@id([consumer, eventKey])
+}
+
+model IdempotencyRecord {
+  id                String           @id @default(uuid()) @db.Uuid
+  actorId           String           @db.Uuid
+  route             String
+  key               String
+  requestHash       String
+  responseStatus    Int?
+  responseHash      String?
+  resourceReference String?
+  state             IdempotencyState @default(IN_PROGRESS)
+  expiresAt         DateTime
+  createdAt         DateTime         @default(now())
+  @@unique([actorId, route, key])
+}
+
+model FeatureFlag {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String
+  countryId   String?  @db.Uuid
+  environment String
+  enabled     Boolean  @default(false)
+  rolloutRule Json
+  version     Int      @default(1)
+  updatedBy   String   @db.Uuid
+  @@unique([key, countryId, environment])
+}

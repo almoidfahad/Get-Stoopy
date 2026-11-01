@@ -1,0 +1,241 @@
+capability,role,access,policy_status,enforcement
+Public catalog/search,Super,Public,PROPOSED,backend permission + ownership/geographic scope + assurance
+Public catalog/search,Country,Public,PROPOSED,backend permission + ownership/geographic scope + assurance
+Public catalog/search,Regional,Public,PROPOSED,backend permission + ownership/geographic scope + assurance
+Public catalog/search,City,Public,PROPOSED,backend permission + ownership/geographic scope + assurance
+Public catalog/search,Zone / Local,Public,PROPOSED,backend permission + ownership/geographic scope + assurance
+Public catalog/search,Vendor owner / staff,Public,PROPOSED,backend permission + ownership/geographic scope + assurance
+Public catalog/search,Rider,Public,PROPOSED,backend permission + ownership/geographic scope + assurance
+Public catalog/search,Customer,Public,PROPOSED,backend permission + ownership/geographic scope + assurance
+Customer profile/addresses,Super,"G, restricted support",PROPOSED,backend permission + ownership/geographic scope + assurance
+Customer profile/addresses,Country,C support,PROPOSED,backend permission + ownership/geographic scope + assurance
+Customer profile/addresses,Regional,R support,PROPOSED,backend permission + ownership/geographic scope + assurance
+Customer profile/addresses,City,T support,PROPOSED,backend permission + ownership/geographic scope + assurance
+Customer profile/addresses,Zone / Local,Z/L support,PROPOSED,backend permission + ownership/geographic scope + assurance
+Customer profile/addresses,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Customer profile/addresses,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Customer profile/addresses,Customer,O,PROPOSED,backend permission + ownership/geographic scope + assurance
+Wishlist/cart/checkout,Super,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Wishlist/cart/checkout,Country,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Wishlist/cart/checkout,Regional,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Wishlist/cart/checkout,City,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Wishlist/cart/checkout,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Wishlist/cart/checkout,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Wishlist/cart/checkout,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Wishlist/cart/checkout,Customer,O,PROPOSED,backend permission + ownership/geographic scope + assurance
+Own orders/remote tracking,Super,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Own orders/remote tracking,Country,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Own orders/remote tracking,Regional,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Own orders/remote tracking,City,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Own orders/remote tracking,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Own orders/remote tracking,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Own orders/remote tracking,Rider,"D, minimum data",PROPOSED,backend permission + ownership/geographic scope + assurance
+Own orders/remote tracking,Customer,"O, buyer view",PROPOSED,backend permission + ownership/geographic scope + assurance
+Vendor application,Super,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Vendor application,Country,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Vendor application,Regional,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Vendor application,City,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Vendor application,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Vendor application,Vendor owner / staff,"V, draft only",PROPOSED,backend permission + ownership/geographic scope + assurance
+Vendor application,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Vendor application,Customer,"O, applicant only",PROPOSED,backend permission + ownership/geographic scope + assurance
+Product/variant/inventory write,Super,G moderation,PROPOSED,backend permission + ownership/geographic scope + assurance
+Product/variant/inventory write,Country,C oversight,PROPOSED,backend permission + ownership/geographic scope + assurance
+Product/variant/inventory write,Regional,R oversight,PROPOSED,backend permission + ownership/geographic scope + assurance
+Product/variant/inventory write,City,T oversight,PROPOSED,backend permission + ownership/geographic scope + assurance
+Product/variant/inventory write,Zone / Local,Z/L monitoring only by default,PROPOSED,backend permission + ownership/geographic scope + assurance
+Product/variant/inventory write,Vendor owner / staff,"V, approved store",PROPOSED,backend permission + ownership/geographic scope + assurance
+Product/variant/inventory write,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Product/variant/inventory write,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Accept/reject/set prep/ready,Super,"G exception, audited",PROPOSED,backend permission + ownership/geographic scope + assurance
+Accept/reject/set prep/ready,Country,C exception policy,PROPOSED,backend permission + ownership/geographic scope + assurance
+Accept/reject/set prep/ready,Regional,R exception policy,PROPOSED,backend permission + ownership/geographic scope + assurance
+Accept/reject/set prep/ready,City,T operations,PROPOSED,backend permission + ownership/geographic scope + assurance
+Accept/reject/set prep/ready,Zone / Local,Z/L delegated operations,PROPOSED,backend permission + ownership/geographic scope + assurance
+Accept/reject/set prep/ready,Vendor owner / staff,"V, own suborder",PROPOSED,backend permission + ownership/geographic scope + assurance
+Accept/reject/set prep/ready,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Accept/reject/set prep/ready,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC submit/upload,Super,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC submit/upload,Country,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC submit/upload,Regional,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC submit/upload,City,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC submit/upload,Zone / Local,Authorized office assistance,PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC submit/upload,Vendor owner / staff,V,PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC submit/upload,Rider,"D, own profile",PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC submit/upload,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC review/approval,Super,G,PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC review/approval,Country,C delegated,PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC review/approval,Regional,R delegated,PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC review/approval,City,T delegated,PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC review/approval,Zone / Local,L review only if granted,PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC review/approval,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC review/approval,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+KYC review/approval,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Admin invite / scope grant,Super,G,PROPOSED,backend permission + ownership/geographic scope + assurance
+Admin invite / scope grant,Country,"C descendants, delegated",PROPOSED,backend permission + ownership/geographic scope + assurance
+Admin invite / scope grant,Regional,"R descendants, delegated",PROPOSED,backend permission + ownership/geographic scope + assurance
+Admin invite / scope grant,City,"T zone/local, delegated",PROPOSED,backend permission + ownership/geographic scope + assurance
+Admin invite / scope grant,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Admin invite / scope grant,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Admin invite / scope grant,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Admin invite / scope grant,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Edit own geographic scope,Super,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Edit own geographic scope,Country,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Edit own geographic scope,Regional,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Edit own geographic scope,City,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Edit own geographic scope,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Edit own geographic scope,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Edit own geographic scope,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Edit own geographic scope,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+"Start/end shift, location",Super,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+"Start/end shift, location",Country,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+"Start/end shift, location",Regional,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+"Start/end shift, location",City,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+"Start/end shift, location",Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+"Start/end shift, location",Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+"Start/end shift, location",Rider,"D, consented",PROPOSED,backend permission + ownership/geographic scope + assurance
+"Start/end shift, location",Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Delivery offer acceptance,Super,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Delivery offer acceptance,Country,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Delivery offer acceptance,Regional,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Delivery offer acceptance,City,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Delivery offer acceptance,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Delivery offer acceptance,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Delivery offer acceptance,Rider,"D, eligible offer",PROPOSED,backend permission + ownership/geographic scope + assurance
+Delivery offer acceptance,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Manual dispatch / override,Super,G,PROPOSED,backend permission + ownership/geographic scope + assurance
+Manual dispatch / override,Country,C delegated,PROPOSED,backend permission + ownership/geographic scope + assurance
+Manual dispatch / override,Regional,R delegated,PROPOSED,backend permission + ownership/geographic scope + assurance
+Manual dispatch / override,City,T delegated,PROPOSED,backend permission + ownership/geographic scope + assurance
+Manual dispatch / override,Zone / Local,Z/L delegated,PROPOSED,backend permission + ownership/geographic scope + assurance
+Manual dispatch / override,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Manual dispatch / override,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Manual dispatch / override,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Pickup / OTP delivery proof,Super,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Pickup / OTP delivery proof,Country,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Pickup / OTP delivery proof,Regional,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Pickup / OTP delivery proof,City,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Pickup / OTP delivery proof,Zone / Local,Audited exception only,PROPOSED,backend permission + ownership/geographic scope + assurance
+Pickup / OTP delivery proof,Vendor owner / staff,"V, pickup handoff only",PROPOSED,backend permission + ownership/geographic scope + assurance
+Pickup / OTP delivery proof,Rider,D,PROPOSED,backend permission + ownership/geographic scope + assurance
+Pickup / OTP delivery proof,Customer,"Recipient OTP, not account role",PROPOSED,backend permission + ownership/geographic scope + assurance
+Commission / rider rates,Super,G,PROPOSED,backend permission + ownership/geographic scope + assurance
+Commission / rider rates,Country,C only if delegated,PROPOSED,backend permission + ownership/geographic scope + assurance
+Commission / rider rates,Regional,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Commission / rider rates,City,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Commission / rider rates,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Commission / rider rates,Vendor owner / staff,"V, view effective own charges",PROPOSED,backend permission + ownership/geographic scope + assurance
+Commission / rider rates,Rider,"D, view own snapshot",PROPOSED,backend permission + ownership/geographic scope + assurance
+Commission / rider rates,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Financial ledger direct edit,Super,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Financial ledger direct edit,Country,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Financial ledger direct edit,Regional,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Financial ledger direct edit,City,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Financial ledger direct edit,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Financial ledger direct edit,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Financial ledger direct edit,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Financial ledger direct edit,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund request/review,Super,G approval policy,PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund request/review,Country,C delegated review,PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund request/review,Regional,R review,PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund request/review,City,T review,PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund request/review,Zone / Local,L intake,PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund request/review,Vendor owner / staff,"V, own request",PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund request/review,Rider,"D, evidence only",PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund request/review,Customer,"O, request",PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund approval,Super,"G, maker–checker",PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund approval,Country,"C, explicit permission",PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund approval,Regional,"R, explicit permission",PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund approval,City,"T, explicit permission",PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund approval,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund approval,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund approval,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Refund approval,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Verify COD deposit,Super,G,PROPOSED,backend permission + ownership/geographic scope + assurance
+Verify COD deposit,Country,C delegated finance,PROPOSED,backend permission + ownership/geographic scope + assurance
+Verify COD deposit,Regional,R delegated finance,PROPOSED,backend permission + ownership/geographic scope + assurance
+Verify COD deposit,City,T delegated finance,PROPOSED,backend permission + ownership/geographic scope + assurance
+Verify COD deposit,Zone / Local,L intake only,PROPOSED,backend permission + ownership/geographic scope + assurance
+Verify COD deposit,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Verify COD deposit,Rider,"D, submit evidence",PROPOSED,backend permission + ownership/geographic scope + assurance
+Verify COD deposit,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Approve payout/settlement,Super,"G, maker–checker",PROPOSED,backend permission + ownership/geographic scope + assurance
+Approve payout/settlement,Country,C delegated,PROPOSED,backend permission + ownership/geographic scope + assurance
+Approve payout/settlement,Regional,R delegated,PROPOSED,backend permission + ownership/geographic scope + assurance
+Approve payout/settlement,City,T delegated,PROPOSED,backend permission + ownership/geographic scope + assurance
+Approve payout/settlement,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Approve payout/settlement,Vendor owner / staff,"V, request only",PROPOSED,backend permission + ownership/geographic scope + assurance
+Approve payout/settlement,Rider,"D, request only",PROPOSED,backend permission + ownership/geographic scope + assurance
+Approve payout/settlement,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Execute approved money transfer,Super,G finance worker,PROPOSED,backend permission + ownership/geographic scope + assurance
+Execute approved money transfer,Country,C finance worker,PROPOSED,backend permission + ownership/geographic scope + assurance
+Execute approved money transfer,Regional,R finance worker,PROPOSED,backend permission + ownership/geographic scope + assurance
+Execute approved money transfer,City,T finance worker,PROPOSED,backend permission + ownership/geographic scope + assurance
+Execute approved money transfer,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Execute approved money transfer,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Execute approved money transfer,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Execute approved money transfer,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Raw KYC / bank detail export,Super,"G, exceptional approval",PROPOSED,backend permission + ownership/geographic scope + assurance
+Raw KYC / bank detail export,Country,— by default,PROPOSED,backend permission + ownership/geographic scope + assurance
+Raw KYC / bank detail export,Regional,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Raw KYC / bank detail export,City,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Raw KYC / bank detail export,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Raw KYC / bank detail export,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Raw KYC / bank detail export,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Raw KYC / bank detail export,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Fraud hold/review,Super,G,PROPOSED,backend permission + ownership/geographic scope + assurance
+Fraud hold/review,Country,C,PROPOSED,backend permission + ownership/geographic scope + assurance
+Fraud hold/review,Regional,R,PROPOSED,backend permission + ownership/geographic scope + assurance
+Fraud hold/review,City,T,PROPOSED,backend permission + ownership/geographic scope + assurance
+Fraud hold/review,Zone / Local,Z/L,PROPOSED,backend permission + ownership/geographic scope + assurance
+Fraud hold/review,Vendor owner / staff,"V, own evidence",PROPOSED,backend permission + ownership/geographic scope + assurance
+Fraud hold/review,Rider,"D, own evidence",PROPOSED,backend permission + ownership/geographic scope + assurance
+Fraud hold/review,Customer,"O, appeal",PROPOSED,backend permission + ownership/geographic scope + assurance
+Reject confirmed fraud,Super,G authorized reviewer,PROPOSED,backend permission + ownership/geographic scope + assurance
+Reject confirmed fraud,Country,C authorized reviewer,PROPOSED,backend permission + ownership/geographic scope + assurance
+Reject confirmed fraud,Regional,R authorized reviewer,PROPOSED,backend permission + ownership/geographic scope + assurance
+Reject confirmed fraud,City,T authorized reviewer,PROPOSED,backend permission + ownership/geographic scope + assurance
+Reject confirmed fraud,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Reject confirmed fraud,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Reject confirmed fraud,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Reject confirmed fraud,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI reports/assistant,Super,G,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI reports/assistant,Country,C,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI reports/assistant,Regional,R,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI reports/assistant,City,T,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI reports/assistant,Zone / Local,Z/L,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI reports/assistant,Vendor owner / staff,V aggregate,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI reports/assistant,Rider,D own,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI reports/assistant,Customer,O consented,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI payout/refund/KYC/role execution,Super,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI payout/refund/KYC/role execution,Country,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI payout/refund/KYC/role execution,Regional,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI payout/refund/KYC/role execution,City,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI payout/refund/KYC/role execution,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI payout/refund/KYC/role execution,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI payout/refund/KYC/role execution,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+AI payout/refund/KYC/role execution,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Audit log read,Super,G security,PROPOSED,backend permission + ownership/geographic scope + assurance
+Audit log read,Country,C delegated,PROPOSED,backend permission + ownership/geographic scope + assurance
+Audit log read,Regional,R delegated,PROPOSED,backend permission + ownership/geographic scope + assurance
+Audit log read,City,T delegated,PROPOSED,backend permission + ownership/geographic scope + assurance
+Audit log read,Zone / Local,L delegated,PROPOSED,backend permission + ownership/geographic scope + assurance
+Audit log read,Vendor owner / staff,"V, own activity only",PROPOSED,backend permission + ownership/geographic scope + assurance
+Audit log read,Rider,"D, own login history",PROPOSED,backend permission + ownership/geographic scope + assurance
+Audit log read,Customer,"O, own login history",PROPOSED,backend permission + ownership/geographic scope + assurance
+Emergency privileged-session lock,Super,"G, step-up",PROPOSED,backend permission + ownership/geographic scope + assurance
+Emergency privileged-session lock,Country,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Emergency privileged-session lock,Regional,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Emergency privileged-session lock,City,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Emergency privileged-session lock,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Emergency privileged-session lock,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Emergency privileged-session lock,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Emergency privileged-session lock,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Country creation / cross-border enable,Super,"G, legal gate",PROPOSED,backend permission + ownership/geographic scope + assurance
+Country creation / cross-border enable,Country,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Country creation / cross-border enable,Regional,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Country creation / cross-border enable,City,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Country creation / cross-border enable,Zone / Local,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Country creation / cross-border enable,Vendor owner / staff,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Country creation / cross-border enable,Rider,—,PROPOSED,backend permission + ownership/geographic scope + assurance
+Country creation / cross-border enable,Customer,—,PROPOSED,backend permission + ownership/geographic scope + assurance

@@ -1,0 +1,1459 @@
+erDiagram
+  User {
+    uuid id PK
+    string_nullable emailNormalized
+    datetime_nullable emailVerifiedAt
+    string_nullable phoneE164
+    datetime_nullable phoneVerifiedAt
+    string displayName
+    UserStatus status
+    int authorizationVersion
+  }
+  UserIdentity {
+    uuid id PK
+    uuid userId FK
+    string issuer
+    string subject
+    string providerKey
+    string_nullable providerEmailEncrypted
+    boolean providerEmailVerified
+    datetime linkedAt
+    string linkedBy
+    datetime lastVerifiedAt
+  }
+  Role {
+    uuid id PK
+    string_UNIQUE key
+    string name
+    RoleKind kind
+    string description
+  }
+  Permission {
+    uuid id PK
+    string_UNIQUE key
+    string resource
+    string action
+    PermissionSensitivity sensitivity
+  }
+  RolePermission {
+    uuid id PK
+    uuid roleId FK
+    uuid permissionId FK
+  }
+  UserRole {
+    uuid id PK
+    uuid userId FK
+    uuid roleId FK
+    uuid grantedBy
+    datetime_nullable expiresAt
+    datetime_nullable revokedAt
+  }
+  Session {
+    uuid id PK
+    uuid userId FK
+    bytes_UNIQUE tokenHash
+    AssuranceLevel assuranceLevel
+    SessionState state
+    uuid_nullable deviceId
+    string_nullable providerSessionReference
+    bytes_nullable encryptedTokenEnvelope
+    datetime expiresAt
+    datetime idleExpiresAt
+    datetime_nullable revokedAt
+    int authVersion
+  }
+  Device {
+    uuid id PK
+    uuid userId FK
+    string label
+    bytes publicBindingHash
+    datetime lastSeenAt
+    datetime_nullable trustedAt
+    datetime_nullable revokedAt
+  }
+  AdminScope {
+    uuid id PK
+    uuid userId FK
+    GeographyType geographyType
+    uuid_nullable countryId
+    uuid_nullable regionId
+    uuid_nullable districtId
+    uuid_nullable cityId
+    uuid_nullable serviceZoneId
+    uuid_nullable neighborhoodId
+    uuid grantedBy
+    datetime effectiveFrom
+    datetime_nullable expiresAt
+    datetime_nullable revokedAt
+  }
+  AdminInvitation {
+    uuid id PK
+    string emailNormalized
+    json intendedRoleIds
+    json intendedScopeSnapshot
+    bytes_UNIQUE tokenHash
+    uuid invitedBy
+    datetime expiresAt
+    datetime_nullable acceptedAt
+  }
+  MfaEnrollment {
+    uuid id PK
+    uuid userId FK
+    string_UNIQUE providerReference
+    TOTP method
+    datetime_nullable enrolledAt
+    bigint_nullable lastVerifiedStep
+    MfaStatus status
+  }
+  StepUpChallenge {
+    uuid id PK
+    uuid userId FK
+    uuid sessionId FK
+    string purpose
+    bytes resourceHash
+    bytes_UNIQUE tokenHash
+    datetime expiresAt
+    datetime_nullable consumedAt
+  }
+  ConsentRecord {
+    uuid id PK
+    uuid_nullable userId
+    bytes_nullable guestReferenceHash
+    ConsentPurpose purpose
+    string policyVersion
+    boolean granted
+    string source
+    datetime occurredAt
+  }
+  PrivacyRequest {
+    uuid id PK
+    uuid userId FK
+    PrivacyRequestKind kind
+    PrivacyRequestStatus status
+    datetime_nullable verifiedAt
+    datetime dueAt
+    string_nullable resultReference
+  }
+  Country {
+    uuid id PK
+    string_UNIQUE iso2
+    string name
+    string currencyCode
+    string callingCode
+    string timezone
+    CountryStatus status
+  }
+  CountryConfiguration {
+    uuid id PK
+    uuid countryId FK
+    int version
+    datetime effectiveFrom
+    json localeDefaults
+    string taxPolicyRef
+    string kycPolicyRef
+    string deliveryPolicyRef
+    string settlementPolicyRef
+    string legalPolicyRef
+    boolean crossBorderEnabled
+    json featureFlags
+  }
+  Region {
+    uuid id PK
+    uuid countryId FK
+    string code
+    string name
+    AreaStatus status
+  }
+  District {
+    uuid id PK
+    uuid regionId FK
+    string code
+    string name
+    AreaStatus status
+  }
+  City {
+    uuid id PK
+    uuid districtId FK
+    string code
+    string name
+    CityOrUpazila kind
+    AreaStatus status
+    uuid_nullable boundaryVersionId
+  }
+  ServiceZone {
+    uuid id PK
+    uuid cityId FK
+    string code
+    string name
+    ZoneStatus status
+    uuid_nullable activeBoundaryVersionId
+    json operatingHours
+    int priority
+  }
+  Neighborhood {
+    uuid id PK
+    uuid serviceZoneId FK
+    string code
+    string name
+    uuid_nullable boundaryVersionId
+  }
+  BoundaryVersion {
+    uuid id PK
+    GeographyType ownerType
+    uuid ownerId FK
+    int version
+    geometry_MultiPolygon_4326 boundary
+    string source
+    datetime validFrom
+    uuid approvedBy
+    bytes contentHash
+  }
+  Address {
+    uuid id PK
+    uuid_nullable customerId
+    uuid_nullable vendorId
+    uuid_nullable riderId
+    string_nullable label
+    string countryCode
+    uuid regionId FK
+    uuid districtId FK
+    uuid cityId FK
+    uuid_nullable serviceZoneId
+    uuid_nullable neighborhoodId
+    string line1
+    string_nullable line2
+    string_nullable postalCode
+    geometry_Point_4326 point
+    string geocodeSource
+    decimal_nullable geocodeConfidence
+    json normalizedSnapshot
+  }
+  Customer {
+    uuid id PK
+    uuid_UNIQUE userId
+    string locale
+    uuid_nullable defaultAddressId
+    CustomerRiskStatus riskStatus
+  }
+  Vendor {
+    uuid id PK
+    string legalName
+    string displayName
+    uuid ownerUserId FK
+    VendorBusinessType businessType
+    VendorStatus status
+    uuid_nullable_UNIQUE kycCaseId
+    uuid homeCountryId FK
+    string contactPhone
+    string_UNIQUE slug
+  }
+  VendorMembership {
+    uuid id PK
+    uuid vendorId FK
+    uuid userId FK
+    uuid_nullable storeId
+    VendorRole vendorRole
+    MembershipStatus status
+  }
+  Store {
+    uuid id PK
+    uuid vendorId FK
+    string name
+    uuid addressId FK
+    geometry_Point_4326 pickupPoint
+    uuid cityId FK
+    StoreStatus status
+    json operatingHours
+  }
+  VendorServiceArea {
+    uuid id PK
+    uuid storeId FK
+    uuid serviceZoneId FK
+    boolean active
+    uuid approvedBy
+  }
+  Rider {
+    uuid id PK
+    uuid_UNIQUE userId
+    RiderStatus status
+    uuid_nullable_UNIQUE kycCaseId
+    json emergencyContactEncrypted
+    uuid addressId FK
+    uuid homeCityId FK
+    int capacity
+  }
+  RiderServiceArea {
+    uuid id PK
+    uuid riderId FK
+    uuid serviceZoneId FK
+    uuid approvedBy
+    datetime validFrom
+    datetime_nullable expiresAt
+    string_nullable overrideReason
+  }
+  Vehicle {
+    uuid id PK
+    uuid riderId FK
+    VehicleType type
+    string_nullable registrationNumberEncrypted
+    string_nullable make
+    string_nullable model
+    VehicleStatus status
+  }
+  RiderShift {
+    uuid id PK
+    uuid riderId FK
+    datetime startedAt
+    datetime_nullable endedAt
+    string consentVersion
+    uuid startZoneId FK
+    TrackingState trackingState
+  }
+  RiderLocation {
+    uuid id PK
+    uuid riderId FK
+    uuid shiftId FK
+    uuid_nullable deliveryId
+    geometry_Point_4326 point
+    decimal accuracyMeters
+    datetime recordedAt
+    datetime receivedAt
+    LocationSource source
+    boolean_nullable mockSignal
+  }
+  PayoutDestination {
+    uuid id PK
+    PartyType ownerType
+    uuid ownerId FK
+    PayoutRail rail
+    json encryptedDetails
+    string displayMask
+    VerificationStatus verificationStatus
+    datetime_nullable verifiedAt
+    string_nullable providerReference
+    boolean active
+  }
+  KYCCase {
+    uuid id PK
+    PartyType subjectType
+    uuid subjectId FK
+    KYCStatus status
+    string policyVersion
+    KYCLevel level
+    datetime_nullable submittedAt
+    datetime_nullable expiresAt
+    uuid_nullable assignedReviewerId
+  }
+  VendorKYC {
+    uuid id PK
+    uuid_UNIQUE caseId
+    uuid vendorId FK
+    json businessInformation
+    json representativeInformationEncrypted
+    uuid businessAddressId FK
+  }
+  RiderKYC {
+    uuid id PK
+    uuid_UNIQUE caseId
+    uuid riderId FK
+    json identityProfile
+    uuid_nullable vehicleId
+    datetime_nullable addressVerifiedAt
+  }
+  AdminKYC {
+    uuid id PK
+    uuid_UNIQUE caseId
+    uuid userId FK
+    datetime_nullable identityVerifiedAt
+    uuid_nullable approvedBy
+    ProvisioningStatus provisioningStatus
+  }
+  KYCDocument {
+    uuid id PK
+    uuid caseId FK
+    DocumentType documentType
+    string_UNIQUE storageKey
+    bytes contentHash
+    string mimeType
+    int sizeBytes
+    ScanStatus scanStatus
+    json_nullable encryptedNumber
+    string issuingCountry
+    date_nullable expiresOn
+    DocumentStatus status
+    uuid uploadedBy
+    UploadChannel uploadChannel
+  }
+  KYCReview {
+    uuid id PK
+    uuid caseId FK
+    uuid_nullable documentId
+    uuid reviewerId FK
+    ReviewDecision decision
+    json reasons
+    VerificationMethod verificationMethod
+    string_nullable authorizedSourceReference
+    datetime occurredAt
+  }
+  Category {
+    uuid id PK
+    uuid_nullable parentId
+    string_UNIQUE slug
+    json nameTranslations
+    int sortOrder
+    CategoryStatus status
+    json requiredPermits
+  }
+  Product {
+    uuid id PK
+    uuid vendorId FK
+    uuid categoryId FK
+    string title
+    string description
+    string_nullable brand
+    ProductStatus status
+    ModerationState moderationState
+    json attributes
+    int version
+  }
+  ProductVariant {
+    uuid id PK
+    uuid productId FK
+    string sku
+    json optionValues
+    bigint priceAmount
+    bigint_nullable compareAtAmount
+    string currency
+    int_nullable weightGrams
+    boolean active
+    int version
+  }
+  ProductImage {
+    uuid id PK
+    uuid productId FK
+    uuid_nullable variantId
+    string storageKey
+    string altText
+    int sortOrder
+    int width
+    int height
+    bytes checksum
+  }
+  Inventory {
+    uuid id PK
+    uuid variantId FK
+    uuid storeId FK
+    int onHand
+    int reserved
+    int reorderLevel
+    int version
+  }
+  InventoryReservation {
+    uuid id PK
+    uuid variantId FK
+    uuid storeId FK
+    uuid quoteId FK
+    int quantity
+    datetime expiresAt
+    ReservationState state
+  }
+  Wishlist {
+    uuid id PK
+    uuid customerId FK
+    string name
+  }
+  WishlistItem {
+    uuid id PK
+    uuid wishlistId FK
+    uuid productId FK
+  }
+  Cart {
+    uuid id PK
+    uuid_nullable customerId
+    bytes_nullable guestTokenHash
+    json_nullable destinationAddressSnapshot
+    string currency
+    int version
+  }
+  CartItem {
+    uuid id PK
+    uuid cartId FK
+    uuid variantId FK
+    uuid storeId FK
+    int quantity
+    datetime addedAt
+  }
+  CheckoutQuote {
+    uuid id PK
+    uuid_UNIQUE checkoutId
+    uuid customerId FK
+    json recipientSnapshot
+    json destinationAddressSnapshot
+    uuid destinationZoneId FK
+    json totals
+    json groupQuotes
+    string pricingVersion
+    datetime expiresAt
+    bytes quoteHash
+  }
+  OrderRecipient {
+    uuid id PK
+    uuid_UNIQUE orderId
+    string name
+    string phoneEncrypted
+    bytes phoneHash
+    json addressSnapshot
+    uuid destinationZoneId FK
+    VerificationStatus verificationStatus
+  }
+  Order {
+    uuid id PK
+    string_UNIQUE publicReference
+    uuid buyerId FK
+    uuid countryId FK
+    uuid destinationCountryId FK
+    uuid destinationZoneId FK
+    ParentOrderStatus status
+    bigint subtotalAmount
+    bigint deliveryFeeAmount
+    bigint discountAmount
+    bigint taxAmount
+    bigint totalAmount
+    string currency
+    json pricingSnapshot
+    uuid_nullable riskCaseId
+    string idempotencyKey
+    int version
+  }
+  VendorSuborder {
+    uuid id PK
+    uuid orderId FK
+    uuid vendorId FK
+    uuid storeId FK
+    uuid destinationZoneId FK
+    string_UNIQUE publicReference
+    SuborderStatus status
+    int_nullable preparationMinutes
+    uuid_nullable readyConfirmedBy
+    datetime_nullable readyConfirmedAt
+    bigint subtotalAmount
+    bigint allocatedDeliveryAmount
+    bigint allocatedDiscountAmount
+    bigint taxAmount
+    bigint totalAmount
+    int version
+  }
+  OrderItem {
+    uuid id PK
+    uuid suborder_id FK
+    uuid variantId FK
+    json productSnapshot
+    int quantity
+    bigint unitPriceAmount
+    bigint lineDiscountAmount
+    bigint taxAmount
+    bigint lineTotalAmount
+    uuid_nullable commissionSnapshotId
+  }
+  OrderStatusEvent {
+    uuid id PK
+    uuid_nullable orderId
+    uuid_nullable suborderId
+    string_nullable fromStatus
+    string toStatus
+    uuid_nullable actorId
+    string_nullable reason
+    string_UNIQUE commandId
+    datetime occurredAt
+  }
+  Delivery {
+    uuid id PK
+    uuid suborderId FK
+    int attemptNumber
+    uuid pickupStoreId FK
+    uuid destinationZoneId FK
+    uuid recipientId FK
+    DeliveryStatus status
+    uuid_nullable assignedRiderId
+    uuid_nullable routeSnapshotId
+    uuid_nullable rateSnapshotId
+    datetime_nullable pickupConfirmedAt
+    datetime_nullable deliveredAt
+    datetime_nullable completedAt
+    bigint codAmount
+    int version
+  }
+  DeliveryRouteSnapshot {
+    uuid id PK
+    uuid_nullable deliveryId
+    RoutePurpose purpose
+    geometry_Point_4326 originPoint
+    geometry_Point_4326 destinationPoint
+    int distanceMeters
+    int_nullable durationSeconds
+    string routingMethod
+    string provider
+    string_nullable providerRouteReference
+    datetime capturedAt
+    datetime_nullable expiresAt
+  }
+  RiderRateRule {
+    uuid id PK
+    uuid countryId FK
+    uuid_nullable cityId
+    uuid_nullable serviceZoneId
+    int version
+    datetime effectiveFrom
+    datetime_nullable effectiveTo
+    RuleStatus status
+    bigint minimumAmount
+    bigint_nullable maximumAmount
+    string currency
+    string routingMethod
+    uuid createdBy
+  }
+  RiderRateSlab {
+    uuid id PK
+    uuid rateRuleId FK
+    int lowerMeters
+    int_nullable upperMeters
+    bigint paymentAmount
+  }
+  RiderRateSnapshot {
+    uuid id PK
+    uuid deliveryId FK
+    uuid_UNIQUE assignmentId
+    uuid rateRuleId FK
+    int rateVersion
+    int distanceMeters
+    uuid routeSnapshotId FK
+    json slabSnapshot
+    bigint payableAmount
+    string currency
+    string policyBasis
+    datetime capturedAt
+  }
+  RiderAssignment {
+    uuid id PK
+    uuid deliveryId FK
+    uuid riderId FK
+    uuid_nullable_UNIQUE offerId
+    AssignmentMode assignmentMode
+    uuid_nullable authorizedBy
+    string_nullable reason
+    datetime acceptedAt
+    datetime_nullable releasedAt
+    string_nullable releaseReason
+    uuid_nullable rateSnapshotId
+  }
+  DeliveryOffer {
+    uuid id PK
+    uuid deliveryId FK
+    uuid riderId FK
+    int attempt
+    bytes_UNIQUE sequenceTokenHash
+    OfferStatus status
+    datetime offeredAt
+    datetime expiresAt
+    datetime_nullable respondedAt
+    int roadDistanceMeters
+  }
+  DeliveryProof {
+    uuid id PK
+    uuid_UNIQUE deliveryId
+    RecipientOTP method
+    bytes recipientPhoneHash
+    bytes otpHash
+    datetime otpExpiresAt
+    int attempts
+    datetime_nullable verifiedAt
+    uuid_nullable verifiedByRiderId
+    uuid_nullable fallbackReviewId
+  }
+  DeliveryException {
+    uuid id PK
+    uuid deliveryId FK
+    DeliveryExceptionKind kind
+    uuid reportedBy
+    string reason
+    json evidenceObjectKeys
+    ExceptionStatus status
+    uuid_nullable reviewedBy
+    string_nullable resolution
+    datetime_nullable reviewedAt
+  }
+  CODCollection {
+    uuid id PK
+    uuid_UNIQUE deliveryId
+    uuid riderId FK
+    bigint expectedAmount
+    bigint collectedAmount
+    string currency
+    datetime confirmedAt
+    string_UNIQUE receiptReference
+    uuid journalId FK
+  }
+  CODDeposit {
+    uuid id PK
+    uuid riderId FK
+    CODDepositMethod method
+    bigint amount
+    string currency
+    string_nullable depositorReference
+    string_nullable merchantAccountReference
+    string_nullable evidenceObjectKey
+    DepositStatus status
+    datetime submittedAt
+    uuid_nullable verifiedBy
+    datetime_nullable verifiedAt
+    uuid_nullable journalId
+  }
+  CODAllocation {
+    uuid id PK
+    uuid depositId FK
+    uuid collectionId FK
+    bigint amount
+  }
+  PaymentProviderAccount {
+    uuid id PK
+    uuid countryId FK
+    string providerKey
+    string merchantReference
+    json encryptedCredentials
+    json capabilities
+    string contractReference
+    ProviderStatus status
+  }
+  Payment {
+    uuid id PK
+    uuid orderId FK
+    uuid_nullable providerAccountId
+    PaymentMethod method
+    PaymentStatus status
+    bigint amount
+    string currency
+    string merchantReference
+    string_nullable providerTransactionReference
+    string_UNIQUE idempotencyKey
+    datetime_nullable verifiedAt
+    uuid_nullable journalId
+  }
+  PaymentEvent {
+    uuid id PK
+    uuid providerAccountId FK
+    string providerEventKey
+    uuid_nullable paymentId
+    string eventType
+    bytes payloadHash
+    json redactedPayload
+    EventVerificationStatus verificationStatus
+    datetime receivedAt
+    datetime_nullable processedAt
+  }
+  Refund {
+    uuid id PK
+    uuid orderId FK
+    uuid_nullable suborderId
+    uuid_nullable paymentId
+    bigint amount
+    string currency
+    string reason
+    RefundStatus status
+    uuid_nullable approvedBy
+    string_nullable providerReference
+    string_UNIQUE idempotencyKey
+    uuid_nullable journalId
+  }
+  Chargeback {
+    uuid id PK
+    uuid paymentId FK
+    string providerCaseReference
+    bigint amount
+    string currency
+    ChargebackStatus status
+    datetime_nullable evidenceDueAt
+    uuid_nullable journalId
+  }
+  CommissionRule {
+    uuid id PK
+    uuid countryId FK
+    uuid_nullable cityId
+    uuid_nullable serviceZoneId
+    uuid_nullable vendorId
+    uuid_nullable categoryId
+    string_nullable orderType
+    CommissionKind kind
+    int_nullable percentageBps
+    bigint_nullable fixedAmount
+    CommissionBasis basis
+    string currency
+    int version
+    datetime effectiveFrom
+    RuleStatus status
+  }
+  CommissionSnapshot {
+    uuid id PK
+    uuid ruleId FK
+    int ruleVersion
+    uuid suborderId FK
+    bigint basisAmount
+    bigint commissionAmount
+    string currency
+    string policy
+    datetime capturedAt
+  }
+  LedgerAccount {
+    uuid id PK
+    LedgerOwnerType ownerType
+    uuid_nullable ownerId
+    LedgerPurpose purpose
+    string currency
+    DebitOrCredit normalSide
+    string_UNIQUE code
+  }
+  JournalEntry {
+    uuid id PK
+    string_UNIQUE businessEventKey
+    string currency
+    JournalKind kind
+    datetime occurredAt
+    datetime effectiveAt
+    uuid createdBy
+    uuid_nullable reversalOfId
+    string referenceType
+    uuid referenceId FK
+    json metadata
+  }
+  LedgerLine {
+    uuid id PK
+    uuid journalId FK
+    int lineNumber
+    uuid accountId FK
+    DebitOrCredit side
+    bigint amountMinor
+    string_nullable referenceType
+    uuid_nullable referenceId
+  }
+  LedgerBalanceSnapshot {
+    uuid id PK
+    uuid accountId FK
+    uuid asOfJournalId FK
+    bigint balanceMinor
+    int version
+    datetime calculatedAt
+  }
+  Payout {
+    uuid id PK
+    uuid riderId FK
+    uuid destinationId FK
+    datetime periodStart
+    datetime periodEnd
+    string scheduleKey
+    bigint amount
+    string currency
+    PayoutMode mode
+    PayoutStatus status
+    uuid_nullable approvedBy
+    uuid_nullable reservedJournalId
+    uuid_nullable completedJournalId
+    int version
+  }
+  PayoutItem {
+    uuid id PK
+    uuid payoutId FK
+    uuid deliveryId FK
+    uuid earningJournalId FK
+    bigint grossAmount
+    bigint approvedAdjustmentAmount
+    bigint netAmount
+  }
+  Settlement {
+    uuid id PK
+    uuid vendorId FK
+    uuid destinationId FK
+    datetime periodStart
+    datetime periodEnd
+    bigint grossAmount
+    bigint commissionAmount
+    bigint refundAmount
+    bigint adjustmentAmount
+    bigint netAmount
+    string currency
+    SettlementStatus status
+    uuid_nullable approvedBy
+    int version
+  }
+  SettlementItem {
+    uuid id PK
+    uuid settlementId FK
+    uuid suborderId FK
+    uuid journalId FK
+    bigint amount
+  }
+  ReconciliationRecord {
+    uuid id PK
+    ReconciliationKind kind
+    string sourceReference
+    string internalReference
+    bigint expectedAmount
+    bigint actualAmount
+    string currency
+    ReconciliationStatus status
+    uuid_nullable reviewedBy
+    json evidence
+  }
+  FraudCase {
+    uuid id PK
+    string subjectType
+    uuid subjectId FK
+    uuid_nullable orderId
+    int score
+    json reasons
+    string policyVersion
+    FraudStatus status
+    uuid_nullable assignedReviewerId
+    datetime_nullable holdExpiresAt
+  }
+  FraudEvidence {
+    uuid id PK
+    uuid caseId FK
+    string signal
+    json valueRedacted
+    string source
+    datetime observedAt
+    string_nullable restrictedObjectKey
+  }
+  FraudDecision {
+    uuid id PK
+    uuid caseId FK
+    uuid_nullable reviewerId
+    FraudAction decision
+    string reason
+    boolean automated
+    datetime occurredAt
+  }
+  ReturnRequest {
+    uuid id PK
+    uuid orderId FK
+    uuid suborderId FK
+    uuid customerId FK
+    ReturnStatus status
+    string reason
+    json requestedItems
+    json evidenceObjectKeys
+    uuid_nullable approvedBy
+    uuid_nullable refundId
+  }
+  Review {
+    uuid id PK
+    uuid customerId FK
+    uuid productId FK
+    uuid_UNIQUE orderItemId
+    int rating
+    string body
+    ReviewStatus status
+    boolean verifiedPurchase
+  }
+  SupportTicket {
+    uuid id PK
+    uuid requesterId FK
+    string subjectType
+    uuid_nullable subjectId
+    string category
+    TicketStatus status
+    uuid_nullable assignedStaffId
+    TicketPriority priority
+    uuid countryId FK
+    uuid_nullable zoneId
+  }
+  SupportMessage {
+    uuid id PK
+    uuid ticketId FK
+    uuid authorId FK
+    string body
+    json attachmentKeys
+    datetime createdAt
+  }
+  ProductInteraction {
+    uuid id PK
+    uuid_nullable customerId
+    bytes_nullable guestReferenceHash
+    uuid_nullable productId
+    uuid_nullable variantId
+    InteractionType eventType
+    uuid_nullable consentId
+    uuid_nullable zoneId
+    datetime occurredAt
+    string_UNIQUE eventKey
+  }
+  PersonalizationProfile {
+    uuid id PK
+    uuid_UNIQUE customerId
+    string consentVersion
+    json interests
+    json excludedCategories
+    json frequencyPolicy
+    string modelVersion
+    datetime_nullable clearedAt
+  }
+  AIInvocation {
+    uuid id PK
+    uuid actorUserId FK
+    string agentIdentity
+    json scopeSnapshot
+    string toolName
+    bytes inputHash
+    json outputRedacted
+    AIInvocationStatus status
+    string modelProvider
+    bigint_nullable costMinor
+    uuid_nullable approvalId
+    datetime occurredAt
+  }
+  AIApproval {
+    uuid id PK
+    uuid_UNIQUE invocationId
+    bytes actionHash
+    uuid_nullable approverId
+    ApprovalStatus status
+    uuid_nullable stepUpChallengeId
+    datetime expiresAt
+    datetime_nullable decidedAt
+  }
+  Notification {
+    uuid id PK
+    uuid recipientId FK
+    NotificationChannel channel
+    string templateKey
+    string templateVersion
+    json payloadRedacted
+    NotificationStatus status
+    string_UNIQUE dedupeKey
+    datetime_nullable sentAt
+  }
+  NotificationPreference {
+    uuid id PK
+    uuid userId FK
+    NotificationChannel channel
+    string purpose
+    boolean enabled
+    string policyVersion
+  }
+  AuditLog {
+    uuid id PK
+    uuid_nullable actorId
+    ActorType actorType
+    uuid_nullable sessionId
+    string action
+    string resourceType
+    uuid_nullable resourceId
+    json scopeSnapshot
+    json_nullable beforeRedacted
+    json_nullable afterRedacted
+    string_nullable reason
+    string requestId
+    datetime occurredAt
+  }
+  OutboxEvent {
+    uuid id PK
+    string aggregateType
+    uuid aggregateId FK
+    string_UNIQUE eventKey
+    string eventType
+    json payload
+    datetime occurredAt
+    datetime_nullable publishedAt
+    int attempts
+  }
+  InboxReceipt {
+    uuid id PK
+    string consumer
+    string eventKey
+    datetime processedAt
+  }
+  IdempotencyRecord {
+    uuid id PK
+    uuid actorId FK
+    string route
+    string key
+    bytes requestHash
+    int_nullable responseStatus
+    bytes_nullable responseHash
+    string_nullable resourceReference
+    datetime expiresAt
+    IdempotencyState state
+  }
+  FeatureFlag {
+    uuid id PK
+    string key
+    uuid_nullable countryId
+    string environment
+    boolean enabled
+    json rolloutRule
+    int version
+    uuid updatedBy
+  }
+  VendorPlan {
+    uuid id PK
+    string code
+    int version
+    string name
+    string billingInterval
+    bigint priceAmount
+    string currency
+    int_nullable unitLimit
+    json featureEntitlements
+    datetime effectiveFrom
+    RuleStatus status
+  }
+  VendorSubscription {
+    uuid id PK
+    uuid vendorId FK
+    uuid planId FK
+    datetime startsAt
+    datetime endsAt
+    datetime_nullable introductoryEndsAt
+    SubscriptionStatus status
+    json volumePolicy
+    int version
+  }
+  Coupon {
+    uuid id PK
+    bytes codeHash
+    string codeDisplay
+    json policy
+    CouponStatus status
+    datetime startsAt
+    datetime endsAt
+    int_nullable usageLimit
+    int_nullable perCustomerLimit
+    int version
+  }
+  CouponRedemption {
+    uuid id PK
+    uuid couponId FK
+    uuid customerId FK
+    uuid_UNIQUE orderId
+    bigint amount
+    RedemptionState state
+  }
+  Campaign {
+    uuid id PK
+    string name
+    CampaignKind kind
+    json audiencePolicy
+    json placements
+    json content
+    datetime startsAt
+    datetime endsAt
+    uuid countryId FK
+    CampaignStatus status
+  }
+  NewsletterSubscription {
+    uuid id PK
+    bytes_UNIQUE emailHash
+    string emailEncrypted
+    uuid consentId FK
+    SubscriptionStatus status
+    datetime_nullable verifiedAt
+  }
+  LoyaltyAccount {
+    uuid id PK
+    uuid_UNIQUE customerId
+    string programVersion
+    LoyaltyStatus status
+  }
+  LoyaltyEvent {
+    uuid id PK
+    uuid accountId FK
+    string_UNIQUE eventKey
+    LoyaltyEventKind kind
+    bigint points
+    string sourceReference
+    uuid_nullable journalId
+    datetime occurredAt
+  }
+  Referral {
+    uuid id PK
+    uuid referrerId FK
+    uuid_nullable referredCustomerId
+    bytes_UNIQUE codeHash
+    ReferralStatus status
+    uuid_nullable qualifiedOrderId
+    uuid_nullable rewardEventId
+  }
+  PayoutAttempt {
+    uuid id PK
+    uuid payoutId FK
+    int attemptNumber
+    string_nullable providerReference
+    string_UNIQUE idempotencyKey
+    AttemptStatus status
+    datetime requestedAt
+    datetime_nullable confirmedAt
+    string_nullable failureCode
+  }
+  SettlementAttempt {
+    uuid id PK
+    uuid settlementId FK
+    int attemptNumber
+    string_nullable providerReference
+    string_UNIQUE idempotencyKey
+    AttemptStatus status
+    datetime requestedAt
+    datetime_nullable confirmedAt
+    string_nullable failureCode
+  }
+  User ||--o{ Session : "userId"
+  Device |o--o{ Session : "deviceId"
+  User ||--o{ UserRole : "userId"
+  Role ||--o{ UserRole : "roleId"
+  Role ||--o{ RolePermission : "roleId"
+  Permission ||--o{ RolePermission : "permissionId"
+  User ||--o{ AdminScope : "userId"
+  User ||--o{ AdminInvitation : "invitedBy"
+  User ||--o{ MfaEnrollment : "userId"
+  User ||--o{ Device : "userId"
+  Session ||--o{ StepUpChallenge : "sessionId"
+  User |o--o{ ConsentRecord : "userId"
+  User ||--o{ PrivacyRequest : "userId"
+  Country ||--o{ CountryConfiguration : "countryId"
+  Country ||--o{ Region : "countryId"
+  Region ||--o{ District : "regionId"
+  District ||--o{ City : "districtId"
+  City ||--o{ ServiceZone : "cityId"
+  ServiceZone ||--o{ Neighborhood : "serviceZoneId"
+  Customer |o--o{ Address : "customerId"
+  User ||--o| Customer : "userId"
+  User ||--o{ Vendor : "ownerUserId"
+  Vendor ||--o{ VendorMembership : "vendorId"
+  Vendor ||--o{ Store : "vendorId"
+  Store ||--o{ VendorServiceArea : "storeId"
+  ServiceZone ||--o{ VendorServiceArea : "serviceZoneId"
+  User ||--o| Rider : "userId"
+  Rider ||--o{ RiderServiceArea : "riderId"
+  ServiceZone ||--o{ RiderServiceArea : "serviceZoneId"
+  Rider ||--o{ Vehicle : "riderId"
+  Rider ||--o{ RiderShift : "riderId"
+  RiderShift ||--o{ RiderLocation : "shiftId"
+  Delivery |o--o{ RiderLocation : "deliveryId"
+  KYCCase ||--o| VendorKYC : "caseId"
+  KYCCase ||--o| RiderKYC : "caseId"
+  KYCCase ||--o| AdminKYC : "caseId"
+  KYCCase ||--o{ KYCDocument : "caseId"
+  KYCCase ||--o{ KYCReview : "caseId"
+  KYCDocument |o--o{ KYCReview : "documentId"
+  KYCCase |o--o| Vendor : "kycCaseId"
+  KYCCase |o--o| Rider : "kycCaseId"
+  Category ||--o{ Product : "categoryId"
+  Vendor ||--o{ Product : "vendorId"
+  Product ||--o{ ProductVariant : "productId"
+  Product ||--o{ ProductImage : "productId"
+  ProductVariant ||--o{ Inventory : "variantId"
+  Store ||--o{ Inventory : "storeId"
+  CheckoutQuote ||--o{ InventoryReservation : "quoteId"
+  Customer ||--o{ Wishlist : "customerId"
+  Wishlist ||--o{ WishlistItem : "wishlistId"
+  Product ||--o{ WishlistItem : "productId"
+  Customer |o--o{ Cart : "customerId"
+  Cart ||--o{ CartItem : "cartId"
+  ProductVariant ||--o{ CartItem : "variantId"
+  Customer ||--o{ Order : "buyerId"
+  Order ||--o| OrderRecipient : "orderId"
+  Order ||--o{ VendorSuborder : "orderId"
+  Vendor ||--o{ VendorSuborder : "vendorId"
+  Store ||--o{ VendorSuborder : "storeId"
+  VendorSuborder ||--o{ OrderItem : "suborder_id"
+  Order |o--o{ OrderStatusEvent : "orderId"
+  VendorSuborder ||--o{ Delivery : "suborderId"
+  Delivery |o--o{ DeliveryRouteSnapshot : "deliveryId"
+  RiderRateRule ||--o{ RiderRateSlab : "rateRuleId"
+  Delivery ||--o{ RiderRateSnapshot : "deliveryId"
+  RiderRateRule ||--o{ RiderRateSnapshot : "rateRuleId"
+  Delivery ||--o{ RiderAssignment : "deliveryId"
+  DeliveryOffer |o--o| RiderAssignment : "offerId"
+  Delivery ||--o{ DeliveryOffer : "deliveryId"
+  Rider ||--o{ DeliveryOffer : "riderId"
+  Delivery ||--o| DeliveryProof : "deliveryId"
+  Delivery ||--o{ DeliveryException : "deliveryId"
+  Rider ||--o{ Payout : "riderId"
+  PayoutDestination ||--o{ Payout : "destinationId"
+  Payout ||--o{ PayoutItem : "payoutId"
+  Delivery ||--o{ PayoutItem : "deliveryId"
+  Delivery ||--o| CODCollection : "deliveryId"
+  Rider ||--o{ CODDeposit : "riderId"
+  CODDeposit ||--o{ CODAllocation : "depositId"
+  CODCollection ||--o{ CODAllocation : "collectionId"
+  Country ||--o{ PaymentProviderAccount : "countryId"
+  Order ||--o{ Payment : "orderId"
+  PaymentProviderAccount |o--o{ Payment : "providerAccountId"
+  Payment |o--o{ PaymentEvent : "paymentId"
+  Order ||--o{ Refund : "orderId"
+  Payment |o--o{ Refund : "paymentId"
+  Payment ||--o{ Chargeback : "paymentId"
+  CommissionRule ||--o{ CommissionSnapshot : "ruleId"
+  VendorSuborder ||--o{ CommissionSnapshot : "suborderId"
+  LedgerAccount ||--o{ LedgerLine : "accountId"
+  JournalEntry ||--o{ LedgerLine : "journalId"
+  JournalEntry |o--o{ JournalEntry : "reversalOfId"
+  LedgerAccount ||--o{ LedgerBalanceSnapshot : "accountId"
+  Vendor ||--o{ Settlement : "vendorId"
+  PayoutDestination ||--o{ Settlement : "destinationId"
+  Settlement ||--o{ SettlementItem : "settlementId"
+  VendorSuborder ||--o{ SettlementItem : "suborderId"
+  Order |o--o{ FraudCase : "orderId"
+  FraudCase ||--o{ FraudEvidence : "caseId"
+  FraudCase ||--o{ FraudDecision : "caseId"
+  Order ||--o{ ReturnRequest : "orderId"
+  Refund |o--o{ ReturnRequest : "refundId"
+  OrderItem ||--o| Review : "orderItemId"
+  User ||--o{ SupportTicket : "requesterId"
+  SupportTicket ||--o{ SupportMessage : "ticketId"
+  User |o--o{ ProductInteraction : "customerId"
+  Product |o--o{ ProductInteraction : "productId"
+  Customer ||--o| PersonalizationProfile : "customerId"
+  User ||--o{ AIInvocation : "actorUserId"
+  AIInvocation ||--o| AIApproval : "invocationId"
+  User ||--o{ Notification : "recipientId"
+  User ||--o{ NotificationPreference : "userId"
+  User |o--o{ AuditLog : "actorId"
+  User ||--o{ IdempotencyRecord : "actorId"
+  VendorPlan ||--o{ VendorSubscription : "planId"
+  Vendor ||--o{ VendorSubscription : "vendorId"
+  Coupon ||--o{ CouponRedemption : "couponId"
+  Order ||--o| CouponRedemption : "orderId"
+  Customer ||--o| LoyaltyAccount : "customerId"
+  LoyaltyAccount ||--o{ LoyaltyEvent : "accountId"
+  User ||--o{ Referral : "referrerId"
+  Payout ||--o{ PayoutAttempt : "payoutId"
+  Settlement ||--o{ SettlementAttempt : "settlementId"
+  User ||--o{ UserIdentity : "userId"
+  User ||--o{ UserRole : "grantedBy"
+  Country |o--o{ AdminScope : "countryId"
+  Region |o--o{ AdminScope : "regionId"
+  District |o--o{ AdminScope : "districtId"
+  City |o--o{ AdminScope : "cityId"
+  ServiceZone |o--o{ AdminScope : "serviceZoneId"
+  Neighborhood |o--o{ AdminScope : "neighborhoodId"
+  User ||--o{ AdminScope : "grantedBy"
+  User ||--o{ StepUpChallenge : "userId"
+  BoundaryVersion |o--o{ City : "boundaryVersionId"
+  BoundaryVersion |o--o{ ServiceZone : "activeBoundaryVersionId"
+  BoundaryVersion |o--o{ Neighborhood : "boundaryVersionId"
+  User ||--o{ BoundaryVersion : "approvedBy"
+  Vendor |o--o{ Address : "vendorId"
+  Rider |o--o{ Address : "riderId"
+  Region ||--o{ Address : "regionId"
+  District ||--o{ Address : "districtId"
+  City ||--o{ Address : "cityId"
+  ServiceZone |o--o{ Address : "serviceZoneId"
+  Neighborhood |o--o{ Address : "neighborhoodId"
+  Address |o--o{ Customer : "defaultAddressId"
+  Country ||--o{ Vendor : "homeCountryId"
+  User ||--o{ VendorMembership : "userId"
+  Store |o--o{ VendorMembership : "storeId"
+  Address ||--o{ Store : "addressId"
+  City ||--o{ Store : "cityId"
+  User ||--o{ VendorServiceArea : "approvedBy"
+  Address ||--o{ Rider : "addressId"
+  City ||--o{ Rider : "homeCityId"
+  User ||--o{ RiderServiceArea : "approvedBy"
+  ServiceZone ||--o{ RiderShift : "startZoneId"
+  Rider ||--o{ RiderLocation : "riderId"
+  User |o--o{ KYCCase : "assignedReviewerId"
+  Vendor ||--o{ VendorKYC : "vendorId"
+  Address ||--o{ VendorKYC : "businessAddressId"
+  Rider ||--o{ RiderKYC : "riderId"
+  Vehicle |o--o{ RiderKYC : "vehicleId"
+  User ||--o{ AdminKYC : "userId"
+  User |o--o{ AdminKYC : "approvedBy"
+  User ||--o{ KYCDocument : "uploadedBy"
+  User ||--o{ KYCReview : "reviewerId"
+  Category |o--o{ Category : "parentId"
+  ProductVariant |o--o{ ProductImage : "variantId"
+  ProductVariant ||--o{ InventoryReservation : "variantId"
+  Store ||--o{ InventoryReservation : "storeId"
+  Store ||--o{ CartItem : "storeId"
+  Customer ||--o{ CheckoutQuote : "customerId"
+  ServiceZone ||--o{ CheckoutQuote : "destinationZoneId"
+  ServiceZone ||--o{ OrderRecipient : "destinationZoneId"
+  Country ||--o{ Order : "countryId"
+  Country ||--o{ Order : "destinationCountryId"
+  ServiceZone ||--o{ Order : "destinationZoneId"
+  FraudCase |o--o{ Order : "riskCaseId"
+  ServiceZone ||--o{ VendorSuborder : "destinationZoneId"
+  User |o--o{ VendorSuborder : "readyConfirmedBy"
+  ProductVariant ||--o{ OrderItem : "variantId"
+  CommissionSnapshot |o--o{ OrderItem : "commissionSnapshotId"
+  VendorSuborder |o--o{ OrderStatusEvent : "suborderId"
+  User |o--o{ OrderStatusEvent : "actorId"
+  Store ||--o{ Delivery : "pickupStoreId"
+  ServiceZone ||--o{ Delivery : "destinationZoneId"
+  OrderRecipient ||--o{ Delivery : "recipientId"
+  Rider |o--o{ Delivery : "assignedRiderId"
+  DeliveryRouteSnapshot |o--o{ Delivery : "routeSnapshotId"
+  RiderRateSnapshot |o--o{ Delivery : "rateSnapshotId"
+  Country ||--o{ RiderRateRule : "countryId"
+  City |o--o{ RiderRateRule : "cityId"
+  ServiceZone |o--o{ RiderRateRule : "serviceZoneId"
+  User ||--o{ RiderRateRule : "createdBy"
+  RiderAssignment ||--o| RiderRateSnapshot : "assignmentId"
+  DeliveryRouteSnapshot ||--o{ RiderRateSnapshot : "routeSnapshotId"
+  Rider ||--o{ RiderAssignment : "riderId"
+  User |o--o{ RiderAssignment : "authorizedBy"
+  RiderRateSnapshot |o--o{ RiderAssignment : "rateSnapshotId"
+  Rider |o--o{ DeliveryProof : "verifiedByRiderId"
+  DeliveryException |o--o{ DeliveryProof : "fallbackReviewId"
+  User ||--o{ DeliveryException : "reportedBy"
+  User |o--o{ DeliveryException : "reviewedBy"
+  Rider ||--o{ CODCollection : "riderId"
+  JournalEntry ||--o{ CODCollection : "journalId"
+  User |o--o{ CODDeposit : "verifiedBy"
+  JournalEntry |o--o{ CODDeposit : "journalId"
+  JournalEntry |o--o{ Payment : "journalId"
+  PaymentProviderAccount ||--o{ PaymentEvent : "providerAccountId"
+  VendorSuborder |o--o{ Refund : "suborderId"
+  User |o--o{ Refund : "approvedBy"
+  JournalEntry |o--o{ Refund : "journalId"
+  JournalEntry |o--o{ Chargeback : "journalId"
+  Country ||--o{ CommissionRule : "countryId"
+  City |o--o{ CommissionRule : "cityId"
+  ServiceZone |o--o{ CommissionRule : "serviceZoneId"
+  Vendor |o--o{ CommissionRule : "vendorId"
+  Category |o--o{ CommissionRule : "categoryId"
+  User ||--o{ JournalEntry : "createdBy"
+  JournalEntry ||--o{ LedgerBalanceSnapshot : "asOfJournalId"
+  User |o--o{ Payout : "approvedBy"
+  JournalEntry |o--o{ Payout : "reservedJournalId"
+  JournalEntry |o--o{ Payout : "completedJournalId"
+  JournalEntry ||--o{ PayoutItem : "earningJournalId"
+  User |o--o{ Settlement : "approvedBy"
+  JournalEntry ||--o{ SettlementItem : "journalId"
+  User |o--o{ ReconciliationRecord : "reviewedBy"
+  User |o--o{ FraudCase : "assignedReviewerId"
+  User |o--o{ FraudDecision : "reviewerId"
+  VendorSuborder ||--o{ ReturnRequest : "suborderId"
+  Customer ||--o{ ReturnRequest : "customerId"
+  User |o--o{ ReturnRequest : "approvedBy"
+  Customer ||--o{ Review : "customerId"
+  Product ||--o{ Review : "productId"
+  User |o--o{ SupportTicket : "assignedStaffId"
+  Country ||--o{ SupportTicket : "countryId"
+  ServiceZone |o--o{ SupportTicket : "zoneId"
+  User ||--o{ SupportMessage : "authorId"
+  ProductVariant |o--o{ ProductInteraction : "variantId"
+  ConsentRecord |o--o{ ProductInteraction : "consentId"
+  ServiceZone |o--o{ ProductInteraction : "zoneId"
+  AIApproval |o--o{ AIInvocation : "approvalId"
+  User |o--o{ AIApproval : "approverId"
+  StepUpChallenge |o--o{ AIApproval : "stepUpChallengeId"
+  Session |o--o{ AuditLog : "sessionId"
+  Country |o--o{ FeatureFlag : "countryId"
+  User ||--o{ FeatureFlag : "updatedBy"
+  Customer ||--o{ CouponRedemption : "customerId"
+  Country ||--o{ Campaign : "countryId"
+  ConsentRecord ||--o{ NewsletterSubscription : "consentId"
+  JournalEntry |o--o{ LoyaltyEvent : "journalId"
+  Customer |o--o{ Referral : "referredCustomerId"
+  Order |o--o{ Referral : "qualifiedOrderId"
+  LoyaltyEvent |o--o{ Referral : "rewardEventId"

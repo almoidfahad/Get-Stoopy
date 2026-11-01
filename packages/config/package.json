@@ -1,0 +1,1 @@
+{"name":"@getstoopy/config","version":"0.2.0","private":true,"type":"module","main":"dist/index.js","types":"dist/index.d.ts","scripts":{"build":"tsc -b"},"dependencies":{"@getstoopy/core":"0.2.0","zod":"3.25.76"}}

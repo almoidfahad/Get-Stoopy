@@ -1,0 +1,109 @@
+erDiagram
+  Country {
+    uuid id PK
+    string_UNIQUE iso2
+    string name
+    string currencyCode
+    string callingCode
+    string timezone
+    CountryStatus status
+  }
+  CountryConfiguration {
+    uuid id PK
+    uuid countryId FK
+    int version
+    datetime effectiveFrom
+    json localeDefaults
+    string taxPolicyRef
+    string kycPolicyRef
+    string deliveryPolicyRef
+    string settlementPolicyRef
+    string legalPolicyRef
+    boolean crossBorderEnabled
+    json featureFlags
+  }
+  Region {
+    uuid id PK
+    uuid countryId FK
+    string code
+    string name
+    AreaStatus status
+  }
+  District {
+    uuid id PK
+    uuid regionId FK
+    string code
+    string name
+    AreaStatus status
+  }
+  City {
+    uuid id PK
+    uuid districtId FK
+    string code
+    string name
+    CityOrUpazila kind
+    AreaStatus status
+    uuid_nullable boundaryVersionId
+  }
+  ServiceZone {
+    uuid id PK
+    uuid cityId FK
+    string code
+    string name
+    ZoneStatus status
+    uuid_nullable activeBoundaryVersionId
+    json operatingHours
+    int priority
+  }
+  Neighborhood {
+    uuid id PK
+    uuid serviceZoneId FK
+    string code
+    string name
+    uuid_nullable boundaryVersionId
+  }
+  BoundaryVersion {
+    uuid id PK
+    GeographyType ownerType
+    uuid ownerId FK
+    int version
+    geometry_MultiPolygon_4326 boundary
+    string source
+    datetime validFrom
+    uuid approvedBy
+    bytes contentHash
+  }
+  Address {
+    uuid id PK
+    uuid_nullable customerId
+    uuid_nullable vendorId
+    uuid_nullable riderId
+    string_nullable label
+    string countryCode
+    uuid regionId FK
+    uuid districtId FK
+    uuid cityId FK
+    uuid_nullable serviceZoneId
+    uuid_nullable neighborhoodId
+    string line1
+    string_nullable line2
+    string_nullable postalCode
+    geometry_Point_4326 point
+    string geocodeSource
+    decimal_nullable geocodeConfidence
+    json normalizedSnapshot
+  }
+  Country ||--o{ CountryConfiguration : "countryId"
+  Country ||--o{ Region : "countryId"
+  Region ||--o{ District : "regionId"
+  District ||--o{ City : "districtId"
+  City ||--o{ ServiceZone : "cityId"
+  ServiceZone ||--o{ Neighborhood : "serviceZoneId"
+  BoundaryVersion |o--o{ City : "boundaryVersionId"
+  BoundaryVersion |o--o{ ServiceZone : "activeBoundaryVersionId"
+  BoundaryVersion |o--o{ Neighborhood : "boundaryVersionId"
+  Region ||--o{ Address : "regionId"
+  District ||--o{ Address : "districtId"
+  City ||--o{ Address : "cityId"
+  ServiceZone |o--o{ Address : "serviceZoneId"
+  Neighborhood |o--o{ Address : "neighborhoodId"

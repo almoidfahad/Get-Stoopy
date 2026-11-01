@@ -1,0 +1,917 @@
+verification_id,requirement_id,planned_method,evidence_required,status
+V-MS-000-001,MS-000-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-000-002,MS-000-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-000-003,MS-000-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-000-004,MS-000-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-000-005,MS-000-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-000-006,MS-000-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-001,MS-001-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-002,MS-001-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-003,MS-001-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-004,MS-001-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-005,MS-001-005,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-006,MS-001-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-007,MS-001-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-008,MS-001-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-009,MS-001-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-010,MS-001-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-011,MS-001-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-012,MS-001-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-013,MS-001-013,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-014,MS-001-014,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-015,MS-001-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-016,MS-001-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-017,MS-001-017,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-001-018,MS-001-018,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-001,MS-002-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-002,MS-002-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-003,MS-002-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-004,MS-002-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-005,MS-002-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-006,MS-002-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-007,MS-002-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-008,MS-002-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-009,MS-002-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-010,MS-002-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-011,MS-002-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-012,MS-002-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-013,MS-002-013,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-014,MS-002-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-015,MS-002-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-016,MS-002-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-017,MS-002-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-018,MS-002-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-019,MS-002-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-002-020,MS-002-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-001,MS-003-001,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-002,MS-003-002,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-003,MS-003-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-004,MS-003-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-005,MS-003-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-006,MS-003-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-007,MS-003-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-008,MS-003-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-009,MS-003-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-010,MS-003-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-011,MS-003-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-012,MS-003-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-013,MS-003-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-014,MS-003-014,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-015,MS-003-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-016,MS-003-016,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-017,MS-003-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-018,MS-003-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-019,MS-003-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-020,MS-003-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-021,MS-003-021,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-022,MS-003-022,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-003-023,MS-003-023,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-001,MS-004-001,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-002,MS-004-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-003,MS-004-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-004,MS-004-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-005,MS-004-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-006,MS-004-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-007,MS-004-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-008,MS-004-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-009,MS-004-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-010,MS-004-010,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-011,MS-004-011,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-012,MS-004-012,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-013,MS-004-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-014,MS-004-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-015,MS-004-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-016,MS-004-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-017,MS-004-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-018,MS-004-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-019,MS-004-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-020,MS-004-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-021,MS-004-021,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-022,MS-004-022,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-023,MS-004-023,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-024,MS-004-024,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-025,MS-004-025,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-026,MS-004-026,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-027,MS-004-027,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-028,MS-004-028,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-029,MS-004-029,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-030,MS-004-030,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-031,MS-004-031,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-032,MS-004-032,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-033,MS-004-033,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-034,MS-004-034,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-035,MS-004-035,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-036,MS-004-036,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-037,MS-004-037,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-038,MS-004-038,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-039,MS-004-039,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-040,MS-004-040,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-004-041,MS-004-041,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-005-001,MS-005-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-005-002,MS-005-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-005-003,MS-005-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-005-004,MS-005-004,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-005-005,MS-005-005,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-005-006,MS-005-006,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-005-007,MS-005-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-005-008,MS-005-008,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-005-009,MS-005-009,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-005-010,MS-005-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-005-011,MS-005-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-001,MS-006-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-002,MS-006-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-003,MS-006-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-004,MS-006-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-005,MS-006-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-006,MS-006-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-007,MS-006-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-008,MS-006-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-009,MS-006-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-010,MS-006-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-011,MS-006-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-012,MS-006-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-013,MS-006-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-014,MS-006-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-015,MS-006-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-016,MS-006-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-017,MS-006-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-018,MS-006-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-019,MS-006-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-020,MS-006-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-021,MS-006-021,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-022,MS-006-022,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-023,MS-006-023,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-024,MS-006-024,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-025,MS-006-025,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-026,MS-006-026,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-027,MS-006-027,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-028,MS-006-028,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-029,MS-006-029,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-030,MS-006-030,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-031,MS-006-031,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-032,MS-006-032,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-033,MS-006-033,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-034,MS-006-034,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-035,MS-006-035,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-036,MS-006-036,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-037,MS-006-037,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-038,MS-006-038,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-039,MS-006-039,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-040,MS-006-040,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-041,MS-006-041,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-042,MS-006-042,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-043,MS-006-043,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-044,MS-006-044,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-006-045,MS-006-045,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-001,MS-007-001,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-002,MS-007-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-003,MS-007-003,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-004,MS-007-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-005,MS-007-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-006,MS-007-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-007,MS-007-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-008,MS-007-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-009,MS-007-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-010,MS-007-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-011,MS-007-011,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-012,MS-007-012,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-013,MS-007-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-014,MS-007-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-015,MS-007-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-016,MS-007-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-017,MS-007-017,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-018,MS-007-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-019,MS-007-019,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-007-020,MS-007-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-001,MS-008-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-002,MS-008-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-003,MS-008-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-004,MS-008-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-005,MS-008-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-006,MS-008-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-007,MS-008-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-008,MS-008-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-009,MS-008-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-010,MS-008-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-011,MS-008-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-012,MS-008-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-013,MS-008-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-014,MS-008-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-015,MS-008-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-016,MS-008-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-017,MS-008-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-018,MS-008-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-019,MS-008-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-020,MS-008-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-021,MS-008-021,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-022,MS-008-022,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-023,MS-008-023,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-024,MS-008-024,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-025,MS-008-025,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-026,MS-008-026,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-027,MS-008-027,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-028,MS-008-028,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-029,MS-008-029,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-030,MS-008-030,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-031,MS-008-031,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-008-032,MS-008-032,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-001,MS-009-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-002,MS-009-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-003,MS-009-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-004,MS-009-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-005,MS-009-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-006,MS-009-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-007,MS-009-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-008,MS-009-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-009,MS-009-009,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-010,MS-009-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-011,MS-009-011,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-012,MS-009-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-013,MS-009-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-014,MS-009-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-015,MS-009-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-016,MS-009-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-017,MS-009-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-018,MS-009-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-019,MS-009-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-020,MS-009-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-021,MS-009-021,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-022,MS-009-022,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-023,MS-009-023,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-024,MS-009-024,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-025,MS-009-025,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-026,MS-009-026,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-027,MS-009-027,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-028,MS-009-028,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-009-029,MS-009-029,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-001,MS-010-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-002,MS-010-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-003,MS-010-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-004,MS-010-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-005,MS-010-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-006,MS-010-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-007,MS-010-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-008,MS-010-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-009,MS-010-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-010,MS-010-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-011,MS-010-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-012,MS-010-012,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-013,MS-010-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-014,MS-010-014,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-015,MS-010-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-010-016,MS-010-016,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-011-001,MS-011-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-011-002,MS-011-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-011-003,MS-011-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-011-004,MS-011-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-011-005,MS-011-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-011-006,MS-011-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-011-007,MS-011-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-011-008,MS-011-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-011-009,MS-011-009,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-011-010,MS-011-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-011-011,MS-011-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-011-012,MS-011-012,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-001,MS-012-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-002,MS-012-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-003,MS-012-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-004,MS-012-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-005,MS-012-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-006,MS-012-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-007,MS-012-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-008,MS-012-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-009,MS-012-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-010,MS-012-010,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-011,MS-012-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-012,MS-012-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-013,MS-012-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-014,MS-012-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-015,MS-012-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-016,MS-012-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-017,MS-012-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-018,MS-012-018,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-019,MS-012-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-020,MS-012-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-021,MS-012-021,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-022,MS-012-022,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-012-023,MS-012-023,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-013-001,MS-013-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-013-002,MS-013-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-013-003,MS-013-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-013-004,MS-013-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-013-005,MS-013-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-013-006,MS-013-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-013-007,MS-013-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-013-008,MS-013-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-013-009,MS-013-009,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-013-010,MS-013-010,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-013-011,MS-013-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-001,MS-014-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-002,MS-014-002,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-003,MS-014-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-004,MS-014-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-005,MS-014-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-006,MS-014-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-007,MS-014-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-008,MS-014-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-009,MS-014-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-010,MS-014-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-011,MS-014-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-012,MS-014-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-013,MS-014-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-014,MS-014-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-015,MS-014-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-016,MS-014-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-017,MS-014-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-018,MS-014-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-019,MS-014-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-020,MS-014-020,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-014-021,MS-014-021,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-001,MS-015-001,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-002,MS-015-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-003,MS-015-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-004,MS-015-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-005,MS-015-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-006,MS-015-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-007,MS-015-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-008,MS-015-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-009,MS-015-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-010,MS-015-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-011,MS-015-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-012,MS-015-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-013,MS-015-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-014,MS-015-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-015,MS-015-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-016,MS-015-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-017,MS-015-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-018,MS-015-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-019,MS-015-019,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-020,MS-015-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-021,MS-015-021,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-022,MS-015-022,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-015-023,MS-015-023,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-016-001,MS-016-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-016-002,MS-016-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-016-003,MS-016-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-016-004,MS-016-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-016-005,MS-016-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-016-006,MS-016-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-016-007,MS-016-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-016-008,MS-016-008,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-001,MS-017-001,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-002,MS-017-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-003,MS-017-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-004,MS-017-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-005,MS-017-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-006,MS-017-006,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-007,MS-017-007,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-008,MS-017-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-009,MS-017-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-010,MS-017-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-011,MS-017-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-012,MS-017-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-013,MS-017-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-014,MS-017-014,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-015,MS-017-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-016,MS-017-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-017,MS-017-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-018,MS-017-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-019,MS-017-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-020,MS-017-020,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-021,MS-017-021,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-022,MS-017-022,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-017-023,MS-017-023,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-001,MS-018-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-002,MS-018-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-003,MS-018-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-004,MS-018-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-005,MS-018-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-006,MS-018-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-007,MS-018-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-008,MS-018-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-009,MS-018-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-010,MS-018-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-011,MS-018-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-012,MS-018-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-013,MS-018-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-014,MS-018-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-015,MS-018-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-016,MS-018-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-017,MS-018-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-018,MS-018-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-019,MS-018-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-020,MS-018-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-018-021,MS-018-021,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-001,MS-019-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-002,MS-019-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-003,MS-019-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-004,MS-019-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-005,MS-019-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-006,MS-019-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-007,MS-019-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-008,MS-019-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-009,MS-019-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-010,MS-019-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-011,MS-019-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-012,MS-019-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-013,MS-019-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-014,MS-019-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-015,MS-019-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-016,MS-019-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-017,MS-019-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-018,MS-019-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-019,MS-019-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-020,MS-019-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-021,MS-019-021,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-022,MS-019-022,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-023,MS-019-023,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-019-024,MS-019-024,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-001,MS-020-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-002,MS-020-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-003,MS-020-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-004,MS-020-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-005,MS-020-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-006,MS-020-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-007,MS-020-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-008,MS-020-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-009,MS-020-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-010,MS-020-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-011,MS-020-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-012,MS-020-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-013,MS-020-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-014,MS-020-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-015,MS-020-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-016,MS-020-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-017,MS-020-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-018,MS-020-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-019,MS-020-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-020,MS-020-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-021,MS-020-021,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-022,MS-020-022,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-023,MS-020-023,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-020-024,MS-020-024,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-001,MS-021-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-002,MS-021-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-003,MS-021-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-004,MS-021-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-005,MS-021-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-006,MS-021-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-007,MS-021-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-008,MS-021-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-009,MS-021-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-010,MS-021-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-011,MS-021-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-012,MS-021-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-013,MS-021-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-014,MS-021-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-015,MS-021-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-016,MS-021-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-017,MS-021-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-018,MS-021-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-019,MS-021-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-020,MS-021-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-021,MS-021-021,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-022,MS-021-022,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-023,MS-021-023,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-024,MS-021-024,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-025,MS-021-025,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-026,MS-021-026,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-027,MS-021-027,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-028,MS-021-028,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-029,MS-021-029,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-030,MS-021-030,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-031,MS-021-031,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-021-032,MS-021-032,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-022-001,MS-022-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-022-002,MS-022-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-022-003,MS-022-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-022-004,MS-022-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-022-005,MS-022-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-022-006,MS-022-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-022-007,MS-022-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-022-008,MS-022-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-022-009,MS-022-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-022-010,MS-022-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-022-011,MS-022-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-022-012,MS-022-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-022-013,MS-022-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-022-014,MS-022-014,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-022-015,MS-022-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-001,MS-023-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-002,MS-023-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-003,MS-023-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-004,MS-023-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-005,MS-023-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-006,MS-023-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-007,MS-023-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-008,MS-023-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-009,MS-023-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-010,MS-023-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-011,MS-023-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-012,MS-023-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-013,MS-023-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-014,MS-023-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-015,MS-023-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-016,MS-023-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-017,MS-023-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-018,MS-023-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-023-019,MS-023-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-024-001,MS-024-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-024-002,MS-024-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-024-003,MS-024-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-024-004,MS-024-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-024-005,MS-024-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-024-006,MS-024-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-024-007,MS-024-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-024-008,MS-024-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-024-009,MS-024-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-024-010,MS-024-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-024-011,MS-024-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-024-012,MS-024-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-024-013,MS-024-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-024-014,MS-024-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-024-015,MS-024-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-001,MS-025-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-002,MS-025-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-003,MS-025-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-004,MS-025-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-005,MS-025-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-006,MS-025-006,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-007,MS-025-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-008,MS-025-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-009,MS-025-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-010,MS-025-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-011,MS-025-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-012,MS-025-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-013,MS-025-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-014,MS-025-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-015,MS-025-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-016,MS-025-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-017,MS-025-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-018,MS-025-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-019,MS-025-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-020,MS-025-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-021,MS-025-021,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-022,MS-025-022,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-023,MS-025-023,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-024,MS-025-024,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-025,MS-025-025,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-026,MS-025-026,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-027,MS-025-027,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-028,MS-025-028,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-029,MS-025-029,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-025-030,MS-025-030,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-001,MS-026-001,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-002,MS-026-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-003,MS-026-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-004,MS-026-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-005,MS-026-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-006,MS-026-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-007,MS-026-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-008,MS-026-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-009,MS-026-009,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-010,MS-026-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-011,MS-026-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-012,MS-026-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-013,MS-026-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-014,MS-026-014,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-015,MS-026-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-016,MS-026-016,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-017,MS-026-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-026-018,MS-026-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-001,MS-027-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-002,MS-027-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-003,MS-027-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-004,MS-027-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-005,MS-027-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-006,MS-027-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-007,MS-027-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-008,MS-027-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-009,MS-027-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-010,MS-027-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-011,MS-027-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-012,MS-027-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-013,MS-027-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-014,MS-027-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-015,MS-027-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-016,MS-027-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-027-017,MS-027-017,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-001,MS-028-001,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-002,MS-028-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-003,MS-028-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-004,MS-028-004,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-005,MS-028-005,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-006,MS-028-006,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-007,MS-028-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-008,MS-028-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-009,MS-028-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-010,MS-028-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-011,MS-028-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-012,MS-028-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-013,MS-028-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-014,MS-028-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-015,MS-028-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-016,MS-028-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-017,MS-028-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-018,MS-028-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-019,MS-028-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-020,MS-028-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-021,MS-028-021,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-022,MS-028-022,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-023,MS-028-023,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-024,MS-028-024,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-025,MS-028-025,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-026,MS-028-026,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-027,MS-028-027,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-028,MS-028-028,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-029,MS-028-029,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-030,MS-028-030,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-031,MS-028-031,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-032,MS-028-032,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-033,MS-028-033,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-034,MS-028-034,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-035,MS-028-035,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-036,MS-028-036,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-037,MS-028-037,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-038,MS-028-038,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-039,MS-028-039,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-040,MS-028-040,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-041,MS-028-041,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-042,MS-028-042,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-043,MS-028-043,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-044,MS-028-044,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-028-045,MS-028-045,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-001,MS-029-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-002,MS-029-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-003,MS-029-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-004,MS-029-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-005,MS-029-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-006,MS-029-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-007,MS-029-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-008,MS-029-008,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-009,MS-029-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-010,MS-029-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-011,MS-029-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-012,MS-029-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-013,MS-029-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-014,MS-029-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-015,MS-029-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-016,MS-029-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-017,MS-029-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-018,MS-029-018,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-019,MS-029-019,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-020,MS-029-020,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-029-021,MS-029-021,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-001,MS-030-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-002,MS-030-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-003,MS-030-003,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-004,MS-030-004,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-005,MS-030-005,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-006,MS-030-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-007,MS-030-007,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-008,MS-030-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-009,MS-030-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-010,MS-030-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-011,MS-030-011,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-012,MS-030-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-013,MS-030-013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-014,MS-030-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-015,MS-030-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-016,MS-030-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-017,MS-030-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-018,MS-030-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-019,MS-030-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-020,MS-030-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-021,MS-030-021,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-022,MS-030-022,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-023,MS-030-023,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-024,MS-030-024,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-025,MS-030-025,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-026,MS-030-026,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-027,MS-030-027,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-028,MS-030-028,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-029,MS-030-029,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-030,MS-030-030,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-031,MS-030-031,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-032,MS-030-032,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-033,MS-030-033,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-034,MS-030-034,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-035,MS-030-035,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-036,MS-030-036,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-037,MS-030-037,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-038,MS-030-038,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-039,MS-030-039,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-040,MS-030-040,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-041,MS-030-041,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-042,MS-030-042,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-043,MS-030-043,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-044,MS-030-044,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-045,MS-030-045,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-046,MS-030-046,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-047,MS-030-047,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-048,MS-030-048,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-049,MS-030-049,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-050,MS-030-050,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-051,MS-030-051,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-052,MS-030-052,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-053,MS-030-053,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-054,MS-030-054,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-055,MS-030-055,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-056,MS-030-056,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-057,MS-030-057,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-058,MS-030-058,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-059,MS-030-059,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-060,MS-030-060,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-061,MS-030-061,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-062,MS-030-062,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-063,MS-030-063,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-064,MS-030-064,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-065,MS-030-065,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-066,MS-030-066,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-067,MS-030-067,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-068,MS-030-068,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-069,MS-030-069,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-030-070,MS-030-070,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-001,MS-031-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-002,MS-031-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-003,MS-031-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-004,MS-031-004,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-005,MS-031-005,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-006,MS-031-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-007,MS-031-007,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-008,MS-031-008,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-009,MS-031-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-010,MS-031-010,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-011,MS-031-011,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-012,MS-031-012,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-013,MS-031-013,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-014,MS-031-014,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-015,MS-031-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-016,MS-031-016,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-017,MS-031-017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-018,MS-031-018,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-019,MS-031-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-020,MS-031-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-021,MS-031-021,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-031-022,MS-031-022,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-001,MS-032-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-002,MS-032-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-003,MS-032-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-004,MS-032-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-005,MS-032-005,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-006,MS-032-006,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-007,MS-032-007,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-008,MS-032-008,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-009,MS-032-009,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-010,MS-032-010,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-011,MS-032-011,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-012,MS-032-012,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-013,MS-032-013,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-014,MS-032-014,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-015,MS-032-015,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-016,MS-032-016,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-017,MS-032-017,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-018,MS-032-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-019,MS-032-019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-020,MS-032-020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-021,MS-032-021,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-022,MS-032-022,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-023,MS-032-023,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-032-024,MS-032-024,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-001,MS-240-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-002,MS-240-002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-003,MS-240-003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-004,MS-240-004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-005,MS-240-005,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-006,MS-240-006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-007,MS-240-007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-008,MS-240-008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-009,MS-240-009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-010,MS-240-010,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-011,MS-240-011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-012,MS-240-012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-013,MS-240-013,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-014,MS-240-014,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-015,MS-240-015,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-016,MS-240-016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-017,MS-240-017,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-018,MS-240-018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-019,MS-240-019,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-020,MS-240-020,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-MS-240-021,MS-240-021,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-BN-310-001,BN-310-001,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-BN-320-001,BN-320-001,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H001,H001,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H002,H002,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H003,H003,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H004,H004,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H005,H005,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H006,H006,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H007,H007,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H008,H008,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H009,H009,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H010,H010,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H011,H011,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H012,H012,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H013,H013,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H014,H014,Automated test suite and linked CI evidence at the relevant phase,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H015,H015,Document review against source requirement and implementation evidence,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H016,H016,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H017,H017,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H018,H018,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H019,H019,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H020,H020,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H021,H021,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H022,H022,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H023,H023,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H024,H024,API contract + integration/negative authorization test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H025,H025,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H026,H026,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H027,H027,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H028,H028,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H029,H029,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H030,H030,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H031,H031,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H032,H032,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H033,H033,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H034,H034,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H035,H035,Schema/constraint review + migration/integration/concurrency test,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H036,H036,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H038,H038,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H039,H039,Requirement review + relevant automated/manual acceptance demonstration,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-H040,H040,Negative policy/security test or documented review gate; inspect evidence before approval,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H01,UI-H01,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H02,UI-H02,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H03,UI-H03,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H04,UI-H04,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H05,UI-H05,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H06,UI-H06,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H07,UI-H07,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H08,UI-H08,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H09,UI-H09,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H10,UI-H10,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H11,UI-H11,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H12,UI-H12,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H13,UI-H13,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H14,UI-H14,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H15,UI-H15,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H16,UI-H16,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H17,UI-H17,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H18,UI-H18,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H19,UI-H19,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H20,UI-H20,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H21,UI-H21,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H22,UI-H22,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H23,UI-H23,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H24,UI-H24,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-H25,UI-H25,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-L01,UI-L01,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-L02,UI-L02,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-L03,UI-L03,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-L04,UI-L04,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-L05,UI-L05,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-L06,UI-L06,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-L07,UI-L07,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-L08,UI-L08,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-L09,UI-L09,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-L10,UI-L10,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-L11,UI-L11,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-L12,UI-L12,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-A01,UI-A01,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-A02,UI-A02,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-A03,UI-A03,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-A04,UI-A04,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-A05,UI-A05,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-A06,UI-A06,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-A07,UI-A07,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-A08,UI-A08,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-A09,UI-A09,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-A10,UI-A10,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-A11,UI-A11,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-A12,UI-A12,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-A13,UI-A13,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-A14,UI-A14,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-V01,UI-V01,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-V02,UI-V02,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-V03,UI-V03,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-V04,UI-V04,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-V05,UI-V05,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-V06,UI-V06,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-V07,UI-V07,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-V08,UI-V08,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-V09,UI-V09,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-V10,UI-V10,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-V11,UI-V11,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-V12,UI-V12,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-R01,UI-R01,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-R02,UI-R02,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-R03,UI-R03,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-R04,UI-R04,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-R05,UI-R05,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-R06,UI-R06,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-R07,UI-R07,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-R08,UI-R08,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-R09,UI-R09,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-R10,UI-R10,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-R11,UI-R11,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN
+V-UI-R12,UI-R12,Visual comparison at desktop/tablet/mobile + keyboard/accessibility review + real-data behavior test where interactive,Link to future commit/test report/review record; no evidence exists yet,NOT_RUN

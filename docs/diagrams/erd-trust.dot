@@ -1,0 +1,18 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.35",nodesep="0.35",ranksep="0.8"];
+node [shape=plain,fontname="Arial"];
+edge [color="#68717d",fontcolor="#47505c",fontsize=9,fontname="Arial"];
+FraudCase [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#70404a"><FONT COLOR="white"><B>FraudCase</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>subjectType</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>subjectId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>orderId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>score</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>reasons</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>policyVersion</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">FraudStatus</TD></TR><TR><TD ALIGN="LEFT"><B>assignedReviewerId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>holdExpiresAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR></TABLE>>];
+FraudDecision [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#70404a"><FONT COLOR="white"><B>FraudDecision</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>caseId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>reviewerId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>decision</B></TD><TD ALIGN="LEFT">FraudAction</TD></TR><TR><TD ALIGN="LEFT"><B>reason</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>automated</B></TD><TD ALIGN="LEFT">boolean</TD></TR><TR><TD ALIGN="LEFT"><B>occurredAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR></TABLE>>];
+FraudEvidence [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#70404a"><FONT COLOR="white"><B>FraudEvidence</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>caseId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>signal</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>valueRedacted</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>source</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>observedAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>restrictedObjectKey</B></TD><TD ALIGN="LEFT">string nullable</TD></TR></TABLE>>];
+Order [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Order
+(external domain)"];
+User [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="User
+(external domain)"];
+FraudCase -> Order [label="orderId (N:1, FK owner → target)"];
+FraudEvidence -> FraudCase [label="caseId (N:1, FK owner → target)"];
+FraudDecision -> FraudCase [label="caseId (N:1, FK owner → target)"];
+Order -> FraudCase [label="riskCaseId (N:1, FK owner → target)"];
+FraudCase -> User [label="assignedReviewerId (N:1, FK owner → target)"];
+FraudDecision -> User [label="reviewerId (N:1, FK owner → target)"];
+}

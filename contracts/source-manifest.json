@@ -1,0 +1,48 @@
+{
+  "review_date": "2026-11-01",
+  "workspace_before": "No source repository; uploads only",
+  "shared_conversation": "https://chatgpt.com/share/6ae70089-14c4-83ec-aaf9-b382b6b04347",
+  "shared_nodes": 633,
+  "retained_visible_messages": 460,
+  "user_messages": 209,
+  "assistant_messages": 251,
+  "user_groups": 203,
+  "historical_image_references": 6,
+  "files": [
+    {
+      "file": "references/file_000000001458821082c41adcad8398e0.png",
+      "sha256": "8a3206a182136edc96a0fe5ff61dd7c0cb12061271a36728b09d2fc01205ed18",
+      "bytes": 1623849,
+      "width": 1536,
+      "height": 1024
+    },
+    {
+      "file": "references/file_000000001fd08210b38f6b50c3a01087.png",
+      "sha256": "f3bea63bf3f7a22114ebe27d1c9da11d728dd5372fb298a5e2278d3d8522113c",
+      "bytes": 1597932,
+      "width": 1536,
+      "height": 1024
+    },
+    {
+      "file": "references/file_00000000a7508210a16ca15694141f4f.png",
+      "sha256": "85a205650803b3d6b06c6153019d6cfbbe6df20500542c2c9a2cac1faf8b8b0d",
+      "bytes": 1567391,
+      "width": 1536,
+      "height": 1024
+    },
+    {
+      "file": "references/file_00000000eaf48210a2930dd3061eba38.png",
+      "sha256": "e6c95b8b0c0eb610fe50fc41d20a6cd4dfa27c0f4168214a328cd8b3f1c43491",
+      "bytes": 1833553,
+      "width": 1536,
+      "height": 1024
+    },
+    {
+      "file": "references/file_00000000ed6082109834425a8eadf979.png",
+      "sha256": "612edeca38a62320d37848fed25ec7d3fb525970ff861c4494839c6a9d6cdbd1",
+      "bytes": 1996021,
+      "width": 1024,
+      "height": 1536
+    }
+  ]
+}

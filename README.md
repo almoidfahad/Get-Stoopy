@@ -1,0 +1,55 @@
+# Get Stoopy — Phase-1 architecture review package
+
+**Shop Smart. Live Better.**
+
+Status: **Architecture approved for development 2026-11-01; Phase 2 in progress.** The original review package remains below. A first foundation slice now exists (TypeScript packages, Prisma foundation schema/migration, Docker/CI templates, 58 passing unit tests). This is still not a running marketplace; no live integration, paid resource or production deployment exists. See `docs/17-phase2-foundation.md`.
+
+## Source control
+
+Private GitHub repository: <https://github.com/almoidfahad/Get-Stoopy> (`main`). The product name is **Get Stoopy**; GitHub uses the space-free slug `Get-Stoopy`.
+
+## Start here
+
+Open `architecture-review.html` for the self-contained review: executive summary, decisions, critical risks, embedded architecture/ERD diagrams, screenshot references, searchable requirement register and full documents. It uses embedded assets and local filtering; no network is required for the review itself. External citation links need internet.
+
+The companion ZIP contains the same package plus Markdown/CSV/YAML/JSON sources, research extracts, documentation tools and reference images.
+
+## What is included
+
+- Phase-1 review documents, validation report, Phase-2 foundation log and 8 ADRs accepted for development.
+- Logical data model: 113 entities, 253 explicit relationships; complete Mermaid ERD, 11 domain ERDs, 13 SVGs and data dictionary. Required VendorLedger/RiderLedger/CODLedger names are mapped to immutable journal views.
+- Role/geographic permission policy and 240-row machine-readable role matrix.
+- Proposed OpenAPI 3.1 contract: 87 paths, 90 operations, 36 schemas. No live server.
+- Security threat model, KYC workflow, finance/delivery policy, payment/provider readiness, AI/privacy scope.
+- 916 traceability rows: 802 normalized master/Bengali source lines, 39 historical additions, 75 screenshot inventory rows. Planned verification is marked NOT_RUN.
+- Source review: 460 recovered visible messages (209 user / 251 assistant), five current upload hashes, and explicit unavailable-artifact/fidelity limitations.
+- Roadmap, progress/decision log and document-only validation report.
+
+## Validation boundary
+
+`python tools/validate_design_artifacts.py` checks documents/contracts only. Current result: 10 passed / 0 failed. This is **not** an application, migration, endpoint, security, payment or performance test. Phase 1 is not complete until the owner reviews/approves the architecture; Phases 2–11 have not started.
+
+## Key proposed choices
+
+Next.js BFF + one NestJS modular monolith + worker; PostgreSQL/PostGIS/Prisma; Keycloak with opaque revocable BFF sessions; scoped repositories + RLS; immutable balanced journals; recipient-first remote ordering; manual vendor ready; sequential 30-second road-distance rider offers; Sunday payout under verified conditions; capability-gated provider adapters; consented first-party personalization and human-approved AI.
+
+## Review before approval
+
+See `docs/15-progress-and-decisions.md` for identity operating model, pilot boundaries, financial cutoff/rates, COD offset, commission/settlement policy, provider contracts, retention and brand assets. Architecture approval permits development only; paid services, real payment collection and production deployment require separate explicit authorization.
+
+## Rebuilding documentation artifacts
+
+These scripts generate documentation, not application code:
+
+```bash
+python tools/build_design_artifacts.py
+python tools/build_requirements.py
+python tools/build_openapi.py
+# Optional SVG rendering requires the cached Graphviz WASM package:
+node tools/render_diagrams.mjs
+python tools/validate_design_artifacts.py
+python tools/build_review_package.py
+python tools/validate_design_artifacts.py
+```
+
+Python documentation dependencies used in this workspace: PyYAML, Pillow, openapi-spec-validator 0.7.2, markdown-it-py, beautifulsoup4. The optional renderer used `@hpcc-js/wasm-graphviz` 1.12.0 in `.cache/diagram-renderer` (not an application dependency). The hand-authored system overview SVG is already included.

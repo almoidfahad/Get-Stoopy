@@ -1,0 +1,171 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.35",nodesep="0.35",ranksep="0.8"];
+node [shape=plain,fontname="Arial"];
+edge [color="#68717d",fontcolor="#47505c",fontsize=9,fontname="Arial"];
+AdminInvitation [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#a90b16"><FONT COLOR="white"><B>AdminInvitation</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>emailNormalized</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>intendedRoleIds</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>intendedScopeSnapshot</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>tokenHash</B></TD><TD ALIGN="LEFT">bytes UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>invitedBy</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>expiresAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>acceptedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR></TABLE>>];
+AdminScope [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#a90b16"><FONT COLOR="white"><B>AdminScope</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>userId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>geographyType</B></TD><TD ALIGN="LEFT">GeographyType</TD></TR><TR><TD ALIGN="LEFT"><B>countryId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>regionId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>districtId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>cityId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>serviceZoneId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>neighborhoodId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>grantedBy</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>effectiveFrom</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>expiresAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>revokedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR></TABLE>>];
+ConsentRecord [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#a90b16"><FONT COLOR="white"><B>ConsentRecord</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>userId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>guestReferenceHash</B></TD><TD ALIGN="LEFT">bytes nullable</TD></TR><TR><TD ALIGN="LEFT"><B>purpose</B></TD><TD ALIGN="LEFT">ConsentPurpose</TD></TR><TR><TD ALIGN="LEFT"><B>policyVersion</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>granted</B></TD><TD ALIGN="LEFT">boolean</TD></TR><TR><TD ALIGN="LEFT"><B>source</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>occurredAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR></TABLE>>];
+Device [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#a90b16"><FONT COLOR="white"><B>Device</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>userId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>label</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>publicBindingHash</B></TD><TD ALIGN="LEFT">bytes</TD></TR><TR><TD ALIGN="LEFT"><B>lastSeenAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>trustedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>revokedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR></TABLE>>];
+MfaEnrollment [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#a90b16"><FONT COLOR="white"><B>MfaEnrollment</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>userId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>providerReference</B></TD><TD ALIGN="LEFT">string UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>method</B></TD><TD ALIGN="LEFT">TOTP</TD></TR><TR><TD ALIGN="LEFT"><B>enrolledAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>lastVerifiedStep</B></TD><TD ALIGN="LEFT">bigint nullable</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">MfaStatus</TD></TR></TABLE>>];
+Permission [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#a90b16"><FONT COLOR="white"><B>Permission</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>key</B></TD><TD ALIGN="LEFT">string UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>resource</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>action</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>sensitivity</B></TD><TD ALIGN="LEFT">PermissionSensitivity</TD></TR></TABLE>>];
+PrivacyRequest [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#a90b16"><FONT COLOR="white"><B>PrivacyRequest</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>userId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>kind</B></TD><TD ALIGN="LEFT">PrivacyRequestKind</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">PrivacyRequestStatus</TD></TR><TR><TD ALIGN="LEFT"><B>verifiedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>dueAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>resultReference</B></TD><TD ALIGN="LEFT">string nullable</TD></TR></TABLE>>];
+Role [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#a90b16"><FONT COLOR="white"><B>Role</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>key</B></TD><TD ALIGN="LEFT">string UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>name</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>kind</B></TD><TD ALIGN="LEFT">RoleKind</TD></TR><TR><TD ALIGN="LEFT"><B>description</B></TD><TD ALIGN="LEFT">string</TD></TR></TABLE>>];
+RolePermission [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#a90b16"><FONT COLOR="white"><B>RolePermission</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>roleId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>permissionId</B></TD><TD ALIGN="LEFT">uuid</TD></TR></TABLE>>];
+Session [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#a90b16"><FONT COLOR="white"><B>Session</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>userId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>tokenHash</B></TD><TD ALIGN="LEFT">bytes UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>assuranceLevel</B></TD><TD ALIGN="LEFT">AssuranceLevel</TD></TR><TR><TD ALIGN="LEFT"><B>state</B></TD><TD ALIGN="LEFT">SessionState</TD></TR><TR><TD ALIGN="LEFT"><B>deviceId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>providerSessionReference</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>encryptedTokenEnvelope</B></TD><TD ALIGN="LEFT">bytes nullable</TD></TR><TR><TD ALIGN="LEFT"><B>expiresAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>idleExpiresAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>revokedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>authVersion</B></TD><TD ALIGN="LEFT">int</TD></TR></TABLE>>];
+StepUpChallenge [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#a90b16"><FONT COLOR="white"><B>StepUpChallenge</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>userId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>sessionId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>purpose</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>resourceHash</B></TD><TD ALIGN="LEFT">bytes</TD></TR><TR><TD ALIGN="LEFT"><B>tokenHash</B></TD><TD ALIGN="LEFT">bytes UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>expiresAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>consumedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR></TABLE>>];
+User [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#a90b16"><FONT COLOR="white"><B>User</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>emailNormalized</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>emailVerifiedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>phoneE164</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>phoneVerifiedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>displayName</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">UserStatus</TD></TR><TR><TD ALIGN="LEFT"><B>authorizationVersion</B></TD><TD ALIGN="LEFT">int</TD></TR></TABLE>>];
+UserIdentity [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#a90b16"><FONT COLOR="white"><B>UserIdentity</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>userId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>issuer</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>subject</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>providerKey</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>providerEmailEncrypted</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>providerEmailVerified</B></TD><TD ALIGN="LEFT">boolean</TD></TR><TR><TD ALIGN="LEFT"><B>linkedAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>linkedBy</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>lastVerifiedAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR></TABLE>>];
+UserRole [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#a90b16"><FONT COLOR="white"><B>UserRole</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>userId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>roleId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>grantedBy</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>expiresAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>revokedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR></TABLE>>];
+AIApproval [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="AIApproval
+(external domain)"];
+AIInvocation [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="AIInvocation
+(external domain)"];
+AdminKYC [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="AdminKYC
+(external domain)"];
+AuditLog [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="AuditLog
+(external domain)"];
+BoundaryVersion [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="BoundaryVersion
+(external domain)"];
+CODDeposit [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="CODDeposit
+(external domain)"];
+City [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="City
+(external domain)"];
+Country [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Country
+(external domain)"];
+Customer [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Customer
+(external domain)"];
+DeliveryException [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="DeliveryException
+(external domain)"];
+District [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="District
+(external domain)"];
+FeatureFlag [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="FeatureFlag
+(external domain)"];
+FraudCase [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="FraudCase
+(external domain)"];
+FraudDecision [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="FraudDecision
+(external domain)"];
+IdempotencyRecord [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="IdempotencyRecord
+(external domain)"];
+JournalEntry [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="JournalEntry
+(external domain)"];
+KYCCase [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="KYCCase
+(external domain)"];
+KYCDocument [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="KYCDocument
+(external domain)"];
+KYCReview [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="KYCReview
+(external domain)"];
+Neighborhood [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Neighborhood
+(external domain)"];
+NewsletterSubscription [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="NewsletterSubscription
+(external domain)"];
+Notification [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Notification
+(external domain)"];
+NotificationPreference [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="NotificationPreference
+(external domain)"];
+OrderStatusEvent [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="OrderStatusEvent
+(external domain)"];
+Payout [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Payout
+(external domain)"];
+ProductInteraction [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ProductInteraction
+(external domain)"];
+ReconciliationRecord [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ReconciliationRecord
+(external domain)"];
+Referral [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Referral
+(external domain)"];
+Refund [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Refund
+(external domain)"];
+Region [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Region
+(external domain)"];
+ReturnRequest [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ReturnRequest
+(external domain)"];
+Rider [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Rider
+(external domain)"];
+RiderAssignment [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="RiderAssignment
+(external domain)"];
+RiderRateRule [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="RiderRateRule
+(external domain)"];
+RiderServiceArea [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="RiderServiceArea
+(external domain)"];
+ServiceZone [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ServiceZone
+(external domain)"];
+Settlement [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Settlement
+(external domain)"];
+SupportMessage [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="SupportMessage
+(external domain)"];
+SupportTicket [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="SupportTicket
+(external domain)"];
+Vendor [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Vendor
+(external domain)"];
+VendorMembership [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="VendorMembership
+(external domain)"];
+VendorServiceArea [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="VendorServiceArea
+(external domain)"];
+VendorSuborder [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="VendorSuborder
+(external domain)"];
+Session -> User [label="userId (N:1, FK owner → target)"];
+Session -> Device [label="deviceId (N:1, FK owner → target)"];
+UserRole -> User [label="userId (N:1, FK owner → target)"];
+UserRole -> Role [label="roleId (N:1, FK owner → target)"];
+RolePermission -> Role [label="roleId (N:1, FK owner → target)"];
+RolePermission -> Permission [label="permissionId (N:1, FK owner → target)"];
+AdminScope -> User [label="userId (N:1, FK owner → target)"];
+AdminInvitation -> User [label="invitedBy (N:1, FK owner → target)"];
+MfaEnrollment -> User [label="userId (N:1, FK owner → target)"];
+Device -> User [label="userId (N:1, FK owner → target)"];
+StepUpChallenge -> Session [label="sessionId (N:1, FK owner → target)"];
+ConsentRecord -> User [label="userId (N:1, FK owner → target)"];
+PrivacyRequest -> User [label="userId (N:1, FK owner → target)"];
+Customer -> User [label="userId (1:1, FK owner → target)"];
+Vendor -> User [label="ownerUserId (N:1, FK owner → target)"];
+Rider -> User [label="userId (1:1, FK owner → target)"];
+SupportTicket -> User [label="requesterId (N:1, FK owner → target)"];
+ProductInteraction -> User [label="customerId (N:1, FK owner → target)"];
+AIInvocation -> User [label="actorUserId (N:1, FK owner → target)"];
+Notification -> User [label="recipientId (N:1, FK owner → target)"];
+NotificationPreference -> User [label="userId (N:1, FK owner → target)"];
+AuditLog -> User [label="actorId (N:1, FK owner → target)"];
+IdempotencyRecord -> User [label="actorId (N:1, FK owner → target)"];
+Referral -> User [label="referrerId (N:1, FK owner → target)"];
+UserIdentity -> User [label="userId (N:1, FK owner → target)"];
+UserRole -> User [label="grantedBy (N:1, FK owner → target)"];
+AdminScope -> Country [label="countryId (N:1, FK owner → target)"];
+AdminScope -> Region [label="regionId (N:1, FK owner → target)"];
+AdminScope -> District [label="districtId (N:1, FK owner → target)"];
+AdminScope -> City [label="cityId (N:1, FK owner → target)"];
+AdminScope -> ServiceZone [label="serviceZoneId (N:1, FK owner → target)"];
+AdminScope -> Neighborhood [label="neighborhoodId (N:1, FK owner → target)"];
+AdminScope -> User [label="grantedBy (N:1, FK owner → target)"];
+StepUpChallenge -> User [label="userId (N:1, FK owner → target)"];
+BoundaryVersion -> User [label="approvedBy (N:1, FK owner → target)"];
+VendorMembership -> User [label="userId (N:1, FK owner → target)"];
+VendorServiceArea -> User [label="approvedBy (N:1, FK owner → target)"];
+RiderServiceArea -> User [label="approvedBy (N:1, FK owner → target)"];
+KYCCase -> User [label="assignedReviewerId (N:1, FK owner → target)"];
+AdminKYC -> User [label="userId (N:1, FK owner → target)"];
+AdminKYC -> User [label="approvedBy (N:1, FK owner → target)"];
+KYCDocument -> User [label="uploadedBy (N:1, FK owner → target)"];
+KYCReview -> User [label="reviewerId (N:1, FK owner → target)"];
+VendorSuborder -> User [label="readyConfirmedBy (N:1, FK owner → target)"];
+OrderStatusEvent -> User [label="actorId (N:1, FK owner → target)"];
+RiderRateRule -> User [label="createdBy (N:1, FK owner → target)"];
+RiderAssignment -> User [label="authorizedBy (N:1, FK owner → target)"];
+DeliveryException -> User [label="reportedBy (N:1, FK owner → target)"];
+DeliveryException -> User [label="reviewedBy (N:1, FK owner → target)"];
+CODDeposit -> User [label="verifiedBy (N:1, FK owner → target)"];
+Refund -> User [label="approvedBy (N:1, FK owner → target)"];
+JournalEntry -> User [label="createdBy (N:1, FK owner → target)"];
+Payout -> User [label="approvedBy (N:1, FK owner → target)"];
+Settlement -> User [label="approvedBy (N:1, FK owner → target)"];
+ReconciliationRecord -> User [label="reviewedBy (N:1, FK owner → target)"];
+FraudCase -> User [label="assignedReviewerId (N:1, FK owner → target)"];
+FraudDecision -> User [label="reviewerId (N:1, FK owner → target)"];
+ReturnRequest -> User [label="approvedBy (N:1, FK owner → target)"];
+SupportTicket -> User [label="assignedStaffId (N:1, FK owner → target)"];
+SupportMessage -> User [label="authorId (N:1, FK owner → target)"];
+ProductInteraction -> ConsentRecord [label="consentId (N:1, FK owner → target)"];
+AIApproval -> User [label="approverId (N:1, FK owner → target)"];
+AIApproval -> StepUpChallenge [label="stepUpChallengeId (N:1, FK owner → target)"];
+AuditLog -> Session [label="sessionId (N:1, FK owner → target)"];
+FeatureFlag -> User [label="updatedBy (N:1, FK owner → target)"];
+NewsletterSubscription -> ConsentRecord [label="consentId (N:1, FK owner → target)"];
+}

@@ -1,0 +1,6 @@
+{
+  "brand": { "primary": "#B30D1B", "primaryHover": "#8F0A15", "ink": "#15171A", "surface": "#FFFFFF", "muted": "#F5F6F8", "border": "#E2E5E9", "champagne": "#C6A56B" },
+  "radius": { "sm": "6px", "md": "10px", "lg": "14px" },
+  "space": { "1": "4px", "2": "8px", "3": "12px", "4": "16px", "6": "24px", "8": "32px" },
+  "font": { "sans": "system-ui, -apple-system, Segoe UI, Arial, sans-serif" }
+}

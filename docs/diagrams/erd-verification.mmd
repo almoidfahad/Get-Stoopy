@@ -1,0 +1,69 @@
+erDiagram
+  KYCCase {
+    uuid id PK
+    PartyType subjectType
+    uuid subjectId FK
+    KYCStatus status
+    string policyVersion
+    KYCLevel level
+    datetime_nullable submittedAt
+    datetime_nullable expiresAt
+    uuid_nullable assignedReviewerId
+  }
+  VendorKYC {
+    uuid id PK
+    uuid_UNIQUE caseId
+    uuid vendorId FK
+    json businessInformation
+    json representativeInformationEncrypted
+    uuid businessAddressId FK
+  }
+  RiderKYC {
+    uuid id PK
+    uuid_UNIQUE caseId
+    uuid riderId FK
+    json identityProfile
+    uuid_nullable vehicleId
+    datetime_nullable addressVerifiedAt
+  }
+  AdminKYC {
+    uuid id PK
+    uuid_UNIQUE caseId
+    uuid userId FK
+    datetime_nullable identityVerifiedAt
+    uuid_nullable approvedBy
+    ProvisioningStatus provisioningStatus
+  }
+  KYCDocument {
+    uuid id PK
+    uuid caseId FK
+    DocumentType documentType
+    string_UNIQUE storageKey
+    bytes contentHash
+    string mimeType
+    int sizeBytes
+    ScanStatus scanStatus
+    json_nullable encryptedNumber
+    string issuingCountry
+    date_nullable expiresOn
+    DocumentStatus status
+    uuid uploadedBy
+    UploadChannel uploadChannel
+  }
+  KYCReview {
+    uuid id PK
+    uuid caseId FK
+    uuid_nullable documentId
+    uuid reviewerId FK
+    ReviewDecision decision
+    json reasons
+    VerificationMethod verificationMethod
+    string_nullable authorizedSourceReference
+    datetime occurredAt
+  }
+  KYCCase ||--o| VendorKYC : "caseId"
+  KYCCase ||--o| RiderKYC : "caseId"
+  KYCCase ||--o| AdminKYC : "caseId"
+  KYCCase ||--o{ KYCDocument : "caseId"
+  KYCCase ||--o{ KYCReview : "caseId"
+  KYCDocument |o--o{ KYCReview : "documentId"

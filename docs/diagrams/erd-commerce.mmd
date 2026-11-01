@@ -1,0 +1,183 @@
+erDiagram
+  Customer {
+    uuid id PK
+    uuid_UNIQUE userId
+    string locale
+    uuid_nullable defaultAddressId
+    CustomerRiskStatus riskStatus
+  }
+  Vendor {
+    uuid id PK
+    string legalName
+    string displayName
+    uuid ownerUserId FK
+    VendorBusinessType businessType
+    VendorStatus status
+    uuid_nullable_UNIQUE kycCaseId
+    uuid homeCountryId FK
+    string contactPhone
+    string_UNIQUE slug
+  }
+  VendorMembership {
+    uuid id PK
+    uuid vendorId FK
+    uuid userId FK
+    uuid_nullable storeId
+    VendorRole vendorRole
+    MembershipStatus status
+  }
+  Store {
+    uuid id PK
+    uuid vendorId FK
+    string name
+    uuid addressId FK
+    geometry_Point_4326 pickupPoint
+    uuid cityId FK
+    StoreStatus status
+    json operatingHours
+  }
+  VendorServiceArea {
+    uuid id PK
+    uuid storeId FK
+    uuid serviceZoneId FK
+    boolean active
+    uuid approvedBy
+  }
+  Wishlist {
+    uuid id PK
+    uuid customerId FK
+    string name
+  }
+  WishlistItem {
+    uuid id PK
+    uuid wishlistId FK
+    uuid productId FK
+  }
+  Cart {
+    uuid id PK
+    uuid_nullable customerId
+    bytes_nullable guestTokenHash
+    json_nullable destinationAddressSnapshot
+    string currency
+    int version
+  }
+  CartItem {
+    uuid id PK
+    uuid cartId FK
+    uuid variantId FK
+    uuid storeId FK
+    int quantity
+    datetime addedAt
+  }
+  Review {
+    uuid id PK
+    uuid customerId FK
+    uuid productId FK
+    uuid_UNIQUE orderItemId
+    int rating
+    string body
+    ReviewStatus status
+    boolean verifiedPurchase
+  }
+  SupportTicket {
+    uuid id PK
+    uuid requesterId FK
+    string subjectType
+    uuid_nullable subjectId
+    string category
+    TicketStatus status
+    uuid_nullable assignedStaffId
+    TicketPriority priority
+    uuid countryId FK
+    uuid_nullable zoneId
+  }
+  SupportMessage {
+    uuid id PK
+    uuid ticketId FK
+    uuid authorId FK
+    string body
+    json attachmentKeys
+    datetime createdAt
+  }
+  Coupon {
+    uuid id PK
+    bytes codeHash
+    string codeDisplay
+    json policy
+    CouponStatus status
+    datetime startsAt
+    datetime endsAt
+    int_nullable usageLimit
+    int_nullable perCustomerLimit
+    int version
+  }
+  CouponRedemption {
+    uuid id PK
+    uuid couponId FK
+    uuid customerId FK
+    uuid_UNIQUE orderId
+    bigint amount
+    RedemptionState state
+  }
+  Campaign {
+    uuid id PK
+    string name
+    CampaignKind kind
+    json audiencePolicy
+    json placements
+    json content
+    datetime startsAt
+    datetime endsAt
+    uuid countryId FK
+    CampaignStatus status
+  }
+  NewsletterSubscription {
+    uuid id PK
+    bytes_UNIQUE emailHash
+    string emailEncrypted
+    uuid consentId FK
+    SubscriptionStatus status
+    datetime_nullable verifiedAt
+  }
+  LoyaltyAccount {
+    uuid id PK
+    uuid_UNIQUE customerId
+    string programVersion
+    LoyaltyStatus status
+  }
+  LoyaltyEvent {
+    uuid id PK
+    uuid accountId FK
+    string_UNIQUE eventKey
+    LoyaltyEventKind kind
+    bigint points
+    string sourceReference
+    uuid_nullable journalId
+    datetime occurredAt
+  }
+  Referral {
+    uuid id PK
+    uuid referrerId FK
+    uuid_nullable referredCustomerId
+    bytes_UNIQUE codeHash
+    ReferralStatus status
+    uuid_nullable qualifiedOrderId
+    uuid_nullable rewardEventId
+  }
+  Vendor ||--o{ VendorMembership : "vendorId"
+  Vendor ||--o{ Store : "vendorId"
+  Store ||--o{ VendorServiceArea : "storeId"
+  Customer ||--o{ Wishlist : "customerId"
+  Wishlist ||--o{ WishlistItem : "wishlistId"
+  Customer |o--o{ Cart : "customerId"
+  Cart ||--o{ CartItem : "cartId"
+  SupportTicket ||--o{ SupportMessage : "ticketId"
+  Coupon ||--o{ CouponRedemption : "couponId"
+  Customer ||--o| LoyaltyAccount : "customerId"
+  LoyaltyAccount ||--o{ LoyaltyEvent : "accountId"
+  Store |o--o{ VendorMembership : "storeId"
+  Store ||--o{ CartItem : "storeId"
+  Customer ||--o{ Review : "customerId"
+  Customer ||--o{ CouponRedemption : "customerId"
+  Customer |o--o{ Referral : "referredCustomerId"
+  LoyaltyEvent |o--o{ Referral : "rewardEventId"

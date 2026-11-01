@@ -1,0 +1,98 @@
+digraph G {
+graph [rankdir=LR,bgcolor="white",pad="0.35",nodesep="0.35",ranksep="0.8"];
+node [shape=plain,fontname="Arial"];
+edge [color="#68717d",fontcolor="#47505c",fontsize=9,fontname="Arial"];
+Delivery [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#8a3f28"><FONT COLOR="white"><B>Delivery</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>suborderId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>attemptNumber</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>pickupStoreId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>destinationZoneId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>recipientId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">DeliveryStatus</TD></TR><TR><TD ALIGN="LEFT"><B>assignedRiderId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>routeSnapshotId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>rateSnapshotId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>pickupConfirmedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>deliveredAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>completedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>codAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>version</B></TD><TD ALIGN="LEFT">int</TD></TR></TABLE>>];
+DeliveryException [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#8a3f28"><FONT COLOR="white"><B>DeliveryException</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>deliveryId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>kind</B></TD><TD ALIGN="LEFT">DeliveryExceptionKind</TD></TR><TR><TD ALIGN="LEFT"><B>reportedBy</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>reason</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>evidenceObjectKeys</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">ExceptionStatus</TD></TR><TR><TD ALIGN="LEFT"><B>reviewedBy</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>resolution</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>reviewedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR></TABLE>>];
+DeliveryOffer [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#8a3f28"><FONT COLOR="white"><B>DeliveryOffer</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>deliveryId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>riderId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>attempt</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>sequenceTokenHash</B></TD><TD ALIGN="LEFT">bytes UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">OfferStatus</TD></TR><TR><TD ALIGN="LEFT"><B>offeredAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>expiresAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>respondedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>roadDistanceMeters</B></TD><TD ALIGN="LEFT">int</TD></TR></TABLE>>];
+DeliveryProof [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#8a3f28"><FONT COLOR="white"><B>DeliveryProof</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>deliveryId</B></TD><TD ALIGN="LEFT">uuid UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>method</B></TD><TD ALIGN="LEFT">RecipientOTP</TD></TR><TR><TD ALIGN="LEFT"><B>recipientPhoneHash</B></TD><TD ALIGN="LEFT">bytes</TD></TR><TR><TD ALIGN="LEFT"><B>otpHash</B></TD><TD ALIGN="LEFT">bytes</TD></TR><TR><TD ALIGN="LEFT"><B>otpExpiresAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>attempts</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>verifiedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>verifiedByRiderId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>fallbackReviewId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR></TABLE>>];
+DeliveryRouteSnapshot [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#8a3f28"><FONT COLOR="white"><B>DeliveryRouteSnapshot</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>deliveryId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>purpose</B></TD><TD ALIGN="LEFT">RoutePurpose</TD></TR><TR><TD ALIGN="LEFT"><B>originPoint</B></TD><TD ALIGN="LEFT">geometry_Point_4326</TD></TR><TR><TD ALIGN="LEFT"><B>destinationPoint</B></TD><TD ALIGN="LEFT">geometry_Point_4326</TD></TR><TR><TD ALIGN="LEFT"><B>distanceMeters</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>durationSeconds</B></TD><TD ALIGN="LEFT">int nullable</TD></TR><TR><TD ALIGN="LEFT"><B>routingMethod</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>provider</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>providerRouteReference</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>capturedAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>expiresAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR></TABLE>>];
+Rider [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#8a3f28"><FONT COLOR="white"><B>Rider</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>userId</B></TD><TD ALIGN="LEFT">uuid UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">RiderStatus</TD></TR><TR><TD ALIGN="LEFT"><B>kycCaseId</B></TD><TD ALIGN="LEFT">uuid nullable UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>emergencyContactEncrypted</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>addressId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>homeCityId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>capacity</B></TD><TD ALIGN="LEFT">int</TD></TR></TABLE>>];
+RiderAssignment [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#8a3f28"><FONT COLOR="white"><B>RiderAssignment</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>deliveryId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>riderId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>offerId</B></TD><TD ALIGN="LEFT">uuid nullable UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>assignmentMode</B></TD><TD ALIGN="LEFT">AssignmentMode</TD></TR><TR><TD ALIGN="LEFT"><B>authorizedBy</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>reason</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>acceptedAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>releasedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>releaseReason</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>rateSnapshotId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR></TABLE>>];
+RiderLocation [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#8a3f28"><FONT COLOR="white"><B>RiderLocation</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>riderId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>shiftId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>deliveryId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>point</B></TD><TD ALIGN="LEFT">geometry_Point_4326</TD></TR><TR><TD ALIGN="LEFT"><B>accuracyMeters</B></TD><TD ALIGN="LEFT">decimal</TD></TR><TR><TD ALIGN="LEFT"><B>recordedAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>receivedAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>source</B></TD><TD ALIGN="LEFT">LocationSource</TD></TR><TR><TD ALIGN="LEFT"><B>mockSignal</B></TD><TD ALIGN="LEFT">boolean nullable</TD></TR></TABLE>>];
+RiderRateRule [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#8a3f28"><FONT COLOR="white"><B>RiderRateRule</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>countryId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>cityId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>serviceZoneId</B></TD><TD ALIGN="LEFT">uuid nullable</TD></TR><TR><TD ALIGN="LEFT"><B>version</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>effectiveFrom</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>effectiveTo</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">RuleStatus</TD></TR><TR><TD ALIGN="LEFT"><B>minimumAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>maximumAmount</B></TD><TD ALIGN="LEFT">bigint nullable</TD></TR><TR><TD ALIGN="LEFT"><B>currency</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>routingMethod</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>createdBy</B></TD><TD ALIGN="LEFT">uuid</TD></TR></TABLE>>];
+RiderRateSlab [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#8a3f28"><FONT COLOR="white"><B>RiderRateSlab</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>rateRuleId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>lowerMeters</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>upperMeters</B></TD><TD ALIGN="LEFT">int nullable</TD></TR><TR><TD ALIGN="LEFT"><B>paymentAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR></TABLE>>];
+RiderRateSnapshot [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#8a3f28"><FONT COLOR="white"><B>RiderRateSnapshot</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>deliveryId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>assignmentId</B></TD><TD ALIGN="LEFT">uuid UNIQUE</TD></TR><TR><TD ALIGN="LEFT"><B>rateRuleId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>rateVersion</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>distanceMeters</B></TD><TD ALIGN="LEFT">int</TD></TR><TR><TD ALIGN="LEFT"><B>routeSnapshotId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>slabSnapshot</B></TD><TD ALIGN="LEFT">json</TD></TR><TR><TD ALIGN="LEFT"><B>payableAmount</B></TD><TD ALIGN="LEFT">bigint</TD></TR><TR><TD ALIGN="LEFT"><B>currency</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>policyBasis</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>capturedAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR></TABLE>>];
+RiderServiceArea [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#8a3f28"><FONT COLOR="white"><B>RiderServiceArea</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>riderId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>serviceZoneId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>approvedBy</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>validFrom</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>expiresAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>overrideReason</B></TD><TD ALIGN="LEFT">string nullable</TD></TR></TABLE>>];
+RiderShift [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#8a3f28"><FONT COLOR="white"><B>RiderShift</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>riderId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>startedAt</B></TD><TD ALIGN="LEFT">datetime</TD></TR><TR><TD ALIGN="LEFT"><B>endedAt</B></TD><TD ALIGN="LEFT">datetime nullable</TD></TR><TR><TD ALIGN="LEFT"><B>consentVersion</B></TD><TD ALIGN="LEFT">string</TD></TR><TR><TD ALIGN="LEFT"><B>startZoneId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>trackingState</B></TD><TD ALIGN="LEFT">TrackingState</TD></TR></TABLE>>];
+Vehicle [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#d8dde3"><TR><TD COLSPAN="2" BGCOLOR="#8a3f28"><FONT COLOR="white"><B>Vehicle</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><B>riderId</B></TD><TD ALIGN="LEFT">uuid</TD></TR><TR><TD ALIGN="LEFT"><B>type</B></TD><TD ALIGN="LEFT">VehicleType</TD></TR><TR><TD ALIGN="LEFT"><B>registrationNumberEncrypted</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>make</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>model</B></TD><TD ALIGN="LEFT">string nullable</TD></TR><TR><TD ALIGN="LEFT"><B>status</B></TD><TD ALIGN="LEFT">VehicleStatus</TD></TR></TABLE>>];
+Address [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Address
+(external domain)"];
+CODCollection [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="CODCollection
+(external domain)"];
+CODDeposit [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="CODDeposit
+(external domain)"];
+City [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="City
+(external domain)"];
+Country [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Country
+(external domain)"];
+KYCCase [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="KYCCase
+(external domain)"];
+OrderRecipient [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="OrderRecipient
+(external domain)"];
+Payout [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Payout
+(external domain)"];
+PayoutItem [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="PayoutItem
+(external domain)"];
+RiderKYC [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="RiderKYC
+(external domain)"];
+ServiceZone [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="ServiceZone
+(external domain)"];
+Store [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="Store
+(external domain)"];
+User [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="User
+(external domain)"];
+VendorSuborder [shape=box,style="rounded,filled",fillcolor="#eef1f4",fontcolor="#39434e",label="VendorSuborder
+(external domain)"];
+Rider -> User [label="userId (1:1, FK owner → target)"];
+RiderServiceArea -> Rider [label="riderId (N:1, FK owner → target)"];
+RiderServiceArea -> ServiceZone [label="serviceZoneId (N:1, FK owner → target)"];
+Vehicle -> Rider [label="riderId (N:1, FK owner → target)"];
+RiderShift -> Rider [label="riderId (N:1, FK owner → target)"];
+RiderLocation -> RiderShift [label="shiftId (N:1, FK owner → target)"];
+RiderLocation -> Delivery [label="deliveryId (N:1, FK owner → target)"];
+Rider -> KYCCase [label="kycCaseId (1:1, FK owner → target)"];
+Delivery -> VendorSuborder [label="suborderId (N:1, FK owner → target)"];
+DeliveryRouteSnapshot -> Delivery [label="deliveryId (N:1, FK owner → target)"];
+RiderRateSlab -> RiderRateRule [label="rateRuleId (N:1, FK owner → target)"];
+RiderRateSnapshot -> Delivery [label="deliveryId (N:1, FK owner → target)"];
+RiderRateSnapshot -> RiderRateRule [label="rateRuleId (N:1, FK owner → target)"];
+RiderAssignment -> Delivery [label="deliveryId (N:1, FK owner → target)"];
+RiderAssignment -> DeliveryOffer [label="offerId (1:1, FK owner → target)"];
+DeliveryOffer -> Delivery [label="deliveryId (N:1, FK owner → target)"];
+DeliveryOffer -> Rider [label="riderId (N:1, FK owner → target)"];
+DeliveryProof -> Delivery [label="deliveryId (1:1, FK owner → target)"];
+DeliveryException -> Delivery [label="deliveryId (N:1, FK owner → target)"];
+Payout -> Rider [label="riderId (N:1, FK owner → target)"];
+PayoutItem -> Delivery [label="deliveryId (N:1, FK owner → target)"];
+CODCollection -> Delivery [label="deliveryId (1:1, FK owner → target)"];
+CODDeposit -> Rider [label="riderId (N:1, FK owner → target)"];
+Address -> Rider [label="riderId (N:1, FK owner → target)"];
+Rider -> Address [label="addressId (N:1, FK owner → target)"];
+Rider -> City [label="homeCityId (N:1, FK owner → target)"];
+RiderServiceArea -> User [label="approvedBy (N:1, FK owner → target)"];
+RiderShift -> ServiceZone [label="startZoneId (N:1, FK owner → target)"];
+RiderLocation -> Rider [label="riderId (N:1, FK owner → target)"];
+RiderKYC -> Rider [label="riderId (N:1, FK owner → target)"];
+RiderKYC -> Vehicle [label="vehicleId (N:1, FK owner → target)"];
+Delivery -> Store [label="pickupStoreId (N:1, FK owner → target)"];
+Delivery -> ServiceZone [label="destinationZoneId (N:1, FK owner → target)"];
+Delivery -> OrderRecipient [label="recipientId (N:1, FK owner → target)"];
+Delivery -> Rider [label="assignedRiderId (N:1, FK owner → target)"];
+Delivery -> DeliveryRouteSnapshot [label="routeSnapshotId (N:1, FK owner → target)"];
+Delivery -> RiderRateSnapshot [label="rateSnapshotId (N:1, FK owner → target)"];
+RiderRateRule -> Country [label="countryId (N:1, FK owner → target)"];
+RiderRateRule -> City [label="cityId (N:1, FK owner → target)"];
+RiderRateRule -> ServiceZone [label="serviceZoneId (N:1, FK owner → target)"];
+RiderRateRule -> User [label="createdBy (N:1, FK owner → target)"];
+RiderRateSnapshot -> RiderAssignment [label="assignmentId (1:1, FK owner → target)"];
+RiderRateSnapshot -> DeliveryRouteSnapshot [label="routeSnapshotId (N:1, FK owner → target)"];
+RiderAssignment -> Rider [label="riderId (N:1, FK owner → target)"];
+RiderAssignment -> User [label="authorizedBy (N:1, FK owner → target)"];
+RiderAssignment -> RiderRateSnapshot [label="rateSnapshotId (N:1, FK owner → target)"];
+DeliveryProof -> Rider [label="verifiedByRiderId (N:1, FK owner → target)"];
+DeliveryProof -> DeliveryException [label="fallbackReviewId (N:1, FK owner → target)"];
+DeliveryException -> User [label="reportedBy (N:1, FK owner → target)"];
+DeliveryException -> User [label="reviewedBy (N:1, FK owner → target)"];
+CODCollection -> Rider [label="riderId (N:1, FK owner → target)"];
+}

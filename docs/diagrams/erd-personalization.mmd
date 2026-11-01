@@ -1,0 +1,49 @@
+erDiagram
+  ProductInteraction {
+    uuid id PK
+    uuid_nullable customerId
+    bytes_nullable guestReferenceHash
+    uuid_nullable productId
+    uuid_nullable variantId
+    InteractionType eventType
+    uuid_nullable consentId
+    uuid_nullable zoneId
+    datetime occurredAt
+    string_UNIQUE eventKey
+  }
+  PersonalizationProfile {
+    uuid id PK
+    uuid_UNIQUE customerId
+    string consentVersion
+    json interests
+    json excludedCategories
+    json frequencyPolicy
+    string modelVersion
+    datetime_nullable clearedAt
+  }
+  AIInvocation {
+    uuid id PK
+    uuid actorUserId FK
+    string agentIdentity
+    json scopeSnapshot
+    string toolName
+    bytes inputHash
+    json outputRedacted
+    AIInvocationStatus status
+    string modelProvider
+    bigint_nullable costMinor
+    uuid_nullable approvalId
+    datetime occurredAt
+  }
+  AIApproval {
+    uuid id PK
+    uuid_UNIQUE invocationId
+    bytes actionHash
+    uuid_nullable approverId
+    ApprovalStatus status
+    uuid_nullable stepUpChallengeId
+    datetime expiresAt
+    datetime_nullable decidedAt
+  }
+  AIInvocation ||--o| AIApproval : "invocationId"
+  AIApproval |o--o{ AIInvocation : "approvalId"

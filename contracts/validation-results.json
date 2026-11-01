@@ -1,0 +1,60 @@
+{
+  "date": "2026-11-01",
+  "scope": "Phase-1 document/contract validation only; current development boundary check",
+  "application_tests": "NOT_RUN by this document validator; foundation unit tests are logged separately in docs/17-phase2-foundation.md",
+  "phase_1_status": "APPROVED_FOR_DEVELOPMENT_2026-11-01",
+  "checks": [
+    {
+      "check": "Required documents",
+      "status": "PASS",
+      "detail": "16 core documents + 8 ADRs"
+    },
+    {
+      "check": "Logical model integrity",
+      "status": "PASS",
+      "detail": "113 entities; 253 unique valid logical relationships; required names/views mapped; no executable schema"
+    },
+    {
+      "check": "OpenAPI contract",
+      "status": "PASS",
+      "detail": "OpenAPI 3.1 valid; 87 paths / 90 operations / 36 schemas; YAML=JSON; no live server"
+    },
+    {
+      "check": "Requirement traceability",
+      "status": "PASS",
+      "detail": "916 unique rows; all 802 non-heading master lines mapped; 75 screenshot rows; verification plan NOT_RUN"
+    },
+    {
+      "check": "Source manifest",
+      "status": "PASS",
+      "detail": "460-message source counts and five upload hashes verified; unavailable artifacts disclosed"
+    },
+    {
+      "check": "Local document references",
+      "status": "PASS",
+      "detail": "Local Markdown links/images resolve; external citations not fetched by this check"
+    },
+    {
+      "check": "Diagram artifacts",
+      "status": "PASS",
+      "detail": "13 SVGs parse with viewBox; complete Mermaid contains every entity; domain DOT sources rendered locally"
+    },
+    {
+      "check": "Role matrix CSV",
+      "status": "PASS",
+      "detail": "240 role/capability rows; proposed policy, not enforced code"
+    },
+    {
+      "check": "Self-contained review HTML",
+      "status": "PASS",
+      "detail": "Self-contained HTML; 1071 unique IDs; embedded assets/styles/script; all requirement rows; no network dependency"
+    },
+    {
+      "check": "Implementation boundary",
+      "status": "PASS",
+      "detail": "Development foundation may exist; no committed .env; live/payment/cross-border/AI template flags default false; package private"
+    }
+  ],
+  "passed": 10,
+  "failed": 0
+}
