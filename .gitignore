@@ -15,3 +15,6 @@ coverage/
 
 .next/
 out/
+
+# Local runtime/test artifacts
+.local/
