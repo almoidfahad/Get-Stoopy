@@ -11,7 +11,7 @@ export class AdminController {
   example(@Req() req: Request, @Query('countryId') countryId: string) {
     const ctx = (req as any).accessContext as AccessContext;
     if (!countryId) throw new ForbiddenException({ code: 'COUNTRY_REQUIRED', message: 'countryId is required' });
-    const decision = authorize(ctx, 'admin:example:read', { countryId }, { requireMfa: true });
+    const decision = authorize(ctx, 'admin:example:read', { countryId }, { requireMfa: true, requireStepUp: true });
     if (!decision.allow) throw new ForbiddenException({ code: decision.reason, message: 'Administrative scope denied' });
     return { ok: true, countryId, scopeEnforced: 'backend' };
   }

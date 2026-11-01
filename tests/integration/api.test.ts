@@ -17,7 +17,7 @@ beforeAll(async () => {
   process.env['KEYCLOAK_CLIENT_ID'] = 'get-stoopy-web';
   process.env['KEYCLOAK_CLIENT_SECRET'] = 'test-secret';
   process.env['BFF_API_SHARED_SECRET'] = 'test-bff-secret-000000000000000000000000';
-  process.env['SESSION_TOKEN_ENCRYPTION_KEY'] = 'b'.repeat(64);
+  process.env['SESSION_TOKEN_ENCRYPTION_KEY'] = 'b'.repeat(64); process.env['STORAGE_ENCRYPTION_KEY'] = 'e'.repeat(64);
   process.env['SESSION_COOKIE_NAME'] = 'gs_session_dev';
   const { createApp } = await import('../../apps/api/src/main');
   app = await createApp(); await app.init();

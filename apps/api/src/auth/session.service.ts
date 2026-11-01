@@ -59,18 +59,20 @@ export class SessionService {
       await setRls(tx, { userId: session.userId, authorizationVersion: session.authVersion });
       const user = await tx.user.findUnique({ where: { id: session.userId } });
       if (!user || user.status !== 'ACTIVE' || session.authVersion !== user.authorizationVersion) return null;
+      let assurance = session.assuranceLevel;
+      if (assurance === 'STEP_UP' && (!session.stepUpExpiresAt || session.stepUpExpiresAt <= new Date())) { assurance = 'MFA'; await tx.session.update({ where: { id: session.id }, data: { assuranceLevel: 'MFA', stepUpExpiresAt: null } }); }
       const idle = sessionExpiry(new Date(), { idleMinutes: this.env.SESSION_IDLE_MINUTES, absoluteHours: this.env.PRIVILEGED_ABSOLUTE_HOURS });
       const nextIdle = new Date(Math.min(idle.idleExpiresAt.getTime(), session.expiresAt.getTime()));
       await tx.session.update({ where: { id: session.id }, data: { idleExpiresAt: nextIdle } });
       const roles = await tx.userRole.findMany({ where: { userId: session.userId, revokedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }, include: { role: { include: { permissions: { include: { permission: true } } } } } });
       const scopes = await tx.adminScope.findMany({ where: { userId: session.userId, revokedAt: null, effectiveFrom: { lte: new Date() }, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } });
       const permissions = [...new Set(roles.flatMap(r => r.role.permissions.map(p => p.permission.key)))];
-      return { session, user, permissions, scopes };
+      return { session, user, permissions, scopes, assurance };
     });
     if (!result) throw new UnauthorizedException({ code: 'UNAUTHENTICATED', message: 'Session is invalid or expired' });
     const context: AccessContext = {
       userId: result.user.id, sessionId: result.session.id, authorizationVersion: result.user.authorizationVersion,
-      accountStatus: result.user.status as any, assurance: result.session.assuranceLevel as any,
+      accountStatus: result.user.status as any, assurance: result.assurance as any,
       permissions: result.permissions, scopes: result.scopes.map(s => ({
         id: s.id, type: s.geographyType as any, countryId: s.countryId ?? '',
         ...(s.regionId ? { regionId: s.regionId } : {}), ...(s.districtId ? { districtId: s.districtId } : {}),

@@ -12,6 +12,7 @@
     "@getstoopy/auth": "0.2.0",
     "@getstoopy/config": "0.2.0",
     "@getstoopy/core": "0.2.0",
-    "@getstoopy/observability": "0.2.0"
+    "@getstoopy/observability": "0.2.0",
+    "@getstoopy/storage": "0.2.0"
   }
 }

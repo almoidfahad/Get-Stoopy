@@ -23,6 +23,7 @@ const queue = new Queue(env.WORKER_QUEUE, { connection: queueConnection });
 const handlers = new Map<string, (e: EventEnvelope, tx: any) => Promise<void>>();
 export function registerHandler(eventType: string, fn: (e: EventEnvelope, tx: any) => Promise<void>) { handlers.set(eventType, fn); }
 registerHandler('test.created', async () => undefined);
+registerHandler('security.user.revoked', async () => undefined);
 const worker = new Worker(env.WORKER_QUEUE, async job => {
   const handler = handlers.get(job.data.eventType);
   if (!handler) throw new Error('HANDLER_NOT_REGISTERED');

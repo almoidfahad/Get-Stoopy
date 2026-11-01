@@ -26,7 +26,7 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["http://localhost:3000/api/auth/callback"],
+      "redirectUris": ["http://localhost:3000/api/auth/callback", "http://localhost:3000/api/auth/link/callback"],
       "webOrigins": ["http://localhost:3000"],
       "attributes": { "pkce.code.challenge.method": "S256" }
     }

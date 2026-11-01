@@ -47,6 +47,19 @@ enum ActorType {
   AI_AGENT
 }
 
+enum MfaState {
+  PENDING
+  ACTIVE
+  REVOKED
+}
+
+enum StorageObjectState {
+  PENDING_UPLOAD
+  UPLOADED
+  QUARANTINED
+  DELETED
+}
+
 enum IdempotencyState {
   IN_PROGRESS
   COMPLETED
@@ -69,6 +82,9 @@ model User {
   roles                UserRole[]
   scopes               AdminScope[]
   auditLogs            AuditLog[]
+  mfa                  UserMfa?
+  recoveryCodes        RecoveryCode[]
+  storageObjects       StorageObject[]
 }
 
 model UserIdentity {
@@ -151,7 +167,12 @@ model Session {
   expiresAt                DateTime
   idleExpiresAt            DateTime
   revokedAt                DateTime?
+  revokedReason            String?        @db.VarChar(120)
   authVersion              Int
+  deviceLabel              String?        @db.VarChar(120)
+  ipHash                   String?        @db.VarChar(64)
+  userAgentHash            String?        @db.VarChar(64)
+  stepUpExpiresAt          DateTime?
   createdAt                DateTime       @default(now())
   user                     User           @relation(fields: [userId], references: [id])
   @@index([userId, state])
@@ -305,4 +326,47 @@ model FeatureFlag {
   version     Int      @default(1)
   updatedBy   String   @db.Uuid
   @@unique([key, countryId, environment])
+}
+
+model UserMfa {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @unique @db.Uuid
+  secretEnvelope  Bytes
+  state           MfaState @default(PENDING)
+  digits          Int      @default(6)
+  period          Int      @default(30)
+  lastUsedCounter BigInt   @default(-1)
+  confirmedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model RecoveryCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  codeHash  String    @db.VarChar(64)
+  usedAt    DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id])
+  @@unique([userId, codeHash])
+}
+
+model StorageObject {
+  id              String             @id @default(uuid()) @db.Uuid
+  ownerUserId     String             @db.Uuid
+  purpose         String             @db.VarChar(64)
+  objectKey       String             @unique @db.VarChar(512)
+  contentType     String             @db.VarChar(120)
+  sizeBytes       BigInt?
+  sha256          String?            @db.VarChar(64)
+  state           StorageObjectState @default(PENDING_UPLOAD)
+  encryptionKeyId String             @db.VarChar(120)
+  expiresAt       DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  owner           User               @relation(fields: [ownerUserId], references: [id])
+  @@index([ownerUserId, purpose, state])
 }

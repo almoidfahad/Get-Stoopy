@@ -22,7 +22,9 @@ export const apiEnvSchema = envSchema.extend({
   BFF_API_SHARED_SECRET: z.string().min(32),
   SESSION_TOKEN_ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i),
   DATABASE_PRIVILEGED_URL: z.string().startsWith('postgresql://'),
-  API_INTERNAL_URL: z.string().url().default('http://localhost:4000')
+  API_INTERNAL_URL: z.string().url().default('http://localhost:4000'),
+  STORAGE_LOCAL_DIR: z.string().default('.local/private-storage'),
+  STORAGE_ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i)
 });
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 export function loadApiEnv(input: NodeJS.ProcessEnv): ApiEnv {
