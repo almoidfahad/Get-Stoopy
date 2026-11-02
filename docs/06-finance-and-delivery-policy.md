@@ -37,7 +37,7 @@ Normal earning credit occurs only after successful delivery completion, recipien
 
 ## 4. Atomic dispatch and delivery invariants
 
-1. Vendor manually confirms ready; preparation timer cannot do it.
+1. Vendor manually confirms ready; preparation timer cannot do it. Executable readiness path and append-only history: `docs/35-vendor-suborder-fulfillment-readiness.md`.
 2. Create dispatch run; shortlist active, KYC-approved, consented, online, in-zone riders with fresh accurate location and available capacity.
 3. Use PostGIS for candidate filtering, then provider road-route matrix for ordering. Stable tie-breaker: configured priority → road distance → oldest offer fairness → rider ID. No straight-line fallback when road distance is required.
 4. Lock dispatch row; ensure no unexpired offer; create one 30-second offer using DB time. Commit, then emit socket/push hint.

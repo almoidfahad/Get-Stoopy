@@ -28,6 +28,7 @@ class SuspendDto {
 class GrantMembershipDto {
   @IsUUID() userId!: string;
   @IsIn(['MANAGER', 'STAFF']) role!: VendorMembershipRole;
+  @IsOptional() @IsUUID() storeId?: string;
   @IsOptional() @IsISO8601() expiresAt?: string;
 }
 

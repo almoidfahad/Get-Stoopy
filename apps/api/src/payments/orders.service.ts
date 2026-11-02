@@ -28,7 +28,9 @@ export class OrdersService {
       deliveryFeeMinor: null, totalMinor: null,
       suborders: suborders.map((s: any) => ({
         suborderId: s.id, publicReference: s.publicReference, vendorId: s.vendorId, storeId: s.storeId,
-        currency: s.currency, subtotalMinor: s.subtotalMinor.toString(), status: s.status,
+        currency: s.currency, subtotalMinor: s.subtotalMinor.toString(), status: s.status, version: s.version,
+        acceptedAt: s.acceptedAt, preparationMinutes: s.preparationMinutes, preparationStartedAt: s.preparationStartedAt,
+        readyConfirmedAt: s.readyConfirmedAt, rejectedAt: s.rejectedAt, rejectionReason: s.rejectionReason,
         items: s.items.map((i: any) => ({ orderItemId: i.id, variantId: i.variantId, productId: i.productId, productTitle: i.productTitle, sku: i.sku, quantity: i.quantity, unitPriceMinor: i.unitPriceMinor.toString(), lineTotalMinor: i.lineTotalMinor.toString(), currency: i.currency }))
       }))
     };

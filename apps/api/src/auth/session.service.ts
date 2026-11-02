@@ -98,7 +98,7 @@ export class SessionService {
           const k = m.vendor.kycCase;
           return !!k && k.subjectUserId === m.vendor.ownerUserId && k.countryId === m.vendor.countryId && isPartyActiveWithKyc({ status: m.vendor.status, countryId: m.vendor.countryId, kycCase: k }, 'VENDOR', m.vendor.countryId, now);
         })
-        .map(m => ({ vendorId: m.vendorId, countryId: m.vendor.countryId, permissions: vendorMembershipPermissions(m.role as VendorMembershipRole) }));
+        .map(m => ({ vendorId: m.vendorId, countryId: m.vendor.countryId, ...(m.storeId ? { storeId: m.storeId } : {}), permissions: vendorMembershipPermissions(m.role as VendorMembershipRole) }));
       const rider = await tx.riderProfile.findUnique({ where: { userId }, include: { kycCase: true } });
       const riderEligible = !!rider && !!rider.kycCase && rider.kycCase.subjectUserId === rider.userId && rider.kycCase.countryId === rider.countryId && isPartyActiveWithKyc({ status: rider.status, countryId: rider.countryId, kycCase: rider.kycCase }, 'RIDER', rider.countryId, now);
       return { vendorMemberships, ...(riderEligible && rider ? { riderId: rider.id } : {}) };

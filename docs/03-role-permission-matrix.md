@@ -30,7 +30,7 @@ Status: proposed deny-by-default policy. Machine-readable companion: `../contrac
 | Category taxonomy management | G, step-up, non-self activation | C delegated, step-up, non-self activation | — by default | — by default | — | — | — | — |
 | Product image review | G, step-up, non-self | C delegated, step-up, non-self | — by default | — by default | — | — | — | — |
 | Store activation/suspension | G, step-up, non-self | C delegated, step-up, non-self | — by default | — by default | — | — | — | — |
-| Accept/reject/set prep/ready | G exception, audited | C exception policy | R exception policy | T operations | Z/L delegated operations | V, own suborder | — | — |
+| Accept/reject/set prep/ready | G exception, audited | C exception policy | R exception policy | T operations | Z/L delegated operations | V, own store suborder; OWNER/MANAGER write, STAFF read-only; manual ready implemented (`docs/35`) | — | — |
 | KYC submit/upload | — | — | — | — | Authorized office assistance | V | D, own profile | — |
 | KYC review/approval | G | C delegated | R delegated | T delegated | L review only if granted | — | — | — |
 | Admin invite / scope grant | G | C descendants, delegated | R descendants, delegated | T zone/local, delegated | — | — | — | — |
@@ -62,7 +62,7 @@ Status: proposed deny-by-default policy. Machine-readable companion: `../contrac
 - **Local Admin** is an operational role mapped to an assigned zone or neighborhood; it is not an extra ancestry level and does not automatically equal Zone Admin. The master requires both Local and Zone portals; they share a scoped layout but distinct grants.
 - **Country/Regional/City/Zone Admin** can have narrower permissions than their scope. Being a City Admin does not automatically grant payout approval or raw identity-document export.
 - **Dispatch Manager, KYC Reviewer, Finance Maker, Finance Checker, Support Agent, Security Analyst** are additional staff roles, not public registration choices. Their scope remains constrained; finance maker cannot check the same action.
-- **Vendor staff** membership can be store-limited. Vendor owner cannot access a different legal vendor even if both operate in the same zone.
+- **Vendor staff** membership can be store-limited; executable `VendorMembership.storeId` enforces store-scoped suborder reads/commands (`docs/35`). Vendor owner cannot access a different legal vendor even if both operate in the same zone.
 - **Rider** access to recipient name/phone/address is limited to active assignment and a short post-delivery support window; no bulk customer export or browsing other offers' private data.
 - **Customer** may be both buyer and applicant/vendor/rider. Roles are additive but endpoints select the relevant capability; a vendor login does not grant admin access.
 - **AI Agent** has a unique workload identity, an allowed-tool list and the intersection of caller scope and agent scope. Read-only by default. Draft descriptions/answers/alerts are allowed where configured; money, permissions, KYC approval and ledger writes require the normal human command and cannot be executed through an AI shortcut.

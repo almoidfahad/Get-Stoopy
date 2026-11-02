@@ -395,7 +395,7 @@ Status: architecture proposal, not an implemented schema. UUID primary keys and 
 | vendorRole | VendorRole |
 | status | MembershipStatus |
 
-**Constraints / authorization:** UNIQUE NULLS NOT DISTINCT(vendorId,userId,storeId); store staff limited to store; owner cannot read another vendor
+**Constraints / authorization:** Logical target: UNIQUE NULLS NOT DISTINCT(vendorId,userId,storeId). Executable foundation (`docs/28`, `docs/35`): UNIQUE(vendorId,userId), optional storeId, OWNER vendor-wide, store ancestry guard; store staff limited to store for suborder readiness; multi-store grants/regrant pending; owner cannot read another vendor
 
 **Retention:** Business policy; see retention register
 
@@ -1525,7 +1525,25 @@ Status: architecture proposal, not an implemented schema. UUID primary keys and 
 | totalAmount | bigint |
 | version | int |
 
-**Constraints / authorization:** UNIQUE(orderId,vendorId,storeId); manual ready transition; vendors read only their own suborders
+**Constraints / authorization:** UNIQUE(orderId,vendorId,storeId); executable readiness (`docs/35`): PENDING_VENDOR→ACCEPTED→PREPARING→READY_FOR_PICKUP or PENDING_VENDOR→REJECTED, manual ready, payment/store/vendor eligibility guards, append-only VendorSuborderStatusEvent, store-scoped vendor reads; dispatch/cancellation/refund states pending
+
+**Retention:** Business policy; see retention register
+
+### VendorSuborderStatusEvent
+| Field | Logical type |
+|---|---|
+| suborderId | uuid |
+| fromStatus | SuborderStatus |
+| toStatus | SuborderStatus |
+| suborderVersion | int |
+| actorUserId | uuid |
+| commandKey | string |
+| payloadHash | string |
+| reason | string nullable |
+| preparationMinutes | int nullable |
+| occurredAt | datetime |
+
+**Constraints / authorization:** Executable append-only readiness history (`docs/35`); UNIQUE(suborderId,commandKey), UNIQUE(suborderId,suborderVersion); deferred trigger requires matching event for each suborder update; privileged INSERT/SELECT only
 
 **Retention:** Business policy; see retention register
 

@@ -10,7 +10,7 @@ export interface CreateVendorInput { countryId: string; displayName: string; leg
 export interface CreateRiderInput { countryId: string; vehicleType: RiderVehicleType; }
 export interface ActivatePartyInput { version: number; kycCaseId: string; reason: string; }
 export interface SuspendPartyInput { version: number; reason: string; }
-export interface GrantMembershipInput { userId: string; role: VendorMembershipRole; expiresAt?: string; }
+export interface GrantMembershipInput { userId: string; role: VendorMembershipRole; storeId?: string; expiresAt?: string; }
 
 @Injectable()
 export class PartyService {
@@ -175,12 +175,16 @@ export class PartyService {
       const vendor = await this.requireVendorOwner(tx, ctx, vendorId);
       const target = await tx.user.findUnique({ where: { id: input.userId } });
       if (!target || target.status !== 'ACTIVE') throw new BadRequestException({ code: 'TARGET_USER_INVALID', message: 'Target user is not active' });
+      if (input.storeId) {
+        const store = await tx.store.findFirst({ where: { id: input.storeId, vendorId, countryId: vendor.countryId } });
+        if (!store) throw new NotFoundException({ code: 'MEMBERSHIP_STORE_NOT_FOUND', message: 'Store not found for this vendor' });
+      }
       const existing = await tx.vendorMembership.findUnique({ where: { vendorId_userId: { vendorId, userId: input.userId } } });
       if (existing) throw new ConflictException({ code: 'MEMBERSHIP_EXISTS', message: 'Membership already exists; revoke before regranting' });
-      const membership = await tx.vendorMembership.create({ data: { vendorId, userId: input.userId, role: input.role, grantedBy: ctx.userId, ...(expiresAt ? { expiresAt } : {}) } });
+      const membership = await tx.vendorMembership.create({ data: { vendorId, userId: input.userId, role: input.role, grantedBy: ctx.userId, ...(input.storeId ? { storeId: input.storeId } : {}), ...(expiresAt ? { expiresAt } : {}) } });
       await this.audit(tx, ctx, 'party.vendor.membership.granted', 'Vendor', vendorId, vendor.countryId);
-      await this.outbox(tx, 'Vendor', vendorId, 'party.vendor.membership.granted', `membership-granted-${membership.id}`, vendor.countryId, { membershipId: membership.id, role: input.role });
-      return { membershipId: membership.id, role: membership.role, expiresAt: membership.expiresAt };
+      await this.outbox(tx, 'Vendor', vendorId, 'party.vendor.membership.granted', `membership-granted-${membership.id}`, vendor.countryId, { membershipId: membership.id, role: input.role, storeId: membership.storeId });
+      return { membershipId: membership.id, role: membership.role, storeId: membership.storeId, expiresAt: membership.expiresAt };
     });
   }
 
@@ -203,7 +207,7 @@ export class PartyService {
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
       await this.requireVendorOwner(tx, ctx, vendorId);
-      return tx.vendorMembership.findMany({ where: { vendorId }, orderBy: { createdAt: 'asc' }, select: { id: true, userId: true, role: true, expiresAt: true, revokedAt: true, createdAt: true } });
+      return tx.vendorMembership.findMany({ where: { vendorId }, orderBy: { createdAt: 'asc' }, select: { id: true, userId: true, storeId: true, role: true, expiresAt: true, revokedAt: true, createdAt: true } });
     });
   }
 }

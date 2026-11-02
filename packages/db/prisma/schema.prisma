@@ -169,16 +169,16 @@ enum IdempotencyState {
 }
 
 model User {
-  id                     String                 @id @default(uuid()) @db.Uuid
-  emailNormalized        String?                @unique
+  id                     String                      @id @default(uuid()) @db.Uuid
+  emailNormalized        String?                     @unique
   emailVerifiedAt        DateTime?
   phoneE164              String?
   phoneVerifiedAt        DateTime?
   displayName            String
-  status                 UserStatus             @default(ACTIVE)
-  authorizationVersion   Int                    @default(1)
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @updatedAt
+  status                 UserStatus                  @default(ACTIVE)
+  authorizationVersion   Int                         @default(1)
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
   identities             UserIdentity[]
   sessions               Session[]
   roles                  UserRole[]
@@ -187,33 +187,37 @@ model User {
   mfa                    UserMfa?
   recoveryCodes          RecoveryCode[]
   storageObjects         StorageObject[]
-  reviewedStorageObjects StorageObject[]        @relation("StorageObjectReviewedBy")
+  reviewedStorageObjects StorageObject[]             @relation("StorageObjectReviewedBy")
   ledgerAccounts         LedgerAccount[]
   ledgerJournals         LedgerJournal[]
-  kycCases               KycCase[]              @relation("KycCaseSubject")
-  kycReviews             KycReview[]            @relation("KycReviewReviewer")
-  kycDocumentsLinked     KycDocument[]          @relation("KycDocumentLinkedBy")
-  ownedVendors           Vendor[]               @relation("VendorOwner")
-  activatedVendors       Vendor[]               @relation("VendorActivatedBy")
+  kycCases               KycCase[]                   @relation("KycCaseSubject")
+  kycReviews             KycReview[]                 @relation("KycReviewReviewer")
+  kycDocumentsLinked     KycDocument[]               @relation("KycDocumentLinkedBy")
+  ownedVendors           Vendor[]                    @relation("VendorOwner")
+  activatedVendors       Vendor[]                    @relation("VendorActivatedBy")
   vendorMemberships      VendorMembership[]
-  riderProfile           RiderProfile?          @relation("RiderProfileUser")
-  activatedRiderProfiles RiderProfile[]         @relation("RiderActivatedBy")
-  activatedStores        Store[]                @relation("StoreActivatedBy")
-  createdProducts        Product[]              @relation("ProductCreatedBy")
-  reviewedProducts       Product[]              @relation("ProductReviewedBy")
-  publishedProducts      Product[]              @relation("ProductPublishedBy")
-  createdCategories      Category[]             @relation("CategoryCreatedBy")
-  activatedCategories    Category[]             @relation("CategoryActivatedBy")
-  createdProductImages   ProductImage[]         @relation("ProductImageCreatedBy")
-  reviewedProductImages  ProductImage[]         @relation("ProductImageReviewedBy")
+  riderProfile           RiderProfile?               @relation("RiderProfileUser")
+  activatedRiderProfiles RiderProfile[]              @relation("RiderActivatedBy")
+  activatedStores        Store[]                     @relation("StoreActivatedBy")
+  createdProducts        Product[]                   @relation("ProductCreatedBy")
+  reviewedProducts       Product[]                   @relation("ProductReviewedBy")
+  publishedProducts      Product[]                   @relation("ProductPublishedBy")
+  createdCategories      Category[]                  @relation("CategoryCreatedBy")
+  activatedCategories    Category[]                  @relation("CategoryActivatedBy")
+  createdProductImages   ProductImage[]              @relation("ProductImageCreatedBy")
+  reviewedProductImages  ProductImage[]              @relation("ProductImageReviewedBy")
   inventoryMovements     InventoryMovement[]
   inventoryReservations  InventoryReservation[]
   carts                  Cart[]
   checkoutQuotes         CheckoutQuote[]
   orders                 Order[]
   paymentIntents         PaymentIntent[]
-  codPoliciesCreated     CodPolicy[]            @relation("CodPolicyCreatedBy")
-  codPoliciesUpdated     CodPolicy[]            @relation("CodPolicyUpdatedBy")
+  codPoliciesCreated     CodPolicy[]                 @relation("CodPolicyCreatedBy")
+  codPoliciesUpdated     CodPolicy[]                 @relation("CodPolicyUpdatedBy")
+  subordersAccepted      VendorSuborder[]            @relation("SuborderAcceptedBy")
+  subordersReady         VendorSuborder[]            @relation("SuborderReadyConfirmedBy")
+  subordersRejected      VendorSuborder[]            @relation("SuborderRejectedBy")
+  suborderStatusEvents   VendorSuborderStatusEvent[] @relation("SuborderStatusActor")
 }
 
 model UserIdentity {
@@ -697,6 +701,7 @@ model VendorMembership {
   id        String               @id @default(uuid()) @db.Uuid
   vendorId  String               @db.Uuid
   userId    String               @db.Uuid
+  storeId   String?              @db.Uuid
   role      VendorMembershipRole
   grantedBy String               @db.Uuid
   expiresAt DateTime?
@@ -704,9 +709,11 @@ model VendorMembership {
   createdAt DateTime             @default(now())
   vendor    Vendor               @relation(fields: [vendorId], references: [id])
   user      User                 @relation(fields: [userId], references: [id])
+  store     Store?               @relation(fields: [storeId], references: [id])
 
   @@unique([vendorId, userId])
   @@index([userId, revokedAt])
+  @@index([storeId])
 }
 
 model RiderProfile {
@@ -754,6 +761,7 @@ model Store {
   cartItems         CartItem[]
   checkoutGroups    CheckoutQuoteGroup[]
   suborders         VendorSuborder[]
+  memberships       VendorMembership[]
 
   @@unique([vendorId, slug])
   @@index([countryId, status])
@@ -1070,6 +1078,10 @@ enum OrderPaymentStatus {
 
 enum VendorSuborderStatus {
   PENDING_VENDOR
+  ACCEPTED
+  REJECTED
+  PREPARING
+  READY_FOR_PICKUP
 }
 
 enum OrderPaymentMethod {
@@ -1136,24 +1148,59 @@ model Order {
 }
 
 model VendorSuborder {
-  id              String               @id @default(uuid()) @db.Uuid
-  publicReference String               @unique @db.VarChar(40)
-  orderId         String               @db.Uuid
-  vendorId        String               @db.Uuid
-  storeId         String               @db.Uuid
-  currency        String               @db.VarChar(3)
-  subtotalMinor   BigInt
-  status          VendorSuborderStatus @default(PENDING_VENDOR)
-  version         Int                  @default(1)
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  order           Order                @relation(fields: [orderId], references: [id])
-  store           Store                @relation(fields: [storeId], references: [id])
-  items           OrderItem[]
+  id                     String                      @id @default(uuid()) @db.Uuid
+  publicReference        String                      @unique @db.VarChar(40)
+  orderId                String                      @db.Uuid
+  vendorId               String                      @db.Uuid
+  storeId                String                      @db.Uuid
+  currency               String                      @db.VarChar(3)
+  subtotalMinor          BigInt
+  status                 VendorSuborderStatus        @default(PENDING_VENDOR)
+  acceptedAt             DateTime?
+  acceptedByUserId       String?                     @db.Uuid
+  preparationMinutes     Int?
+  preparationStartedAt   DateTime?
+  readyConfirmedAt       DateTime?
+  readyConfirmedByUserId String?                     @db.Uuid
+  rejectedAt             DateTime?
+  rejectedByUserId       String?                     @db.Uuid
+  rejectionReason        String?                     @db.VarChar(512)
+  version                Int                         @default(1)
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
+  order                  Order                       @relation(fields: [orderId], references: [id])
+  store                  Store                       @relation(fields: [storeId], references: [id])
+  acceptedBy             User?                       @relation("SuborderAcceptedBy", fields: [acceptedByUserId], references: [id])
+  readyConfirmedBy       User?                       @relation("SuborderReadyConfirmedBy", fields: [readyConfirmedByUserId], references: [id])
+  rejectedBy             User?                       @relation("SuborderRejectedBy", fields: [rejectedByUserId], references: [id])
+  items                  OrderItem[]
+  statusEvents           VendorSuborderStatusEvent[]
 
   @@unique([orderId, vendorId, storeId])
   @@index([vendorId, createdAt])
   @@index([storeId, createdAt])
+  @@index([vendorId, status, createdAt])
+}
+
+model VendorSuborderStatusEvent {
+  id                 String               @id @default(uuid()) @db.Uuid
+  suborderId         String               @db.Uuid
+  fromStatus         VendorSuborderStatus
+  toStatus           VendorSuborderStatus
+  suborderVersion    Int
+  actorUserId        String               @db.Uuid
+  commandKey         String               @db.VarChar(128)
+  payloadHash        String               @db.VarChar(64)
+  reason             String?              @db.VarChar(512)
+  preparationMinutes Int?
+  occurredAt         DateTime             @default(now())
+  suborder           VendorSuborder       @relation(fields: [suborderId], references: [id])
+  actor              User                 @relation("SuborderStatusActor", fields: [actorUserId], references: [id])
+
+  @@unique([suborderId, commandKey])
+  @@unique([suborderId, suborderVersion])
+  @@index([suborderId, occurredAt])
+  @@index([actorUserId, occurredAt])
 }
 
 model OrderItem {
