@@ -28,11 +28,13 @@ async function main() {
       { key: 'vendor:profile:activate', resource: 'vendor', action: 'profile:activate', sensitivity: 'critical' },
       { key: 'vendor:profile:suspend', resource: 'vendor', action: 'profile:suspend', sensitivity: 'critical' },
       { key: 'rider:profile:activate', resource: 'rider', action: 'profile:activate', sensitivity: 'critical' },
-      { key: 'rider:profile:suspend', resource: 'rider', action: 'profile:suspend', sensitivity: 'critical' }
+      { key: 'rider:profile:suspend', resource: 'rider', action: 'profile:suspend', sensitivity: 'critical' },
+      { key: 'rider:zone:grant', resource: 'rider', action: 'zone:grant', sensitivity: 'critical' }
     ];
     const catalogPerms = [
       { key: 'catalog:store:activate', resource: 'catalog', action: 'store:activate', sensitivity: 'high' },
       { key: 'catalog:store:suspend', resource: 'catalog', action: 'store:suspend', sensitivity: 'high' },
+      { key: 'catalog:store:serviceability:review', resource: 'catalog', action: 'store:serviceability:review', sensitivity: 'high' },
       { key: 'catalog:product:review', resource: 'catalog', action: 'product:review', sensitivity: 'high' },
       { key: 'catalog:product:publish', resource: 'catalog', action: 'product:publish', sensitivity: 'high' },
       { key: 'catalog:category:manage', resource: 'catalog', action: 'category:manage', sensitivity: 'high' },

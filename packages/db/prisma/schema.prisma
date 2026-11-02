@@ -122,6 +122,24 @@ enum StoreStatus {
   SUSPENDED
 }
 
+enum ServiceabilityStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+}
+
+enum StoreServiceAreaStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum RiderShiftStatus {
+  ACTIVE
+  ENDED
+}
+
 enum ProductStatus {
   DRAFT
   PUBLISHED
@@ -169,55 +187,60 @@ enum IdempotencyState {
 }
 
 model User {
-  id                     String                      @id @default(uuid()) @db.Uuid
-  emailNormalized        String?                     @unique
-  emailVerifiedAt        DateTime?
-  phoneE164              String?
-  phoneVerifiedAt        DateTime?
-  displayName            String
-  status                 UserStatus                  @default(ACTIVE)
-  authorizationVersion   Int                         @default(1)
-  createdAt              DateTime                    @default(now())
-  updatedAt              DateTime                    @updatedAt
-  identities             UserIdentity[]
-  sessions               Session[]
-  roles                  UserRole[]
-  scopes                 AdminScope[]
-  auditLogs              AuditLog[]
-  mfa                    UserMfa?
-  recoveryCodes          RecoveryCode[]
-  storageObjects         StorageObject[]
-  reviewedStorageObjects StorageObject[]             @relation("StorageObjectReviewedBy")
-  ledgerAccounts         LedgerAccount[]
-  ledgerJournals         LedgerJournal[]
-  kycCases               KycCase[]                   @relation("KycCaseSubject")
-  kycReviews             KycReview[]                 @relation("KycReviewReviewer")
-  kycDocumentsLinked     KycDocument[]               @relation("KycDocumentLinkedBy")
-  ownedVendors           Vendor[]                    @relation("VendorOwner")
-  activatedVendors       Vendor[]                    @relation("VendorActivatedBy")
-  vendorMemberships      VendorMembership[]
-  riderProfile           RiderProfile?               @relation("RiderProfileUser")
-  activatedRiderProfiles RiderProfile[]              @relation("RiderActivatedBy")
-  activatedStores        Store[]                     @relation("StoreActivatedBy")
-  createdProducts        Product[]                   @relation("ProductCreatedBy")
-  reviewedProducts       Product[]                   @relation("ProductReviewedBy")
-  publishedProducts      Product[]                   @relation("ProductPublishedBy")
-  createdCategories      Category[]                  @relation("CategoryCreatedBy")
-  activatedCategories    Category[]                  @relation("CategoryActivatedBy")
-  createdProductImages   ProductImage[]              @relation("ProductImageCreatedBy")
-  reviewedProductImages  ProductImage[]              @relation("ProductImageReviewedBy")
-  inventoryMovements     InventoryMovement[]
-  inventoryReservations  InventoryReservation[]
-  carts                  Cart[]
-  checkoutQuotes         CheckoutQuote[]
-  orders                 Order[]
-  paymentIntents         PaymentIntent[]
-  codPoliciesCreated     CodPolicy[]                 @relation("CodPolicyCreatedBy")
-  codPoliciesUpdated     CodPolicy[]                 @relation("CodPolicyUpdatedBy")
-  subordersAccepted      VendorSuborder[]            @relation("SuborderAcceptedBy")
-  subordersReady         VendorSuborder[]            @relation("SuborderReadyConfirmedBy")
-  subordersRejected      VendorSuborder[]            @relation("SuborderRejectedBy")
-  suborderStatusEvents   VendorSuborderStatusEvent[] @relation("SuborderStatusActor")
+  id                        String                      @id @default(uuid()) @db.Uuid
+  emailNormalized           String?                     @unique
+  emailVerifiedAt           DateTime?
+  phoneE164                 String?
+  phoneVerifiedAt           DateTime?
+  displayName               String
+  status                    UserStatus                  @default(ACTIVE)
+  authorizationVersion      Int                         @default(1)
+  createdAt                 DateTime                    @default(now())
+  updatedAt                 DateTime                    @updatedAt
+  identities                UserIdentity[]
+  sessions                  Session[]
+  roles                     UserRole[]
+  scopes                    AdminScope[]
+  auditLogs                 AuditLog[]
+  mfa                       UserMfa?
+  recoveryCodes             RecoveryCode[]
+  storageObjects            StorageObject[]
+  reviewedStorageObjects    StorageObject[]             @relation("StorageObjectReviewedBy")
+  ledgerAccounts            LedgerAccount[]
+  ledgerJournals            LedgerJournal[]
+  kycCases                  KycCase[]                   @relation("KycCaseSubject")
+  kycReviews                KycReview[]                 @relation("KycReviewReviewer")
+  kycDocumentsLinked        KycDocument[]               @relation("KycDocumentLinkedBy")
+  ownedVendors              Vendor[]                    @relation("VendorOwner")
+  activatedVendors          Vendor[]                    @relation("VendorActivatedBy")
+  vendorMemberships         VendorMembership[]
+  riderProfile              RiderProfile?               @relation("RiderProfileUser")
+  activatedRiderProfiles    RiderProfile[]              @relation("RiderActivatedBy")
+  activatedStores           Store[]                     @relation("StoreActivatedBy")
+  createdProducts           Product[]                   @relation("ProductCreatedBy")
+  reviewedProducts          Product[]                   @relation("ProductReviewedBy")
+  publishedProducts         Product[]                   @relation("ProductPublishedBy")
+  createdCategories         Category[]                  @relation("CategoryCreatedBy")
+  activatedCategories       Category[]                  @relation("CategoryActivatedBy")
+  createdProductImages      ProductImage[]              @relation("ProductImageCreatedBy")
+  reviewedProductImages     ProductImage[]              @relation("ProductImageReviewedBy")
+  inventoryMovements        InventoryMovement[]
+  inventoryReservations     InventoryReservation[]
+  carts                     Cart[]
+  checkoutQuotes            CheckoutQuote[]
+  orders                    Order[]
+  paymentIntents            PaymentIntent[]
+  codPoliciesCreated        CodPolicy[]                 @relation("CodPolicyCreatedBy")
+  codPoliciesUpdated        CodPolicy[]                 @relation("CodPolicyUpdatedBy")
+  subordersAccepted         VendorSuborder[]            @relation("SuborderAcceptedBy")
+  subordersReady            VendorSuborder[]            @relation("SuborderReadyConfirmedBy")
+  subordersRejected         VendorSuborder[]            @relation("SuborderRejectedBy")
+  suborderStatusEvents      VendorSuborderStatusEvent[] @relation("SuborderStatusActor")
+  storePickupsProposed      StorePickupPoint[]          @relation("StorePickupProposedBy")
+  storePickupsReviewed      StorePickupPoint[]          @relation("StorePickupReviewedBy")
+  storeServiceAreasProposed StoreServiceArea[]          @relation("StoreServiceAreaProposedBy")
+  storeServiceAreasReviewed StoreServiceArea[]          @relation("StoreServiceAreaReviewedBy")
+  riderZoneGrantsGranted    RiderZoneGrant[]            @relation("RiderZoneGrantGrantedBy")
 }
 
 model UserIdentity {
@@ -380,14 +403,16 @@ model City {
 }
 
 model ServiceZone {
-  id            String         @id @default(uuid()) @db.Uuid
-  cityId        String         @db.Uuid
-  code          String
-  name          String
-  status        AreaStatus     @default(DRAFT)
-  priority      Int            @default(0)
-  city          City           @relation(fields: [cityId], references: [id])
-  neighborhoods Neighborhood[]
+  id                String             @id @default(uuid()) @db.Uuid
+  cityId            String             @db.Uuid
+  code              String
+  name              String
+  status            AreaStatus         @default(DRAFT)
+  priority          Int                @default(0)
+  city              City               @relation(fields: [cityId], references: [id])
+  neighborhoods     Neighborhood[]
+  storeServiceAreas StoreServiceArea[]
+  riderZoneGrants   RiderZoneGrant[]
 
   @@unique([cityId, code])
 }
@@ -415,6 +440,115 @@ model BoundaryVersion {
   createdAt   DateTime                                   @default(now())
 
   @@unique([ownerType, ownerId, version])
+}
+
+model StorePickupPoint {
+  id               String                              @id @default(uuid()) @db.Uuid
+  storeId          String                              @unique @db.Uuid
+  pickupPoint      Unsupported("geometry(Point,4326)")
+  status           ServiceabilityStatus                @default(DRAFT)
+  proposedByUserId String                              @db.Uuid
+  reviewedByUserId String?                             @db.Uuid
+  reviewReason     String?                             @db.VarChar(512)
+  reviewedAt       DateTime?
+  version          Int                                 @default(1)
+  createdAt        DateTime                            @default(now())
+  updatedAt        DateTime                            @updatedAt
+  store            Store                               @relation(fields: [storeId], references: [id])
+  proposedBy       User                                @relation("StorePickupProposedBy", fields: [proposedByUserId], references: [id])
+  reviewedBy       User?                               @relation("StorePickupReviewedBy", fields: [reviewedByUserId], references: [id])
+
+  @@index([status])
+}
+
+model StoreOperatingHour {
+  id          String   @id @default(uuid()) @db.Uuid
+  storeId     String   @db.Uuid
+  dayOfWeek   Int
+  openMinute  Int
+  closeMinute Int
+  createdAt   DateTime @default(now())
+  store       Store    @relation(fields: [storeId], references: [id])
+
+  @@unique([storeId, dayOfWeek, openMinute])
+  @@index([storeId, dayOfWeek])
+}
+
+model StoreServiceArea {
+  id               String                 @id @default(uuid()) @db.Uuid
+  storeId          String                 @db.Uuid
+  serviceZoneId    String                 @db.Uuid
+  status           StoreServiceAreaStatus @default(DRAFT)
+  proposedByUserId String                 @db.Uuid
+  reviewedByUserId String?                @db.Uuid
+  reviewReason     String?                @db.VarChar(512)
+  reviewedAt       DateTime?
+  version          Int                    @default(1)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  store            Store                  @relation(fields: [storeId], references: [id])
+  serviceZone      ServiceZone            @relation(fields: [serviceZoneId], references: [id])
+  proposedBy       User                   @relation("StoreServiceAreaProposedBy", fields: [proposedByUserId], references: [id])
+  reviewedBy       User?                  @relation("StoreServiceAreaReviewedBy", fields: [reviewedByUserId], references: [id])
+
+  @@unique([storeId, serviceZoneId])
+  @@index([serviceZoneId, status])
+}
+
+model RiderShift {
+  id              String                @id @default(uuid()) @db.Uuid
+  riderId         String                @db.Uuid
+  status          RiderShiftStatus      @default(ACTIVE)
+  consentVersion  String                @db.VarChar(64)
+  startedAt       DateTime              @default(now())
+  endedAt         DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  rider           RiderProfile          @relation(fields: [riderId], references: [id])
+  locationSamples RiderLocationSample[]
+
+  @@index([riderId, status])
+}
+
+model RiderLocationConsent {
+  id             String       @id @default(uuid()) @db.Uuid
+  riderId        String       @unique @db.Uuid
+  consented      Boolean      @default(false)
+  consentVersion String       @db.VarChar(64)
+  updatedAt      DateTime     @updatedAt
+  rider          RiderProfile @relation(fields: [riderId], references: [id])
+}
+
+model RiderLocationSample {
+  id             String                              @id @default(uuid()) @db.Uuid
+  riderId        String                              @db.Uuid
+  shiftId        String                              @db.Uuid
+  location       Unsupported("geometry(Point,4326)")
+  accuracyMeters Int
+  recordedAt     DateTime
+  receivedAt     DateTime                            @default(now())
+  rider          RiderProfile                        @relation(fields: [riderId], references: [id])
+  shift          RiderShift                          @relation(fields: [shiftId], references: [id])
+
+  @@index([riderId, receivedAt])
+  @@index([shiftId, receivedAt])
+}
+
+model RiderZoneGrant {
+  id            String       @id @default(uuid()) @db.Uuid
+  riderId       String       @db.Uuid
+  serviceZoneId String       @db.Uuid
+  grantedBy     String       @db.Uuid
+  reason        String       @db.VarChar(512)
+  expiresAt     DateTime?
+  revokedAt     DateTime?
+  createdAt     DateTime     @default(now())
+  rider         RiderProfile @relation(fields: [riderId], references: [id])
+  serviceZone   ServiceZone  @relation(fields: [serviceZoneId], references: [id])
+  grantor       User         @relation("RiderZoneGrantGrantedBy", fields: [grantedBy], references: [id])
+
+  @@index([riderId, revokedAt])
+  @@index([serviceZoneId, revokedAt])
 }
 
 model AuditLog {
@@ -717,22 +851,26 @@ model VendorMembership {
 }
 
 model RiderProfile {
-  id                String           @id @default(uuid()) @db.Uuid
-  userId            String           @unique @db.Uuid
-  countryId         String           @db.Uuid
+  id                String                @id @default(uuid()) @db.Uuid
+  userId            String                @unique @db.Uuid
+  countryId         String                @db.Uuid
   vehicleType       RiderVehicleType
-  status            PartyStatus      @default(DRAFT)
-  kycCaseId         String?          @unique @db.Uuid
+  status            PartyStatus           @default(DRAFT)
+  kycCaseId         String?               @unique @db.Uuid
   activatedAt       DateTime?
-  activatedByUserId String?          @db.Uuid
+  activatedByUserId String?               @db.Uuid
   suspendedAt       DateTime?
-  version           Int              @default(1)
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  user              User             @relation("RiderProfileUser", fields: [userId], references: [id])
-  country           Country          @relation(fields: [countryId], references: [id])
-  kycCase           KycCase?         @relation("RiderKycCase", fields: [kycCaseId], references: [id])
-  activatedBy       User?            @relation("RiderActivatedBy", fields: [activatedByUserId], references: [id])
+  version           Int                   @default(1)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  user              User                  @relation("RiderProfileUser", fields: [userId], references: [id])
+  country           Country               @relation(fields: [countryId], references: [id])
+  kycCase           KycCase?              @relation("RiderKycCase", fields: [kycCaseId], references: [id])
+  activatedBy       User?                 @relation("RiderActivatedBy", fields: [activatedByUserId], references: [id])
+  shifts            RiderShift[]
+  locationConsent   RiderLocationConsent?
+  locationSamples   RiderLocationSample[]
+  zoneGrants        RiderZoneGrant[]
 
   @@index([countryId, status])
 }
@@ -762,6 +900,9 @@ model Store {
   checkoutGroups    CheckoutQuoteGroup[]
   suborders         VendorSuborder[]
   memberships       VendorMembership[]
+  pickupPoint       StorePickupPoint?
+  operatingHours    StoreOperatingHour[]
+  serviceAreas      StoreServiceArea[]
 
   @@unique([vendorId, slug])
   @@index([countryId, status])
