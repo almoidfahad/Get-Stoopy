@@ -16,6 +16,7 @@ Last updated: 2026-11-02.
 - **2026-11-02 first hardening slice:** outbox visibility lease + stale-worker fencing implemented (`0008_outbox_visibility_lease`). Applied only to isolated local test DB. Local verification: 79 unit tests / 11 files PASS; 34 integration tests / 6 files PASS; typecheck and Prisma validation PASS. See `23-outbox-visibility-lease.md`.
 - **2026-11-02 second hardening slice:** terminal inbox dead-letter persistence implemented (`0009_inbox_dead_letter`). Applied only to isolated local test DB. Local verification: 82 unit tests / 12 files PASS; 38 integration tests / 7 files PASS; typecheck and Prisma validation PASS. See `24-inbox-dead-letter.md`.
 - **2026-11-02 third hardening slice:** storage magic-byte validation + KYC quarantine/review implemented (`0010_storage_review`). Applied only to isolated local test DB. Local verification: 84 unit tests / 13 files PASS; 39 integration tests / 7 files PASS; typecheck and Prisma validation PASS. See `25-storage-quarantine-review.md`.
+- **2026-11-02 fourth hardening slice:** immutable double-entry ledger persistence primitives implemented (`0011_ledger_primitives`). Applied only to isolated local test DB. Local verification: 88 unit tests / 14 files PASS; 45 integration tests / 8 files PASS; typecheck and Prisma validation PASS. See `26-ledger-primitives.md`.
 
 ## Decisions retained from the user
 
@@ -70,3 +71,4 @@ None of these blockers justifies fabricated credentials, payments, KYC results o
 | 2026-11-02 | Foundation audit + outbox visibility lease/fencing | Isolated test DB migration; unit/integration/typecheck/Prisma validation PASS; no production/existing-data migration |
 | 2026-11-02 | Terminal inbox dead-letter hardening | Isolated test DB migration; unit/integration/typecheck/Prisma validation PASS; operator replay/resolve still pending |
 | 2026-11-02 | Storage magic-byte validation + KYC quarantine/review | Isolated test DB migration; unit/integration/typecheck/Prisma validation PASS; production AV/KMS/object store still pending |
+| 2026-11-02 | Immutable double-entry ledger primitives | Isolated test DB migration; unit/integration/typecheck/Prisma validation PASS; domain finance commands still pending |

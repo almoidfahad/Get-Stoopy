@@ -60,6 +60,19 @@ enum StorageObjectState {
   DELETED
 }
 
+enum LedgerAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum LedgerSide {
+  DEBIT
+  CREDIT
+}
+
 enum IdempotencyState {
   IN_PROGRESS
   COMPLETED
@@ -67,44 +80,47 @@ enum IdempotencyState {
 }
 
 model User {
-  id                   String        @id @default(uuid()) @db.Uuid
-  emailNormalized      String?       @unique
-  emailVerifiedAt      DateTime?
-  phoneE164            String?
-  phoneVerifiedAt      DateTime?
-  displayName          String
-  status               UserStatus    @default(ACTIVE)
-  authorizationVersion Int           @default(1)
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
-  identities           UserIdentity[]
-  sessions             Session[]
-  roles                UserRole[]
-  scopes               AdminScope[]
-  auditLogs            AuditLog[]
-  mfa                  UserMfa?
-  recoveryCodes        RecoveryCode[]
-  storageObjects       StorageObject[]
+  id                     String          @id @default(uuid()) @db.Uuid
+  emailNormalized        String?         @unique
+  emailVerifiedAt        DateTime?
+  phoneE164              String?
+  phoneVerifiedAt        DateTime?
+  displayName            String
+  status                 UserStatus      @default(ACTIVE)
+  authorizationVersion   Int             @default(1)
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  identities             UserIdentity[]
+  sessions               Session[]
+  roles                  UserRole[]
+  scopes                 AdminScope[]
+  auditLogs              AuditLog[]
+  mfa                    UserMfa?
+  recoveryCodes          RecoveryCode[]
+  storageObjects         StorageObject[]
   reviewedStorageObjects StorageObject[] @relation("StorageObjectReviewedBy")
+  ledgerAccounts         LedgerAccount[]
+  ledgerJournals         LedgerJournal[]
 }
 
 model UserIdentity {
-  id                   String   @id @default(uuid()) @db.Uuid
-  userId               String   @db.Uuid
-  issuer               String
-  subject              String
-  providerKey          String
-  providerEmailVerified Boolean @default(false)
-  linkedAt             DateTime @default(now())
-  lastVerifiedAt       DateTime
-  user                 User     @relation(fields: [userId], references: [id])
+  id                    String   @id @default(uuid()) @db.Uuid
+  userId                String   @db.Uuid
+  issuer                String
+  subject               String
+  providerKey           String
+  providerEmailVerified Boolean  @default(false)
+  linkedAt              DateTime @default(now())
+  lastVerifiedAt        DateTime
+  user                  User     @relation(fields: [userId], references: [id])
+
   @@unique([issuer, subject])
   @@unique([userId, issuer])
 }
 
 model Role {
-  id          String   @id @default(uuid()) @db.Uuid
-  key         String   @unique
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique
   name        String
   description String?
   permissions RolePermission[]
@@ -112,8 +128,8 @@ model Role {
 }
 
 model Permission {
-  id          String   @id @default(uuid()) @db.Uuid
-  key         String   @unique
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique
   resource    String
   action      String
   sensitivity String
@@ -125,18 +141,20 @@ model RolePermission {
   permissionId String     @db.Uuid
   role         Role       @relation(fields: [roleId], references: [id])
   permission   Permission @relation(fields: [permissionId], references: [id])
+
   @@id([roleId, permissionId])
 }
 
 model UserRole {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  roleId    String   @db.Uuid
-  grantedBy String   @db.Uuid
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  roleId    String    @db.Uuid
+  grantedBy String    @db.Uuid
   expiresAt DateTime?
   revokedAt DateTime?
-  user      User     @relation(fields: [userId], references: [id])
-  role      Role     @relation(fields: [roleId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+  role      Role      @relation(fields: [roleId], references: [id])
+
   @@unique([userId, roleId])
 }
 
@@ -155,27 +173,29 @@ model AdminScope {
   expiresAt      DateTime?
   revokedAt      DateTime?
   user           User          @relation(fields: [userId], references: [id])
+
   @@index([userId, revokedAt])
 }
 
 model Session {
-  id                       String         @id @default(uuid()) @db.Uuid
-  userId                   String         @db.Uuid
-  tokenHash                String         @unique
-  assuranceLevel           AssuranceLevel @default(PASSWORD)
-  state                    SessionState   @default(ACTIVE)
-  encryptedTokenEnvelope   Bytes?
-  expiresAt                DateTime
-  idleExpiresAt            DateTime
-  revokedAt                DateTime?
-  revokedReason            String?        @db.VarChar(120)
-  authVersion              Int
-  deviceLabel              String?        @db.VarChar(120)
-  ipHash                   String?        @db.VarChar(64)
-  userAgentHash            String?        @db.VarChar(64)
-  stepUpExpiresAt          DateTime?
-  createdAt                DateTime       @default(now())
-  user                     User           @relation(fields: [userId], references: [id])
+  id                     String         @id @default(uuid()) @db.Uuid
+  userId                 String         @db.Uuid
+  tokenHash              String         @unique
+  assuranceLevel         AssuranceLevel @default(PASSWORD)
+  state                  SessionState   @default(ACTIVE)
+  encryptedTokenEnvelope Bytes?
+  expiresAt              DateTime
+  idleExpiresAt          DateTime
+  revokedAt              DateTime?
+  revokedReason          String?        @db.VarChar(120)
+  authVersion            Int
+  deviceLabel            String?        @db.VarChar(120)
+  ipHash                 String?        @db.VarChar(64)
+  userAgentHash          String?        @db.VarChar(64)
+  stepUpExpiresAt        DateTime?
+  createdAt              DateTime       @default(now())
+  user                   User           @relation(fields: [userId], references: [id])
+
   @@index([userId, state])
 }
 
@@ -198,41 +218,45 @@ model Region {
   status    AreaStatus @default(DRAFT)
   country   Country    @relation(fields: [countryId], references: [id])
   districts District[]
+
   @@unique([countryId, code])
 }
 
 model District {
-  id       String  @id @default(uuid()) @db.Uuid
-  regionId String  @db.Uuid
+  id       String     @id @default(uuid()) @db.Uuid
+  regionId String     @db.Uuid
   code     String
   name     String
   status   AreaStatus @default(DRAFT)
-  region   Region  @relation(fields: [regionId], references: [id])
+  region   Region     @relation(fields: [regionId], references: [id])
   cities   City[]
+
   @@unique([regionId, code])
 }
 
 model City {
-  id         String  @id @default(uuid()) @db.Uuid
-  districtId String  @db.Uuid
+  id         String        @id @default(uuid()) @db.Uuid
+  districtId String        @db.Uuid
   code       String
   name       String
   kind       String
-  status     AreaStatus @default(DRAFT)
-  district   District @relation(fields: [districtId], references: [id])
+  status     AreaStatus    @default(DRAFT)
+  district   District      @relation(fields: [districtId], references: [id])
   zones      ServiceZone[]
+
   @@unique([districtId, code])
 }
 
 model ServiceZone {
-  id       String  @id @default(uuid()) @db.Uuid
-  cityId   String  @db.Uuid
-  code     String
-  name     String
-  status   AreaStatus @default(DRAFT)
-  priority Int     @default(0)
-  city     City    @relation(fields: [cityId], references: [id])
+  id            String         @id @default(uuid()) @db.Uuid
+  cityId        String         @db.Uuid
+  code          String
+  name          String
+  status        AreaStatus     @default(DRAFT)
+  priority      Int            @default(0)
+  city          City           @relation(fields: [cityId], references: [id])
   neighborhoods Neighborhood[]
+
   @@unique([cityId, code])
 }
 
@@ -242,38 +266,41 @@ model Neighborhood {
   code          String
   name          String
   zone          ServiceZone @relation(fields: [serviceZoneId], references: [id])
+
   @@unique([serviceZoneId, code])
 }
 
 model BoundaryVersion {
-  id          String        @id @default(uuid()) @db.Uuid
+  id          String                                     @id @default(uuid()) @db.Uuid
   ownerType   GeographyType
-  ownerId     String        @db.Uuid
+  ownerId     String                                     @db.Uuid
   version     Int
   boundary    Unsupported("geometry(MultiPolygon,4326)")
   source      String
   validFrom   DateTime
-  approvedBy  String?       @db.Uuid
+  approvedBy  String?                                    @db.Uuid
   contentHash String
-  createdAt   DateTime      @default(now())
+  createdAt   DateTime                                   @default(now())
+
   @@unique([ownerType, ownerId, version])
 }
 
 model AuditLog {
-  id            String    @id @default(uuid()) @db.Uuid
-  actorId       String?   @db.Uuid
-  actorType     ActorType
-  sessionId     String?   @db.Uuid
-  action        String
-  resourceType  String
-  resourceId    String?   @db.Uuid
-  scopeSnapshot Json
+  id             String    @id @default(uuid()) @db.Uuid
+  actorId        String?   @db.Uuid
+  actorType      ActorType
+  sessionId      String?   @db.Uuid
+  action         String
+  resourceType   String
+  resourceId     String?   @db.Uuid
+  scopeSnapshot  Json
   beforeRedacted Json?
-  afterRedacted Json?
-  reason        String?
-  requestId     String
-  occurredAt    DateTime  @default(now())
-  actor         User?     @relation(fields: [actorId], references: [id])
+  afterRedacted  Json?
+  reason         String?
+  requestId      String
+  occurredAt     DateTime  @default(now())
+  actor          User?     @relation(fields: [actorId], references: [id])
+
   @@index([resourceType, resourceId, occurredAt])
   @@index([actorId, occurredAt])
 }
@@ -293,6 +320,7 @@ model OutboxEvent {
   failedAt      DateTime?
   leaseToken    String?   @db.Uuid
   leaseUntil    DateTime?
+
   @@index([publishedAt, occurredAt])
   @@index([availableAt, occurredAt])
   @@index([leaseUntil], map: "OutboxEvent_lease_idx")
@@ -302,6 +330,7 @@ model InboxReceipt {
   consumer    String
   eventKey    String
   processedAt DateTime @default(now())
+
   @@id([consumer, eventKey])
 }
 
@@ -316,6 +345,7 @@ model InboxDeadLetter {
   attempts      Int
   firstFailedAt DateTime @default(now())
   lastFailedAt  DateTime @default(now())
+
   @@unique([consumer, payloadHash])
   @@index([consumer, lastFailedAt])
 }
@@ -332,33 +362,35 @@ model IdempotencyRecord {
   state             IdempotencyState @default(IN_PROGRESS)
   expiresAt         DateTime
   createdAt         DateTime         @default(now())
+
   @@unique([actorId, route, key])
 }
 
 model FeatureFlag {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String  @id @default(uuid()) @db.Uuid
   key         String
-  countryId   String?  @db.Uuid
+  countryId   String? @db.Uuid
   environment String
-  enabled     Boolean  @default(false)
+  enabled     Boolean @default(false)
   rolloutRule Json
-  version     Int      @default(1)
-  updatedBy   String   @db.Uuid
+  version     Int     @default(1)
+  updatedBy   String  @db.Uuid
+
   @@unique([key, countryId, environment])
 }
 
 model UserMfa {
-  id              String   @id @default(uuid()) @db.Uuid
-  userId          String   @unique @db.Uuid
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @unique @db.Uuid
   secretEnvelope  Bytes
-  state           MfaState @default(PENDING)
-  digits          Int      @default(6)
-  period          Int      @default(30)
-  lastUsedCounter BigInt   @default(-1)
+  state           MfaState  @default(PENDING)
+  digits          Int       @default(6)
+  period          Int       @default(30)
+  lastUsedCounter BigInt    @default(-1)
   confirmedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  user            User     @relation(fields: [userId], references: [id])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id])
 }
 
 model RecoveryCode {
@@ -369,6 +401,7 @@ model RecoveryCode {
   revokedAt DateTime?
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id])
+
   @@unique([userId, codeHash])
 }
 
@@ -392,6 +425,52 @@ model StorageObject {
   updatedAt        DateTime           @updatedAt
   owner            User               @relation(fields: [ownerUserId], references: [id])
   reviewedBy       User?              @relation("StorageObjectReviewedBy", fields: [reviewedByUserId], references: [id])
+
   @@index([ownerUserId, purpose, state])
   @@index([state, createdAt])
+}
+
+model LedgerAccount {
+  id              String            @id @default(uuid()) @db.Uuid
+  code            String            @unique @db.VarChar(64)
+  name            String            @db.VarChar(128)
+  type            LedgerAccountType
+  currency        String            @db.VarChar(3)
+  createdByUserId String            @db.Uuid
+  createdAt       DateTime          @default(now())
+  createdBy       User              @relation(fields: [createdByUserId], references: [id])
+  lines           LedgerLine[]
+}
+
+model LedgerJournal {
+  id                  String          @id @default(uuid()) @db.Uuid
+  businessEventKey    String          @unique @db.VarChar(128)
+  payloadHash         String          @db.VarChar(64)
+  currency            String          @db.VarChar(3)
+  description         String          @db.VarChar(512)
+  occurredAt          DateTime        @default(now())
+  createdByUserId     String          @db.Uuid
+  createdAt           DateTime        @default(now())
+  reversalOfJournalId String?         @db.Uuid
+  createdBy           User            @relation(fields: [createdByUserId], references: [id])
+  reversalOf          LedgerJournal?  @relation("LedgerJournalReversal", fields: [reversalOfJournalId], references: [id])
+  reversals           LedgerJournal[] @relation("LedgerJournalReversal")
+  lines               LedgerLine[]
+
+  @@index([createdAt])
+}
+
+model LedgerLine {
+  id          String        @id @default(uuid()) @db.Uuid
+  journalId   String        @db.Uuid
+  accountId   String        @db.Uuid
+  side        LedgerSide
+  amountMinor BigInt
+  lineNo      Int
+  createdAt   DateTime      @default(now())
+  journal     LedgerJournal @relation(fields: [journalId], references: [id])
+  account     LedgerAccount @relation(fields: [accountId], references: [id])
+
+  @@unique([journalId, lineNo])
+  @@index([accountId])
 }

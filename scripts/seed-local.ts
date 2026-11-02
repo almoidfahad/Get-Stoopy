@@ -11,7 +11,9 @@ async function main() {
       { key: 'admin:example:read', resource: 'admin', action: 'example:read', sensitivity: 'internal' },
       { key: 'admin:geography:read', resource: 'admin', action: 'geography:read', sensitivity: 'internal' },
       { key: 'admin:scope:grant', resource: 'admin', action: 'scope:grant', sensitivity: 'critical' },
-      { key: 'storage:kyc:review', resource: 'storage', action: 'kyc:review', sensitivity: 'critical' }
+      { key: 'storage:kyc:review', resource: 'storage', action: 'kyc:review', sensitivity: 'critical' },
+      { key: 'finance:ledger:post', resource: 'finance', action: 'ledger:post', sensitivity: 'critical' },
+      { key: 'finance:ledger:read', resource: 'finance', action: 'ledger:read', sensitivity: 'high' }
     ];
     for (const p of perms) await tx.permission.upsert({ where: { key: p.key }, update: {}, create: p });
     const role = await tx.role.upsert({ where: { key: 'country_admin' }, update: {}, create: { key: 'country_admin', name: 'Country Admin', description: 'Development country-scoped administrator' } });
