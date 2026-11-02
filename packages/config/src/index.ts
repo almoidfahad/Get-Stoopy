@@ -26,7 +26,15 @@ export const envSchema = z.object({
   DISPATCH_OFFER_TOKEN_SECRET: z.string().min(32).optional(),
   DISPATCH_EXPIRY_ENABLED: bool.default('false'),
   DISPATCH_EXPIRY_POLL_MS: z.coerce.number().int().min(50).max(60000).default(1000),
-  DISPATCH_EXPIRY_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(100)
+  DISPATCH_EXPIRY_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(100),
+  DELIVERY_OTP_ENABLED: bool.default('false'),
+  DELIVERY_OTP_CHANNEL: z.enum(['disabled','test']).default('disabled'),
+  DELIVERY_OTP_PEPPER: z.string().regex(/^[0-9a-f]{64}$/i).optional(),
+  DELIVERY_RECIPIENT_ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i).optional(),
+  DELIVERY_OTP_TTL_SECONDS: z.coerce.number().int().min(60).max(600).default(300),
+  DELIVERY_OTP_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(10).default(5),
+  DELIVERY_OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().min(30).max(300).default(60),
+  DELIVERY_OTP_MAX_ISSUES: z.coerce.number().int().min(1).max(5).default(3)
 });
 export const apiEnvSchema = envSchema.extend({
   BFF_API_SHARED_SECRET: z.string().min(32),
@@ -54,6 +62,12 @@ export function loadApiEnv(input: NodeJS.ProcessEnv): ApiEnv {
     if (env.NODE_ENV !== 'test' && env.GOOGLE_ROUTES_BASE_URL !== 'https://routes.googleapis.com') throw new Error('ROAD_ROUTING_BASE_URL_NOT_ALLOWED');
   }
   if (env.DISPATCH_EXPIRY_ENABLED && !env.DISPATCH_OFFER_TOKEN_SECRET) throw new Error('DISPATCH_OFFER_TOKEN_SECRET_REQUIRED');
+  if (env.DELIVERY_OTP_ENABLED) {
+    if (env.NODE_ENV === 'production') throw new Error('DELIVERY_OTP_LIVE_NOT_AUTHORIZED');
+    if (env.DELIVERY_OTP_CHANNEL !== 'test') throw new Error('DELIVERY_OTP_CHANNEL_REQUIRED');
+    if (env.NODE_ENV !== 'test') throw new Error('DELIVERY_OTP_TEST_CHANNEL_FORBIDDEN');
+    if (!env.DELIVERY_OTP_PEPPER || !env.DELIVERY_RECIPIENT_ENCRYPTION_KEY) throw new Error('DELIVERY_OTP_KEYS_REQUIRED');
+  }
   return env;
 }
 export type Env = z.infer<typeof envSchema>;

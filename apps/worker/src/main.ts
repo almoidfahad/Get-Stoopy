@@ -38,7 +38,7 @@ const handlers: InboxHandlers = new Map<string, (e: EventEnvelope, tx: PoolClien
 export function registerHandler(eventType: string, fn: (e: EventEnvelope, tx: PoolClient) => Promise<void>) { handlers.set(eventType, fn); }
 registerHandler('test.created', async () => undefined);
 registerHandler('security.user.revoked', async () => undefined);
-for (const eventType of ['dispatch.run.created','dispatch.offer.created','dispatch.offer.accepted','dispatch.offer.rejected','dispatch.offer.expired','dispatch.run.manual_review','commerce.order.destination_set']) registerHandler(eventType, async () => undefined);
+for (const eventType of ['dispatch.run.created','dispatch.offer.created','dispatch.offer.accepted','dispatch.offer.rejected','dispatch.offer.expired','dispatch.run.manual_review','commerce.order.destination_set','commerce.order.recipient_set','delivery.pickup.confirmed','delivery.otp.issued','delivery.otp.verified','delivery.completed']) registerHandler(eventType, async () => undefined);
 const consumer = `worker:${env.WORKER_QUEUE}`;
 const worker = new Worker(env.WORKER_QUEUE, createInboxProcessor(pool, consumer, handlers, log), { connection: workerConnection, concurrency: env.WORKER_CONCURRENCY });
 attachInboxDeadLetter(worker, pool, consumer, log);

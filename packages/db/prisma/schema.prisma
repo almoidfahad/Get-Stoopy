@@ -271,6 +271,10 @@ model User {
   deliveryDestinationsSet   OrderDeliveryDestination[]  @relation("DeliveryDestinationSetBy")
   dispatchRunsCreated       DispatchRun[]               @relation("DispatchRunCreatedBy")
   dispatchEvents            DispatchEvent[]             @relation("DispatchEventActor")
+  deliveryRecipientsSet     DeliveryRecipient[]         @relation("DeliveryRecipientSetBy")
+  deliveryProofsVerified    DeliveryProof[]             @relation("DeliveryProofVerifiedBy")
+  deliveryEvents            DeliveryEvent[]             @relation("DeliveryEventActor")
+  deliveryOtpAttempts       DeliveryOtpAttempt[]        @relation("DeliveryOtpAttemptActor")
 }
 
 model UserIdentity {
@@ -393,6 +397,8 @@ model Country {
   deliveryDestinations OrderDeliveryDestination[]
   dispatchRuns         DispatchRun[]
   riderAssignments     RiderAssignment[]
+  DeliveryRecipient    DeliveryRecipient[]
+  Delivery             Delivery[]
 }
 
 model Region {
@@ -720,6 +726,7 @@ model RiderAssignment {
   shift                RiderShift            @relation(fields: [shiftId], references: [id])
   locationSample       RiderLocationSample   @relation(fields: [locationSampleId], references: [id])
   events               DispatchEvent[]
+  delivery             Delivery?
 
   @@index([riderId, status])
   @@index([suborderId])
@@ -743,6 +750,128 @@ model DispatchEvent {
 
   @@unique([runId, commandKey])
   @@index([runId, occurredAt])
+}
+
+model DeliveryRecipient {
+  id              String                 @id @default(uuid()) @db.Uuid
+  orderId         String                 @unique @db.Uuid
+  countryId       String                 @db.Uuid
+  contactEnvelope Bytes
+  phoneHash       String                 @db.VarChar(64)
+  commandKey      String                 @db.VarChar(128)
+  payloadHash     String                 @db.VarChar(64)
+  setByUserId     String                 @db.Uuid
+  createdAt       DateTime               @default(now())
+  order           Order                  @relation(fields: [orderId], references: [id])
+  country         Country                @relation(fields: [countryId], references: [id])
+  setBy           User                   @relation("DeliveryRecipientSetBy", fields: [setByUserId], references: [id])
+  deliveries      Delivery[]
+  otpChallenges   DeliveryOtpChallenge[]
+
+  @@index([phoneHash])
+}
+
+model Delivery {
+  id                    String                 @id @default(uuid()) @db.Uuid
+  assignmentId          String                 @unique @db.Uuid
+  suborderId            String                 @unique @db.Uuid
+  riderId               String                 @db.Uuid
+  countryId             String                 @db.Uuid
+  recipientId           String                 @db.Uuid
+  status                DeliveryStatus         @default(PICKED_UP)
+  version               Int                    @default(1)
+  pickupConfirmedAt     DateTime
+  pickupCommandKey      String                 @db.VarChar(128)
+  pickupPayloadHash     String                 @db.VarChar(64)
+  deliveredAt           DateTime?
+  completedAt           DateTime?
+  completionCommandKey  String?                @db.VarChar(128)
+  completionPayloadHash String?                @db.VarChar(64)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  assignment            RiderAssignment        @relation(fields: [assignmentId], references: [id])
+  suborder              VendorSuborder         @relation(fields: [suborderId], references: [id])
+  rider                 RiderProfile           @relation(fields: [riderId], references: [id])
+  country               Country                @relation(fields: [countryId], references: [id])
+  recipient             DeliveryRecipient      @relation(fields: [recipientId], references: [id])
+  otpChallenges         DeliveryOtpChallenge[]
+  proof                 DeliveryProof?
+  events                DeliveryEvent[]
+
+  @@index([riderId, status])
+  @@index([countryId, status])
+}
+
+model DeliveryOtpChallenge {
+  id             String               @id @default(uuid()) @db.Uuid
+  deliveryId     String               @db.Uuid
+  recipientId    String               @db.Uuid
+  sequence       Int
+  codeHash       String               @db.VarChar(64)
+  status         DeliveryOtpStatus    @default(ISSUED)
+  attempts       Int                  @default(0)
+  maxAttempts    Int                  @default(5)
+  channel        String               @db.VarChar(20)
+  commandKey     String               @db.VarChar(128)
+  payloadHash    String               @db.VarChar(64)
+  issuedAt       DateTime             @default(now())
+  expiresAt      DateTime
+  verifiedAt     DateTime?
+  closedAt       DateTime?
+  delivery       Delivery             @relation(fields: [deliveryId], references: [id])
+  recipient      DeliveryRecipient    @relation(fields: [recipientId], references: [id])
+  proof          DeliveryProof?
+  attemptRecords DeliveryOtpAttempt[]
+
+  @@unique([deliveryId, sequence])
+  @@unique([deliveryId, commandKey])
+  @@index([deliveryId, status])
+  @@index([recipientId, issuedAt])
+}
+
+model DeliveryOtpAttempt {
+  id          String                    @id @default(uuid()) @db.Uuid
+  challengeId String                    @db.Uuid
+  actorUserId String                    @db.Uuid
+  commandKey  String                    @db.VarChar(128)
+  payloadHash String                    @db.VarChar(64)
+  outcome     DeliveryOtpAttemptOutcome
+  occurredAt  DateTime                  @default(now())
+  challenge   DeliveryOtpChallenge      @relation(fields: [challengeId], references: [id])
+  actor       User                      @relation("DeliveryOtpAttemptActor", fields: [actorUserId], references: [id])
+
+  @@unique([challengeId, commandKey])
+  @@index([challengeId, occurredAt])
+}
+
+model DeliveryProof {
+  id               String               @id @default(uuid()) @db.Uuid
+  deliveryId       String               @unique @db.Uuid
+  challengeId      String               @unique @db.Uuid
+  method           String               @default("RECIPIENT_OTP") @db.VarChar(40)
+  verifiedByUserId String               @db.Uuid
+  verifiedAt       DateTime
+  evidenceHash     String               @db.VarChar(64)
+  delivery         Delivery             @relation(fields: [deliveryId], references: [id])
+  challenge        DeliveryOtpChallenge @relation(fields: [challengeId], references: [id])
+  verifiedBy       User                 @relation("DeliveryProofVerifiedBy", fields: [verifiedByUserId], references: [id])
+
+  @@index([deliveryId])
+}
+
+model DeliveryEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  deliveryId  String   @db.Uuid
+  eventType   String   @db.VarChar(80)
+  actorUserId String   @db.Uuid
+  commandKey  String   @db.VarChar(128)
+  payloadHash String   @db.VarChar(64)
+  occurredAt  DateTime @default(now())
+  delivery    Delivery @relation(fields: [deliveryId], references: [id])
+  actor       User     @relation("DeliveryEventActor", fields: [actorUserId], references: [id])
+
+  @@unique([deliveryId, commandKey])
+  @@index([deliveryId, occurredAt])
 }
 
 model AuditLog {
@@ -1067,6 +1196,7 @@ model RiderProfile {
   zoneGrants        RiderZoneGrant[]
   dispatchOffers    DispatchOffer[]
   assignments       RiderAssignment[]
+  deliveries        Delivery[]
   dispatchPriority  Int                   @default(0)
 
   @@index([countryId, status])
@@ -1421,6 +1551,29 @@ enum VendorSuborderStatus {
   REJECTED
   PREPARING
   READY_FOR_PICKUP
+  FULFILLING
+  DELIVERED
+  COMPLETED
+}
+
+enum DeliveryStatus {
+  PICKED_UP
+  DELIVERED
+  COMPLETED
+}
+
+enum DeliveryOtpStatus {
+  ISSUED
+  VERIFIED
+  EXPIRED
+  LOCKED
+}
+
+enum DeliveryOtpAttemptOutcome {
+  VALID
+  INVALID
+  EXPIRED
+  LOCKED
 }
 
 enum OrderPaymentMethod {
@@ -1481,6 +1634,7 @@ model Order {
   suborders           VendorSuborder[]
   paymentIntents      PaymentIntent[]
   deliveryDestination OrderDeliveryDestination?
+  deliveryRecipient   DeliveryRecipient?
 
   @@unique([buyerId, commandKey])
   @@index([buyerId, createdAt])
@@ -1517,6 +1671,7 @@ model VendorSuborder {
   statusEvents           VendorSuborderStatusEvent[]
   dispatchRun            DispatchRun?
   riderAssignments       RiderAssignment[]
+  delivery               Delivery?
 
   @@unique([orderId, vendorId, storeId])
   @@index([vendorId, createdAt])

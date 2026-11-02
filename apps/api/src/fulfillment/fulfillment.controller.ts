@@ -21,7 +21,7 @@ class ReadinessCommandDto {
   @IsInt() @Min(1) expectedVersion!: number;
   @IsString() @Matches(/^[A-Za-z0-9:_-]{8,128}$/) commandKey!: string;
 }
-const SUBORDER_STATUSES = ['PENDING_VENDOR', 'ACCEPTED', 'REJECTED', 'PREPARING', 'READY_FOR_PICKUP'];
+const SUBORDER_STATUSES = ['PENDING_VENDOR', 'ACCEPTED', 'REJECTED', 'PREPARING', 'READY_FOR_PICKUP', 'FULFILLING', 'DELIVERED', 'COMPLETED'];
 
 @ApiTags('fulfillment')
 @Controller('vendor')

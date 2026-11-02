@@ -18,8 +18,9 @@ import { PaymentsModule } from './payments/payments.module.js';
 import { FulfillmentModule } from './fulfillment/fulfillment.module.js';
 import { ServiceabilityModule } from './serviceability/serviceability.module.js';
 import { DispatchModule } from './dispatch/dispatch.module.js';
+import { DeliveryModule } from './delivery/delivery.module.js';
 @Module({
-  imports: [CoreModule, ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]), HealthModule, AuthModule, AdminModule, SecurityModule, StorageModule, KycModule, PartyModule, CatalogModule, InventoryModule, CommerceModule, PaymentsModule, FulfillmentModule, ServiceabilityModule, DispatchModule],
+  imports: [CoreModule, ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]), HealthModule, AuthModule, AdminModule, SecurityModule, StorageModule, KycModule, PartyModule, CatalogModule, InventoryModule, CommerceModule, PaymentsModule, FulfillmentModule, ServiceabilityModule, DispatchModule, DeliveryModule],
   providers: [{ provide: APP_FILTER, useClass: StableExceptionFilter }, { provide: APP_GUARD, useClass: ThrottlerGuard }]
 })
 export class AppModule implements NestModule {
