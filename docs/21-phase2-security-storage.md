@@ -41,6 +41,10 @@ Status: **IN PROGRESS — security + private-storage slice implemented and integ
 | Storage integration | PASS | encrypted upload/download, owner isolation, bad token, type/size validation |
 | Full local integration suite | PASS | PostgreSQL/PostGIS + Redis + API + worker/outbox/inbox + security + storage |
 
+## 2026-11-02 storage hardening addendum
+
+KYC uploads now pass server-side magic-byte validation and enter `QUARANTINED` until a privileged, step-up reviewer approves or rejects them. Self-review is denied, review decisions are audited, and a database trigger prevents runtime owners from rewriting review metadata or self-approving KYC objects. See `25-storage-quarantine-review.md`. Malware scanning, production object storage/KMS and full KYC case management remain pending.
+
 ## Still not proven / pending
 - Keycloak-side mandatory admin TOTP policy and production IdP hardening.
 - Real Google/Facebook/LinkedIn/X broker configuration and provider-specific linking tests.

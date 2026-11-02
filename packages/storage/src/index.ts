@@ -1,3 +1,4 @@
+export * from './content-type.js';
 import { createCipheriv, createDecipheriv, createHash, randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile, unlink } from 'node:fs/promises';
 import { dirname, join, normalize } from 'node:path';
@@ -7,7 +8,7 @@ export interface ObjectStorage {
   get(key: string): Promise<Buffer>;
   delete(key: string): Promise<void>;
 }
-export interface StorageTokenPayload { objectId: string; action: 'upload' | 'download'; exp: number; }
+export interface StorageTokenPayload { objectId: string; action: 'upload' | 'download' | 'review-download'; exp: number; }
 export function signStorageToken(payload: StorageTokenPayload, hexKey: string): string {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const sig = createHmac('sha256', Buffer.from(hexKey, 'hex')).update(body).digest('base64url');
@@ -20,7 +21,7 @@ export function verifyStorageToken(token: string, hexKey: string, now = Date.now
   const a = Buffer.from(sig), b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) throw new Error('STORAGE_TOKEN_INVALID');
   const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as StorageTokenPayload;
-  if (!payload.objectId || !['upload','download'].includes(payload.action) || payload.exp <= now) throw new Error('STORAGE_TOKEN_EXPIRED');
+  if (!payload.objectId || !['upload','download','review-download'].includes(payload.action) || payload.exp <= now) throw new Error('STORAGE_TOKEN_EXPIRED');
   return payload;
 }
 export class LocalEncryptedObjectStorage implements ObjectStorage {

@@ -27,5 +27,6 @@ GRANT EXECUTE ON FUNCTION gs_authorization_version() TO gs_runtime, gs_privilege
 GRANT EXECUTE ON FUNCTION gs_is_super() TO gs_runtime, gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_append_only() TO gs_runtime, gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_guard_user_security_fields() TO gs_runtime, gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_guard_storage_review() TO gs_runtime, gs_privileged;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO gs_runtime, gs_privileged;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT INSERT, UPDATE ON TABLES TO gs_privileged;

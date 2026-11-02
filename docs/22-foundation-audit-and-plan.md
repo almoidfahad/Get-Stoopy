@@ -49,5 +49,6 @@ Executable Prisma schema has **23 models**. The Phase-1 logical design has **113
 
 - Order item 1: migration `0008_outbox_visibility_lease`, durable lease/fencing columns, publisher finalization guards, worker lease configuration, unit/integration tests and operational documentation. See `23-outbox-visibility-lease.md`.
 - Order item 2: migration `0009_inbox_dead_letter`, durable terminal inbox failure persistence, unrecoverable classification for invalid/unknown events, stable error codes and worker integration tests. See `24-inbox-dead-letter.md`. Operator replay/resolve API/UI remains pending.
+- Order item 3: migration `0010_storage_review`, magic-byte validation, KYC quarantine, privileged step-up review, self-review denial, review-download tokens and database trigger guards. See `25-storage-quarantine-review.md`. Production AV/KMS/object store and full KYC case management remain pending.
 
 No commerce, finance, KYC or delivery domain model was added in these slices. No production deployment, live payment, paid resource or existing-data migration was performed.

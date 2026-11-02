@@ -85,6 +85,7 @@ model User {
   mfa                  UserMfa?
   recoveryCodes        RecoveryCode[]
   storageObjects       StorageObject[]
+  reviewedStorageObjects StorageObject[] @relation("StorageObjectReviewedBy")
 }
 
 model UserIdentity {
@@ -372,19 +373,25 @@ model RecoveryCode {
 }
 
 model StorageObject {
-  id              String             @id @default(uuid()) @db.Uuid
-  ownerUserId     String             @db.Uuid
-  purpose         String             @db.VarChar(64)
-  objectKey       String             @unique @db.VarChar(512)
-  contentType     String             @db.VarChar(120)
-  sizeBytes       BigInt?
-  sha256          String?            @db.VarChar(64)
-  state           StorageObjectState @default(PENDING_UPLOAD)
-  encryptionKeyId String             @db.VarChar(120)
-  expiresAt       DateTime?
-  deletedAt       DateTime?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  owner           User               @relation(fields: [ownerUserId], references: [id])
+  id               String             @id @default(uuid()) @db.Uuid
+  ownerUserId      String             @db.Uuid
+  purpose          String             @db.VarChar(64)
+  objectKey        String             @unique @db.VarChar(512)
+  contentType      String             @db.VarChar(120)
+  sizeBytes        BigInt?
+  sha256           String?            @db.VarChar(64)
+  state            StorageObjectState @default(PENDING_UPLOAD)
+  magicValid       Boolean            @default(false)
+  encryptionKeyId  String             @db.VarChar(120)
+  expiresAt        DateTime?
+  deletedAt        DateTime?
+  reviewedByUserId String?            @db.Uuid
+  reviewedAt       DateTime?
+  reviewReason     String?            @db.VarChar(512)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  owner            User               @relation(fields: [ownerUserId], references: [id])
+  reviewedBy       User?              @relation("StorageObjectReviewedBy", fields: [reviewedByUserId], references: [id])
   @@index([ownerUserId, purpose, state])
+  @@index([state, createdAt])
 }
