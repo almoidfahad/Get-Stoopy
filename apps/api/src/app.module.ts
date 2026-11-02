@@ -11,8 +11,9 @@ import { SecurityModule } from './security/security.module.js';
 import { StorageModule } from './storage/storage.module.js';
 import { KycModule } from './kyc/kyc.module.js';
 import { PartyModule } from './party/party.module.js';
+import { CatalogModule } from './catalog/catalog.module.js';
 @Module({
-  imports: [CoreModule, ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]), HealthModule, AuthModule, AdminModule, SecurityModule, StorageModule, KycModule, PartyModule],
+  imports: [CoreModule, ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]), HealthModule, AuthModule, AdminModule, SecurityModule, StorageModule, KycModule, PartyModule, CatalogModule],
   providers: [{ provide: APP_FILTER, useClass: StableExceptionFilter }, { provide: APP_GUARD, useClass: ThrottlerGuard }]
 })
 export class AppModule implements NestModule {

@@ -116,6 +116,18 @@ enum RiderVehicleType {
   OTHER
 }
 
+enum StoreStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+}
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
 enum IdempotencyState {
   IN_PROGRESS
   COMPLETED
@@ -152,6 +164,8 @@ model User {
   vendorMemberships      VendorMembership[]
   riderProfile           RiderProfile?      @relation("RiderProfileUser")
   activatedRiderProfiles RiderProfile[]     @relation("RiderActivatedBy")
+  activatedStores        Store[]            @relation("StoreActivatedBy")
+  createdProducts        Product[]          @relation("ProductCreatedBy")
 }
 
 model UserIdentity {
@@ -262,6 +276,8 @@ model Country {
   kycCases      KycCase[]
   vendors       Vendor[]
   riderProfiles RiderProfile[]
+  stores        Store[]
+  products      Product[]
 }
 
 model Region {
@@ -297,6 +313,7 @@ model City {
   status     AreaStatus    @default(DRAFT)
   district   District      @relation(fields: [districtId], references: [id])
   zones      ServiceZone[]
+  stores     Store[]
 
   @@unique([districtId, code])
 }
@@ -610,6 +627,8 @@ model Vendor {
   kycCase           KycCase?           @relation("VendorKycCase", fields: [kycCaseId], references: [id])
   activatedBy       User?              @relation("VendorActivatedBy", fields: [activatedByUserId], references: [id])
   memberships       VendorMembership[]
+  stores            Store[]
+  products          Product[]
 
   @@unique([ownerUserId, countryId])
   @@index([countryId, status])
@@ -650,4 +669,73 @@ model RiderProfile {
   activatedBy       User?            @relation("RiderActivatedBy", fields: [activatedByUserId], references: [id])
 
   @@index([countryId, status])
+}
+
+model Store {
+  id                String      @id @default(uuid()) @db.Uuid
+  vendorId          String      @db.Uuid
+  countryId         String      @db.Uuid
+  cityId            String      @db.Uuid
+  name              String      @db.VarChar(120)
+  slug              String      @db.VarChar(140)
+  addressLine       String      @db.VarChar(500)
+  status            StoreStatus @default(DRAFT)
+  activatedAt       DateTime?
+  activatedByUserId String?     @db.Uuid
+  suspendedAt       DateTime?
+  version           Int         @default(1)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  vendor            Vendor      @relation(fields: [vendorId], references: [id])
+  country           Country     @relation(fields: [countryId], references: [id])
+  city              City        @relation(fields: [cityId], references: [id])
+  activatedBy       User?       @relation("StoreActivatedBy", fields: [activatedByUserId], references: [id])
+  products          Product[]
+
+  @@unique([vendorId, slug])
+  @@index([countryId, status])
+  @@index([cityId, status])
+}
+
+model Product {
+  id              String           @id @default(uuid()) @db.Uuid
+  vendorId        String           @db.Uuid
+  storeId         String           @db.Uuid
+  countryId       String           @db.Uuid
+  title           String           @db.VarChar(200)
+  description     String           @db.VarChar(5000)
+  brand           String?          @db.VarChar(120)
+  status          ProductStatus    @default(DRAFT)
+  version         Int              @default(1)
+  createdByUserId String           @db.Uuid
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  vendor          Vendor           @relation(fields: [vendorId], references: [id])
+  store           Store            @relation(fields: [storeId], references: [id])
+  country         Country          @relation(fields: [countryId], references: [id])
+  createdBy       User             @relation("ProductCreatedBy", fields: [createdByUserId], references: [id])
+  variants        ProductVariant[]
+
+  @@index([storeId, status])
+  @@index([vendorId, status])
+  @@index([countryId, status])
+}
+
+model ProductVariant {
+  id                   String   @id @default(uuid()) @db.Uuid
+  productId            String   @db.Uuid
+  sku                  String   @db.VarChar(120)
+  optionValues         Json
+  priceAmountMinor     BigInt
+  compareAtAmountMinor BigInt?
+  currency             String   @db.VarChar(3)
+  weightGrams          Int?
+  active               Boolean  @default(true)
+  version              Int      @default(1)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  product              Product  @relation(fields: [productId], references: [id])
+
+  @@unique([productId, sku])
+  @@index([productId, active])
 }
