@@ -30,4 +30,8 @@ Status: **IN PROGRESS — worker/outbox/inbox slice implemented and integration-
 
 ## Local development
 
-Run Redis and PostgreSQL/PostGIS, apply migrations, then use `npm run dev:worker`. The worker uses `DATABASE_URL`, `REDIS_URL`, `WORKER_QUEUE`, `WORKER_CONCURRENCY`, `OUTBOX_POLL_MS`, `OUTBOX_BATCH_SIZE` and `OUTBOX_MAX_ATTEMPTS` from the ignored local `.env`.
+Run Redis and PostgreSQL/PostGIS, apply migrations, then use `npm run dev:worker`. The worker uses `DATABASE_URL`, `REDIS_URL`, `WORKER_QUEUE`, `WORKER_CONCURRENCY`, `OUTBOX_POLL_MS`, `OUTBOX_BATCH_SIZE`, `OUTBOX_MAX_ATTEMPTS` and `OUTBOX_LEASE_MS` from the ignored local `.env`.
+
+## 2026-11-02 hardening addendum
+
+The original claim/publish window was not crash/concurrency safe. Migration `0008_outbox_visibility_lease` adds a durable visibility lease and fencing token; stale workers can no longer finalize a row after lease expiry/reclaim. See `23-outbox-visibility-lease.md` for semantics, rollout boundary and the current local test evidence. Delivery remains at-least-once; domain handlers must still be idempotent.

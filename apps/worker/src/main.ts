@@ -12,7 +12,8 @@ const envSchema = z.object({
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
   OUTBOX_POLL_MS: z.coerce.number().int().min(50).max(60000).default(500),
   OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(100).default(20),
-  OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(10)
+  OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(10),
+  OUTBOX_LEASE_MS: z.coerce.number().int().min(1000).max(300000).default(30000)
 });
 const env = envSchema.parse(process.env);
 const log = new StructuredLogger();
@@ -35,8 +36,8 @@ let stopping = false;
 async function poll() {
   while (!stopping) {
     try {
-      const r = await publishOutboxBatch(pool, queue, { maxAttempts: env.OUTBOX_MAX_ATTEMPTS, batchSize: env.OUTBOX_BATCH_SIZE, queueName: env.WORKER_QUEUE });
-      if (r.claimed > 0) log.info('outbox_batch', r);
+      const r = await publishOutboxBatch(pool, queue, { maxAttempts: env.OUTBOX_MAX_ATTEMPTS, batchSize: env.OUTBOX_BATCH_SIZE, queueName: env.WORKER_QUEUE, leaseMs: env.OUTBOX_LEASE_MS });
+      if (r.claimed > 0) log.info('outbox_batch', { ...r });
     } catch (e) { log.error('outbox_poll_failed', { error: e instanceof Error ? e.message : 'unknown' }); }
     await new Promise(r => setTimeout(r, env.OUTBOX_POLL_MS));
   }

@@ -1,6 +1,6 @@
 # Development roadmap and acceptance gates
 
-**Status:** Phase 1 review package prepared; Phase 1 approval pending. Phases 2–11 not started. No application acceptance test has run because no application exists.
+**Status:** Phase 1 approved for development 2026-11-01. Phase 2 in progress with locally tested foundation slices; Phases 3–11 not started. This is not a running marketplace and not production readiness. Current evidence is tracked in `15-progress-and-decisions.md` and `17`–`23` implementation logs.
 
 ## Execution rules
 
@@ -8,8 +8,8 @@ Follow the master order. Security, schema constraints, audit, accessibility and 
 
 | Phase | Deliverables | Exit gate / evidence | Current status |
 |---|---|---|---|
-| 1 — Discovery & architecture | Source review; normalized master; architecture; logical ERD/dictionary; RBAC/geography; OpenAPI; threat model; finance/KYC/provider policies; roadmap/ADRs | Owner reviews critical decisions and unresolved gates; document/model/contract validation passes; no implementation implied | **Prepared — awaiting review** |
-| 2 — Foundation | Monorepo; pinned dependencies; design tokens; Docker/CI; PostgreSQL/PostGIS migrations; identity/session/MFA; RBAC/ABAC/RLS; audit/outbox; private storage interface | Migration/rollback and constraint tests; auth/linking/MFA/recovery tests; cross-scope negative tests; accessible shell; CI green | Not started |
+| 1 — Discovery & architecture | Source review; normalized master; architecture; logical ERD/dictionary; RBAC/geography; OpenAPI; threat model; finance/KYC/provider policies; roadmap/ADRs | Owner reviews critical decisions and unresolved gates; document/model/contract validation passes; no implementation implied | **Approved for development 2026-11-01** |
+| 2 — Foundation | Monorepo; pinned dependencies; design tokens; Docker/CI; PostgreSQL/PostGIS migrations; identity/session/MFA; RBAC/ABAC/RLS; audit/outbox; private storage interface | Migration/rollback and constraint tests; auth/linking/MFA/recovery tests; cross-scope negative tests; accessible shell; CI green | **In progress — local slices tested; production gates pending** |
 | 3 — Customer website | Approved homepage; locale; catalog/search/categories/products; cart/wishlist; recipient-first quote/checkout; account/orders/tracking/returns/support | Responsive visual comparison; real DB catalog; remote-order and stock/price tests; no unsupported claims; payment sandbox only when approved | Not started |
 | 4 — Vendor | Application/KYC; stores/staff; products/variants/images/stock; accept/reject/prep/manual ready; returns; commission/settlement views; plans | Vendor isolation; KYC/expiry gates; manual-ready test; multi-vendor split; settlement view reconciles; no cross-store leakage | Not started |
 | 5 — Rider | KYC/vehicle; shift/consent/location; zones; road-distance offers; 30-second expiry; atomic assignment; pickup/OTP; earnings/COD; Sunday payout interface | Concurrent/expired offer tests; route/rate snapshots; OTP limits; independent COD/earnings; payout reserve/idempotency; mobile/PWA limits documented | Not started |

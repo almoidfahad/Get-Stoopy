@@ -17,8 +17,8 @@ function envelope(eventKey: string) { return { schemaVersion: 1 as const, eventK
 describe('real outbox/inbox with PostgreSQL and Redis', () => {
   it('publishes an outbox row to BullMQ and marks it published', async () => {
     const eventKey = `evt-${randomUUID()}`; const env = envelope(eventKey);
-    await pool.query('INSERT INTO "OutboxEvent"(id,"aggregateType","aggregateId","eventKey","eventType",payload) VALUES ($1,$2,$3,$4,$5,$6::jsonb)', [randomUUID(), env.aggregateType, env.aggregateId, eventKey, env.eventType, JSON.stringify(env)]);
-    const r = await publishOutboxBatch(pool, queue, { maxAttempts: 5, batchSize: 10, queueName });
+    await pool.query('INSERT INTO "OutboxEvent"(id,"aggregateType","aggregateId","eventKey","eventType",payload,"occurredAt") VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)', [randomUUID(), env.aggregateType, env.aggregateId, eventKey, env.eventType, JSON.stringify(env), new Date(env.occurredAt)]);
+    const r = await publishOutboxBatch(pool, queue, { maxAttempts: 5, batchSize: 100, queueName });
     expect(r.published).toBeGreaterThanOrEqual(1);
     const job = await queue.getJob(eventKey); expect(job).toBeTruthy(); expect(job?.data.eventKey).toBe(eventKey);
     const row = await pool.query('SELECT "publishedAt" FROM "OutboxEvent" WHERE "eventKey"=$1', [eventKey]); expect(row.rows[0].publishedAt).toBeTruthy();
@@ -35,8 +35,8 @@ describe('real outbox/inbox with PostgreSQL and Redis', () => {
   });
   it('rejects envelope/row mismatch before publishing', async () => {
     const eventKey = `evt-${randomUUID()}`; const env = envelope(`other-${randomUUID()}`);
-    await pool.query('INSERT INTO "OutboxEvent"(id,"aggregateType","aggregateId","eventKey","eventType",payload) VALUES ($1,$2,$3,$4,$5,$6::jsonb)', [randomUUID(), env.aggregateType, env.aggregateId, eventKey, env.eventType, JSON.stringify(env)]);
-    const r = await publishOutboxBatch(pool, queue, { maxAttempts: 1, batchSize: 10, queueName }); expect(r.failed).toBeGreaterThanOrEqual(1);
+    await pool.query('INSERT INTO "OutboxEvent"(id,"aggregateType","aggregateId","eventKey","eventType",payload,"occurredAt") VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)', [randomUUID(), env.aggregateType, env.aggregateId, eventKey, env.eventType, JSON.stringify(env), new Date(env.occurredAt)]);
+    const r = await publishOutboxBatch(pool, queue, { maxAttempts: 1, batchSize: 100, queueName }); expect(r.failed).toBeGreaterThanOrEqual(1);
     const row = await pool.query('SELECT "failedAt","lastError" FROM "OutboxEvent" WHERE "eventKey"=$1', [eventKey]); expect(row.rows[0].failedAt).toBeTruthy(); expect(row.rows[0].lastError).toContain('OUTBOX_ENVELOPE_MISMATCH');
   });
 });

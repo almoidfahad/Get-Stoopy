@@ -5,6 +5,9 @@ export default defineConfig({
     environment: 'node',
     testTimeout: 30000,
     hookTimeout: 30000,
+    // Integration tests share one PostgreSQL/Redis fixture; run files serially
+    // so outbox/RLS tests cannot claim or mutate each other's pending rows.
+    fileParallelism: false,
     coverage: { enabled: false }
   }
 });

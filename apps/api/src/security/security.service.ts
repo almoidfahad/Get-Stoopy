@@ -139,7 +139,8 @@ export class SecurityService implements OnModuleDestroy {
       const revoked = await tx.session.updateMany({ where: { userId: targetUserId, state: 'ACTIVE' }, data: { state: 'REVOKED', revokedAt: new Date(), revokedReason: 'emergency_revocation' } });
       await tx.auditLog.create({ data: { actorId: ctx.userId, actorType: 'USER', sessionId: ctx.sessionId, action: 'security.emergency_revoke', resourceType: 'User', resourceId: targetUserId, scopeSnapshot: {}, reason, requestId: randomUUID() } });
       const eventKey = `emergency-revoke-${randomUUID()}`;
-      await tx.outboxEvent.create({ data: { aggregateType: 'User', aggregateId: targetUserId, eventKey, eventType: 'security.user.revoked', payload: { schemaVersion: 1, eventKey, eventType: 'security.user.revoked', occurredAt: new Date().toISOString(), aggregateType: 'User', aggregateId: targetUserId, data: { reason } } } });
+      const occurredAt = new Date();
+      await tx.outboxEvent.create({ data: { aggregateType: 'User', aggregateId: targetUserId, eventKey, eventType: 'security.user.revoked', occurredAt, payload: { schemaVersion: 1, eventKey, eventType: 'security.user.revoked', occurredAt: occurredAt.toISOString(), aggregateType: 'User', aggregateId: targetUserId, data: { reason } } } });
       return { revokedSessions: revoked.count, authorizationVersion: target.authorizationVersion + 1 };
     });
   }

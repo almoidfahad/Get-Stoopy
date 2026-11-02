@@ -1,6 +1,6 @@
 # Progress, decisions and review blockers
 
-Last updated: 2026-11-01.
+Last updated: 2026-11-02.
 
 ## Actual progress
 
@@ -12,6 +12,8 @@ Last updated: 2026-11-01.
 - Documentation artifacts pass 10/10 document/contract checks; see `16-validation-report.md`. No application tests have run.
 - **Phase-2 first foundation slice now exists:** TypeScript core/auth/config/observability packages, brand tokens, Prisma foundation schema/migration, Docker/CI templates and 58 passing unit tests. No running marketplace backend, live integration, paid resource or production deployment exists. See `17-phase2-foundation.md`.
 - **Phase 1 architecture approved by owner on 2026-11-01 for development only, including the proposed Keycloak identity model. Phase 2 started. Paid resources, live payment collection and production deployment remain unauthorized. Phases 3–11 not started.**
+- **2026-11-02 foundation audit:** executable schema has 23 Prisma models vs 113 logical design entities; commerce/finance/KYC/delivery domains are not implemented. Dependency-ordered plan recorded in `22-foundation-audit-and-plan.md`.
+- **2026-11-02 first hardening slice:** outbox visibility lease + stale-worker fencing implemented (`0008_outbox_visibility_lease`). Applied only to isolated local test DB. Local verification: 79 unit tests / 11 files PASS; 34 integration tests / 6 files PASS; typecheck and Prisma validation PASS. See `23-outbox-visibility-lease.md`.
 
 ## Decisions retained from the user
 
@@ -63,3 +65,4 @@ None of these blockers justifies fabricated credentials, payments, KYC results o
 | Date | Change | Validation boundary |
 |---|---|---|
 | 2026-11-01 | Initial source recovery and Phase-1 design package | Document/contract checks only; no application tests |
+| 2026-11-02 | Foundation audit + outbox visibility lease/fencing | Isolated test DB migration; unit/integration/typecheck/Prisma validation PASS; no production/existing-data migration |

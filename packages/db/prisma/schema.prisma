@@ -290,8 +290,11 @@ model OutboxEvent {
   availableAt   DateTime  @default(now())
   lastError     String?
   failedAt      DateTime?
+  leaseToken    String?   @db.Uuid
+  leaseUntil    DateTime?
   @@index([publishedAt, occurredAt])
   @@index([availableAt, occurredAt])
+  @@index([leaseUntil], map: "OutboxEvent_lease_idx")
 }
 
 model InboxReceipt {
