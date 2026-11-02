@@ -1,6 +1,6 @@
 # Development roadmap and acceptance gates
 
-**Status:** Phase 1 approved for development 2026-11-01. Phase 2 in progress with locally tested foundation slices; Phases 3–11 not started. This is not a running marketplace and not production readiness. Current evidence is tracked in `15-progress-and-decisions.md` and `17`–`26` implementation logs.
+**Status:** Phase 1 approved for development 2026-11-01. Phase 2 in progress with locally tested foundation slices; Phases 3–11 not started. This is not a running marketplace and not production readiness. Current evidence is tracked in `15-progress-and-decisions.md` and `17`–`27` implementation logs.
 
 ## Execution rules
 

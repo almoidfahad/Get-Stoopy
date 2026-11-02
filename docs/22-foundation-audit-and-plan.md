@@ -20,7 +20,7 @@ Inspected Git state, Prisma schema/migrations, API/auth/security/storage modules
 | Finance primitives | Pure money/balance helpers only | No persistent immutable ledger, settlement, payout or COD reconciliation |
 | State machines | Limited suborder transition helper only | Full order/payment/delivery/KYC/payout state machines pending |
 
-Executable Prisma schema has **23 models**. The Phase-1 logical design has **113 entities**. There are no executable order, vendor, product, payment, ledger, KYC review, rider or delivery models yet.
+At the original audit point, the executable Prisma schema had **23 models** against the Phase-1 logical design's **113 entities**. After the ledger and KYC foundation slices, the executable schema has **30 models**. There are still no executable order, vendor, product, payment, rider or delivery models; ledger persistence and user-level KYC case/review models now exist, but domain finance commands and vendor/rider/admin activation remain pending.
 
 ## Critical gaps found
 
@@ -51,5 +51,6 @@ Executable Prisma schema has **23 models**. The Phase-1 logical design has **113
 - Order item 2: migration `0009_inbox_dead_letter`, durable terminal inbox failure persistence, unrecoverable classification for invalid/unknown events, stable error codes and worker integration tests. See `24-inbox-dead-letter.md`. Operator replay/resolve API/UI remains pending.
 - Order item 3: migration `0010_storage_review`, magic-byte validation, KYC quarantine, privileged step-up review, self-review denial, review-download tokens and database trigger guards. See `25-storage-quarantine-review.md`. Production AV/KMS/object store and full KYC case management remain pending.
 - Order item 4: migration `0011_ledger_primitives`, immutable balanced journal persistence, business-event idempotency, currency checks, append-only triggers and privileged-only ledger grants. See `26-ledger-primitives.md`. Domain payment/COD/earnings/settlement/payout commands remain pending.
+- Order item 5: migrations `0012_kyc_case_foundation` and `0013_kyc_approval_hardening`, user-level KYC case/document/review persistence, explicit state machine, scoped step-up review, self-review denial, idempotent decisions, expiry-aware eligibility helper, append-only/RLS/storage guards, audit and outbox. See `27-kyc-case-foundation.md`. Vendor/rider/admin profiles, activation gates, checklist policy engine, delegated local scope and retention automation remain pending.
 
-No commerce, finance, KYC or delivery domain model was added in these slices. No production deployment, live payment, paid resource or existing-data migration was performed.
+No commerce or delivery domain model was added in these slices. Ledger persistence primitives and a user-level KYC case/review foundation were added; domain payment/COD/earnings/settlement/payout commands and vendor/rider/admin activation are still pending. No production deployment, live payment, paid resource or existing-data migration was performed.

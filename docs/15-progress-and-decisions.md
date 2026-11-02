@@ -17,6 +17,7 @@ Last updated: 2026-11-02.
 - **2026-11-02 second hardening slice:** terminal inbox dead-letter persistence implemented (`0009_inbox_dead_letter`). Applied only to isolated local test DB. Local verification: 82 unit tests / 12 files PASS; 38 integration tests / 7 files PASS; typecheck and Prisma validation PASS. See `24-inbox-dead-letter.md`.
 - **2026-11-02 third hardening slice:** storage magic-byte validation + KYC quarantine/review implemented (`0010_storage_review`). Applied only to isolated local test DB. Local verification: 84 unit tests / 13 files PASS; 39 integration tests / 7 files PASS; typecheck and Prisma validation PASS. See `25-storage-quarantine-review.md`.
 - **2026-11-02 fourth hardening slice:** immutable double-entry ledger persistence primitives implemented (`0011_ledger_primitives`). Applied only to isolated local test DB. Local verification: 88 unit tests / 14 files PASS; 45 integration tests / 8 files PASS; typecheck and Prisma validation PASS. See `26-ledger-primitives.md`.
+- **2026-11-02 fifth hardening slice:** KYC case foundation and review state machine implemented (`0012_kyc_case_foundation`, `0013_kyc_approval_hardening`). Applied only to isolated local test DB. Local verification: 92 unit tests / 15 files PASS; 52 integration tests / 9 files PASS; typecheck, Prisma validation, API/worker builds and design-artifact validation PASS. See `27-kyc-case-foundation.md`.
 
 ## Decisions retained from the user
 
@@ -72,3 +73,4 @@ None of these blockers justifies fabricated credentials, payments, KYC results o
 | 2026-11-02 | Terminal inbox dead-letter hardening | Isolated test DB migration; unit/integration/typecheck/Prisma validation PASS; operator replay/resolve still pending |
 | 2026-11-02 | Storage magic-byte validation + KYC quarantine/review | Isolated test DB migration; unit/integration/typecheck/Prisma validation PASS; production AV/KMS/object store still pending |
 | 2026-11-02 | Immutable double-entry ledger primitives | Isolated test DB migration; unit/integration/typecheck/Prisma validation PASS; domain finance commands still pending |
+| 2026-11-02 | KYC case foundation + review state machine | Isolated test DB migrations; unit/integration/typecheck/build/doc validation PASS; vendor/rider/admin activation and checklist policy still pending |

@@ -68,6 +68,6 @@ Integration tests cover:
 ## Still pending
 
 - Production S3-compatible object store, KMS key rotation, malware scanning and quarantine bucket isolation.
-- Full KYC case/reviewer queue, expiry/renewal, retention/legal hold and appeal workflow.
+- Full KYC checklist policy, vendor/rider/admin activation, expiry/renewal automation, retention/legal hold and appeal workflow. A user-level KYC case/review foundation now exists in `27-kyc-case-foundation.md`.
 - Geographic scope for reviewer queues and sensitive-read/export audit at scale.
 - Product image moderation and public CDN policy.

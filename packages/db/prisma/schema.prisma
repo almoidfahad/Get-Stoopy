@@ -73,6 +73,30 @@ enum LedgerSide {
   CREDIT
 }
 
+enum KycSubjectType {
+  VENDOR
+  RIDER
+  ADMIN
+}
+
+enum KycCaseStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  MORE_INFORMATION
+  APPROVED
+  REJECTED
+  REVOKED
+}
+
+enum KycDecision {
+  START_REVIEW
+  APPROVE
+  REJECT
+  REQUEST_MORE_INFORMATION
+  REVOKE
+}
+
 enum IdempotencyState {
   IN_PROGRESS
   COMPLETED
@@ -101,6 +125,9 @@ model User {
   reviewedStorageObjects StorageObject[] @relation("StorageObjectReviewedBy")
   ledgerAccounts         LedgerAccount[]
   ledgerJournals         LedgerJournal[]
+  kycCases               KycCase[]       @relation("KycCaseSubject")
+  kycReviews             KycReview[]     @relation("KycReviewReviewer")
+  kycDocumentsLinked     KycDocument[]   @relation("KycDocumentLinkedBy")
 }
 
 model UserIdentity {
@@ -208,6 +235,7 @@ model Country {
   timezone     String
   status       AreaStatus @default(DRAFT)
   regions      Region[]
+  kycCases     KycCase[]
 }
 
 model Region {
@@ -425,6 +453,7 @@ model StorageObject {
   updatedAt        DateTime           @updatedAt
   owner            User               @relation(fields: [ownerUserId], references: [id])
   reviewedBy       User?              @relation("StorageObjectReviewedBy", fields: [reviewedByUserId], references: [id])
+  kycDocument      KycDocument?
 
   @@index([ownerUserId, purpose, state])
   @@index([state, createdAt])
@@ -473,4 +502,63 @@ model LedgerLine {
 
   @@unique([journalId, lineNo])
   @@index([accountId])
+}
+
+model KycCase {
+  id             String         @id @default(uuid()) @db.Uuid
+  subjectUserId  String         @db.Uuid
+  subjectType    KycSubjectType
+  countryId      String         @db.Uuid
+  status         KycCaseStatus  @default(DRAFT)
+  policyVersion  String         @db.VarChar(64)
+  consentVersion String         @db.VarChar(64)
+  consentedAt    DateTime
+  version        Int            @default(1)
+  submittedAt    DateTime?
+  reviewedAt     DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  subject        User           @relation("KycCaseSubject", fields: [subjectUserId], references: [id])
+  country        Country        @relation(fields: [countryId], references: [id])
+  documents      KycDocument[]
+  reviews        KycReview[]
+
+  @@index([subjectUserId, subjectType, status])
+  @@index([countryId, status, createdAt])
+}
+
+model KycDocument {
+  id              String        @id @default(uuid()) @db.Uuid
+  caseId          String        @db.Uuid
+  storageObjectId String        @unique @db.Uuid
+  documentType    String        @db.VarChar(64)
+  contentHash     String        @db.VarChar(64)
+  expiresAt       DateTime?
+  linkedByUserId  String        @db.Uuid
+  createdAt       DateTime      @default(now())
+  case            KycCase       @relation(fields: [caseId], references: [id])
+  storageObject   StorageObject @relation(fields: [storageObjectId], references: [id])
+  linkedBy        User          @relation("KycDocumentLinkedBy", fields: [linkedByUserId], references: [id])
+
+  @@index([caseId])
+}
+
+model KycReview {
+  id                 String        @id @default(uuid()) @db.Uuid
+  caseId             String        @db.Uuid
+  reviewerUserId     String        @db.Uuid
+  commandKey         String        @db.VarChar(128)
+  payloadHash        String        @db.VarChar(64)
+  decision           KycDecision
+  fromStatus         KycCaseStatus
+  toStatus           KycCaseStatus
+  reason             String        @db.VarChar(512)
+  verificationMethod String        @default("MANUAL_DOCUMENT_REVIEW") @db.VarChar(64)
+  occurredAt         DateTime      @default(now())
+  case               KycCase       @relation(fields: [caseId], references: [id])
+  reviewer           User          @relation("KycReviewReviewer", fields: [reviewerUserId], references: [id])
+
+  @@unique([caseId, commandKey])
+  @@index([caseId, occurredAt])
 }
