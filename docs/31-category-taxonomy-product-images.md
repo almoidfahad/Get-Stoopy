@@ -4,9 +4,10 @@ Date: 2026-11-02. Scope: step 7c after product moderation/publication and public
 
 ## Executable schema additions
 
-Migration:
+Migrations:
 
 - `0018_category_taxonomy_product_images`
+- `0019_catalog_content_immutability`
 
 New models:
 
@@ -21,6 +22,8 @@ New enums:
 - `ProductImageStatus`: `PENDING_REVIEW`, `APPROVED`, `REJECTED`
 
 `Product` gains optional `categoryId`. Existing products are not rewritten. The executable Prisma schema now has **38 models** against the Phase-1 logical design's 113 entities.
+
+Migration `0019` adds content-immutability guards so lifecycle/moderation/review commands cannot smuggle product title/description/brand, category name/description/sort order, or image alt text/sort order edits through privileged transitions.
 
 ## Storage behavior
 
@@ -108,7 +111,7 @@ Audit/outbox events include:
 Executed against isolated `getstoopy_foundation_test` only:
 
 - Prisma generate/validate: PASS
-- Migration `0018`: applied successfully to isolated test DB
+- Migrations `0018` and `0019`: applied successfully to isolated test DB
 - Grants re-applied: PASS
 - Unit tests: **104 tests / 18 files PASS**
 - Integration tests: **70 tests / 13 files PASS**
@@ -126,7 +129,7 @@ New integration coverage in `tests/integration/catalog-taxonomy-media.test.ts` v
 - pending-image submission gate,
 - approved image serving only for eligible published products,
 - invalid upload type/size and non-product storage attachment denial,
-- database write guards and runtime write denial,
+- database write guards, content-immutability guards and runtime write denial,
 - fail-closed public product/image reads after category suspension.
 
 ## Known limitations / next gates

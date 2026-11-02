@@ -168,6 +168,7 @@ describe('category taxonomy and product image foundation', () => {
     expect(publicAfter.body.some((c: any) => c.id === childCategoryId)).toBe(true);
     await expect(asUser(u.runtime, owner.userId, c => c.query(`UPDATE "Category" SET status='SUSPENDED', version=2 WHERE id=$1`, [rootCategoryId]))).rejects.toThrow(/permission denied/);
     await expect(asSuper(u.privileged, c => c.query(`UPDATE "Category" SET status='DRAFT', version=3 WHERE id=$1`, [rootCategoryId]))).rejects.toThrow(/category_invalid_transition/);
+    await expect(asSuper(u.privileged, c => c.query(`UPDATE "Category" SET name='Smuggled rename', status='SUSPENDED', version=3 WHERE id=$1`, [rootCategoryId]))).rejects.toThrow(/category_content_immutable/);
   });
 
   it('quarantines product images, requires independent review, and only serves approved bytes for eligible published products', async () => {
@@ -220,6 +221,8 @@ describe('category taxonomy and product image foundation', () => {
     const attached = await post(`/api/v1/catalog/products/${productId}/images`, owner, { storageObjectId: objectId, altText: 'Valid product image', sortOrder: 0 }).expect(201);
     await expect(asUser(u.runtime, owner.userId, c => c.query(`UPDATE "ProductImage" SET state='APPROVED', version=2 WHERE id=$1`, [attached.body.imageId]))).rejects.toThrow(/permission denied/);
     await expect(asSuper(u.privileged, c => c.query(`UPDATE "ProductImage" SET state='APPROVED', version=2, "reviewedAt"=now(), "reviewedByUserId"=$2, "reviewReason"='direct approval attempt' WHERE id=$1`, [attached.body.imageId, mediaReviewer.userId]))).rejects.toThrow(/product_image_storage_not_approved/);
+    await expect(asSuper(u.privileged, c => c.query(`UPDATE "ProductImage" SET "altText"='Smuggled alt text', state='REJECTED', version=2, "reviewedAt"=now(), "reviewedByUserId"=$2, "reviewReason"='direct rejection attempt' WHERE id=$1`, [attached.body.imageId, mediaReviewer.userId]))).rejects.toThrow(/product_image_content_immutable/);
+    await expect(asSuper(u.privileged, c => c.query(`UPDATE "Product" SET title='Smuggled title', status='ARCHIVED', version=2 WHERE id=$1`, [productId]))).rejects.toThrow(/product_content_immutable/);
     const rejected = await post(`/api/v1/catalog/admin/product-images/${attached.body.imageId}/review`, mediaReviewer, { version: 1, decision: 'REJECT', reason: 'image does not match policy' }).expect(201);
     expect(rejected.body.state).toBe('REJECTED');
     await post(`/api/v1/catalog/products/${productId}/submit`, owner, { version: 1 }).expect(201);

@@ -109,5 +109,8 @@ GRANT EXECUTE ON FUNCTION gs_category_insert_guard() TO gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_category_update_guard() TO gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_product_image_insert_guard() TO gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_product_image_update_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_product_content_immutable() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_category_content_immutable() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_product_image_content_immutable() TO gs_privileged;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO gs_runtime, gs_privileged;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT INSERT, UPDATE ON TABLES TO gs_privileged;
