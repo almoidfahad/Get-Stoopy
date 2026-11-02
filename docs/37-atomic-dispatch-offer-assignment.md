@@ -29,6 +29,7 @@ Applied only to isolated local test DB `getstoopy_foundation_test`:
 | `0029_atomic_dispatch_foundation` | Destination snapshot, dispatch run/offer/assignment/event tables, PostGIS points/GiST, guards, RLS, candidate/eligibility helpers and DB-time expiry function. |
 | `0030_dispatch_expiry_lock_order` | Additive `CREATE OR REPLACE FUNCTION` so expiry locks run before offer, matching acceptance lock order. |
 | `0035_dispatch_clock_precision` | Replace the DB clock helper with a VOLATILE millisecond-truncated value matching `timestamp(3)` storage; the offer insert uses one LATERAL clock value for both TTL endpoints. |
+| `0036_dispatch_geometry_operator` | Replace unqualified geometry inequality in the dispatch run guard with schema-qualified PostGIS equality (`OPERATOR(public.=)`), compatible with PostGIS 3.4/3.5; snapshot mismatch and immutability rules are unchanged. |
 
 New models:
 
@@ -101,8 +102,9 @@ Dispatch integration covers:
 3. DB-time expiry, escalation, next offer, reject and append-only history.
 4. `tests/integration/dispatch-clock.test.ts`: 1,000 clock samples round-trip through `timestamp(3)` without drift, and 1,000 stored TTL pairs remain exactly 30 seconds.
 5. Concurrent acceptance asserts one winner and a `RIDER_NOT_ELIGIBLE` loser, then replays the actual winner idempotently; lock scheduling may select either offer.
+6. `tests/integration/dispatch-geometry.test.ts`: point comparison remains unambiguous when `public` is absent from `search_path`, and the dispatch guard uses explicit PostGIS equality for pickup/destination snapshots.
 
-Final Node 26.13.0 / npm 10.8.2 verification after the clock correction: **136 unit tests / 26 files PASS**, **100 integration tests / 20 files PASS**, typecheck and Prisma validation PASS. Migration 0035 was applied only to the isolated local test database; no development or production database was migrated.
+Final Node 26.13.0 / npm 10.8.2 verification after the clock and PostGIS-operator corrections: **136 unit tests / 26 files PASS**, **102 integration tests / 21 files PASS**, typecheck and Prisma validation PASS. Migrations 0035/0036 were applied only to the isolated local test database; no development or production database was migrated. GitHub CI uses PostGIS 3.4; local verification uses PostGIS 3.5, and the regression test covers the operator-resolution difference.
 
 ## 7. Explicit limitations
 
