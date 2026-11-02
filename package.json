@@ -4,7 +4,7 @@
   "version": "0.2.0-foundation",
   "description": "Get Stoopy marketplace \u2014 approved modular-monolith foundation",
   "engines": {
-    "node": ">=20.19 <21",
+    "node": "26.x",
     "npm": ">=10 <11"
   },
   "workspaces": [

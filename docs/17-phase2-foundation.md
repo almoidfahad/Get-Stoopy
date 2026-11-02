@@ -4,7 +4,7 @@ Status: **IN PROGRESS — first foundation slice implemented and unit-tested.** 
 
 ## Implemented in this slice
 
-- npm workspace monorepo with pinned Node 20 / npm 10 engines and lockfile.
+- npm workspace monorepo with pinned runtime engines and lockfile. Initially Node 20; the current requirement is **Node `26.x` / npm 10**, verified locally and in both CI jobs with Node **26.13.0** / npm **10.8.2** (2026-11-02).
 - `@getstoopy/core`: deny-by-default permission checks, geographic scope containment, owner/vendor/rider paths, MFA/step-up requirements, self-scope-grant denial, scope expiry/revocation, integer minor-unit money, pro-rata allocation, balanced-journal checks, commission rounding, distance-slab validation/pricing, 30-second offer expiry helpers and manual-ready state guard.
 - `@getstoopy/auth`: opaque token generation/hashing, constant-time comparison, idle/absolute session expiry, revocation check, Secure/HttpOnly/SameSite cookie options, production `__Host-` cookie naming, PKCE S256 helpers and exact redirect allowlist.
 - `@getstoopy/config`: validated environment schema; live payment/QR/payout/AI flags default false; cross-border enablement rejected; production HTTP and non-host cookie rejected.
@@ -12,7 +12,7 @@ Status: **IN PROGRESS — first foundation slice implemented and unit-tested.** 
 - `@getstoopy/ui`: centralized Get Stoopy red/white/black brand tokens, CSS variables, focus and reduced-motion helpers. Exact original vector asset and final visual comparison remain pending.
 - `@getstoopy/db`: Prisma foundation schema and generated initial migration plus PostGIS/RLS/append-only additions. Covers identity, sessions, roles/permissions, admin scopes, administrative geography, boundary versions, audit, outbox/inbox, idempotency and feature flags. Full commerce/finance/KYC tables remain later Phase-2/3–7 work.
 - Local Docker Compose template: PostGIS, Redis, Keycloak, MinIO, Mailpit; Keycloak realm import template; local-only ports; no paid cloud resource.
-- GitHub Actions CI template: install, typecheck, unit tests, Prisma validation and design-artifact validation.
+- GitHub Actions CI: install, Prisma Client generation, typecheck, unit tests, Prisma validation and design-artifact validation. The separate integration job generates Prisma Client, applies migrations/grants and runs `build:packages` before `test:integration`. Generation uses a non-secret placeholder URL in the validate job and does not connect to a database.
 
 ## Verification actually run
 

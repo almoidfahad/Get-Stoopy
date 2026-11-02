@@ -28,6 +28,7 @@ Applied only to isolated local test DB `getstoopy_foundation_test`:
 |---|---|
 | `0029_atomic_dispatch_foundation` | Destination snapshot, dispatch run/offer/assignment/event tables, PostGIS points/GiST, guards, RLS, candidate/eligibility helpers and DB-time expiry function. |
 | `0030_dispatch_expiry_lock_order` | Additive `CREATE OR REPLACE FUNCTION` so expiry locks run before offer, matching acceptance lock order. |
+| `0035_dispatch_clock_precision` | Replace the DB clock helper with a VOLATILE millisecond-truncated value matching `timestamp(3)` storage; the offer insert uses one LATERAL clock value for both TTL endpoints. |
 
 New models:
 
@@ -41,7 +42,7 @@ Important database invariants:
 
 - Destination is immutable once set; point must be covered by an approved effective zone boundary.
 - Dispatch run requires `READY_FOR_PICKUP`, verified/COD payment, serviceable store, approved destination service area and exactly one approved pickup zone in the store city.
-- Offer TTL is exactly 30 seconds; one open offer and one accepted offer per run.
+- Offer TTL is exactly 30 seconds; one open offer and one accepted offer per run. `gs_dispatch_now()` truncates to milliseconds to match stored `timestamp(3)` values; microsecond rounding must not shorten the TTL to 29.999982 seconds. Both endpoints derive from the same DB instant, not the API process clock. Authorization and expiry guards are unchanged.
 - Assignment requires an accepted, unexpired offer and copies the road-route snapshot.
 - One active assignment per rider and per suborder (partial unique indexes).
 - Dispatch events are append-only.
@@ -98,6 +99,10 @@ Dispatch integration covers:
 1. Destination boundary validation, ready-suborder gating, road-route-backed offer, token/auth isolation, atomic acceptance and immutable assignment.
 2. Concurrent acceptance across two offers: exactly one active assignment; idempotent replay.
 3. DB-time expiry, escalation, next offer, reject and append-only history.
+4. `tests/integration/dispatch-clock.test.ts`: 1,000 clock samples round-trip through `timestamp(3)` without drift, and 1,000 stored TTL pairs remain exactly 30 seconds.
+5. Concurrent acceptance asserts one winner and a `RIDER_NOT_ELIGIBLE` loser, then replays the actual winner idempotently; lock scheduling may select either offer.
+
+Final Node 26.13.0 / npm 10.8.2 verification after the clock correction: **136 unit tests / 26 files PASS**, **100 integration tests / 20 files PASS**, typecheck and Prisma validation PASS. Migration 0035 was applied only to the isolated local test database; no development or production database was migrated.
 
 ## 7. Explicit limitations
 

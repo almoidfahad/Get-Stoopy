@@ -200,13 +200,21 @@ describe('atomic dispatch foundation', () => {
     const offers = await get('/api/v1/riders/me/dispatch-offers', riderB).expect(200);
     const token1 = offers.body.items.find((o: any) => o.offerId === offer1.body.offerId).offerToken;
     const token2 = offers.body.items.find((o: any) => o.offerId === offer2.body.offerId).offerToken;
-    const acceptKey = `accept-${randomUUID().slice(0, 8)}`;
+    const acceptKey1 = `accept-${randomUUID().slice(0, 8)}`;
+    const acceptKey2 = `accept-${randomUUID().slice(0, 8)}`;
     const [a, b] = await Promise.all([
-      post(`/api/v1/riders/me/dispatch-offers/${offer1.body.offerId}/accept`, riderB, { offerToken: token1, commandKey: acceptKey }),
-      post(`/api/v1/riders/me/dispatch-offers/${offer2.body.offerId}/accept`, riderB, { offerToken: token2, commandKey: `accept-${randomUUID().slice(0, 8)}` })
+      post(`/api/v1/riders/me/dispatch-offers/${offer1.body.offerId}/accept`, riderB, { offerToken: token1, commandKey: acceptKey1 }),
+      post(`/api/v1/riders/me/dispatch-offers/${offer2.body.offerId}/accept`, riderB, { offerToken: token2, commandKey: acceptKey2 })
     ]);
     expect([a.status, b.status].sort()).toEqual([201, 409]);
-    const replay = await post(`/api/v1/riders/me/dispatch-offers/${offer1.body.offerId}/accept`, riderB, { offerToken: token1, commandKey: acceptKey }).expect(201);
+    // Lock scheduling decides which offer wins. Replay that winner, never assume offer1 wins.
+    const winner = a.status === 201
+      ? { response: a, offer: offer1, token: token1, commandKey: acceptKey1 }
+      : { response: b, offer: offer2, token: token2, commandKey: acceptKey2 };
+    const loser = a.status === 201 ? b : a;
+    expect(winner.response.body.assignmentId).toBeTruthy();
+    expect(loser.body.code).toBe('RIDER_NOT_ELIGIBLE');
+    const replay = await post(`/api/v1/riders/me/dispatch-offers/${winner.offer.body.offerId}/accept`, riderB, { offerToken: winner.token, commandKey: winner.commandKey }).expect(201);
     expect(replay.body.duplicate).toBe(true);
     const active = await asSuper(u.privileged, async c => c.query(`SELECT count(*)::int AS n FROM "RiderAssignment" WHERE "riderId"=$1 AND status='ACTIVE'`, [riderBId]));
     expect(active.rows[0].n).toBe(1);
