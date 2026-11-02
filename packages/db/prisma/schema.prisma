@@ -140,6 +140,33 @@ enum RiderShiftStatus {
   ENDED
 }
 
+enum DispatchRunStatus {
+  SEARCHING
+  OFFERING
+  ASSIGNED
+  MANUAL_REVIEW
+}
+
+enum DispatchOfferStatus {
+  OFFERED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum RiderAssignmentStatus {
+  ACTIVE
+  RELEASED
+  COMPLETED
+}
+
+enum RoadRoutingMode {
+  DISABLED
+  TEST_ONLY
+  GOOGLE_ROUTES
+}
+
 enum ProductStatus {
   DRAFT
   PUBLISHED
@@ -241,6 +268,9 @@ model User {
   storeServiceAreasProposed StoreServiceArea[]          @relation("StoreServiceAreaProposedBy")
   storeServiceAreasReviewed StoreServiceArea[]          @relation("StoreServiceAreaReviewedBy")
   riderZoneGrantsGranted    RiderZoneGrant[]            @relation("RiderZoneGrantGrantedBy")
+  deliveryDestinationsSet   OrderDeliveryDestination[]  @relation("DeliveryDestinationSetBy")
+  dispatchRunsCreated       DispatchRun[]               @relation("DispatchRunCreatedBy")
+  dispatchEvents            DispatchEvent[]             @relation("DispatchEventActor")
 }
 
 model UserIdentity {
@@ -340,26 +370,29 @@ model Session {
 }
 
 model Country {
-  id             String          @id @default(uuid()) @db.Uuid
-  iso2           String          @unique
-  name           String
-  currencyCode   String
-  callingCode    String
-  timezone       String
-  status         AreaStatus      @default(DRAFT)
-  regions        Region[]
-  kycCases       KycCase[]
-  vendors        Vendor[]
-  riderProfiles  RiderProfile[]
-  stores         Store[]
-  products       Product[]
-  categories     Category[]
-  productImages  ProductImage[]
-  inventories    Inventory[]
-  carts          Cart[]
-  checkoutQuotes CheckoutQuote[]
-  orders         Order[]
-  codPolicies    CodPolicy[]
+  id                   String                     @id @default(uuid()) @db.Uuid
+  iso2                 String                     @unique
+  name                 String
+  currencyCode         String
+  callingCode          String
+  timezone             String
+  status               AreaStatus                 @default(DRAFT)
+  regions              Region[]
+  kycCases             KycCase[]
+  vendors              Vendor[]
+  riderProfiles        RiderProfile[]
+  stores               Store[]
+  products             Product[]
+  categories           Category[]
+  productImages        ProductImage[]
+  inventories          Inventory[]
+  carts                Cart[]
+  checkoutQuotes       CheckoutQuote[]
+  orders               Order[]
+  codPolicies          CodPolicy[]
+  deliveryDestinations OrderDeliveryDestination[]
+  dispatchRuns         DispatchRun[]
+  riderAssignments     RiderAssignment[]
 }
 
 model Region {
@@ -387,32 +420,36 @@ model District {
 }
 
 model City {
-  id             String          @id @default(uuid()) @db.Uuid
-  districtId     String          @db.Uuid
-  code           String
-  name           String
-  kind           String
-  status         AreaStatus      @default(DRAFT)
-  district       District        @relation(fields: [districtId], references: [id])
-  zones          ServiceZone[]
-  stores         Store[]
-  checkoutQuotes CheckoutQuote[] @relation("CheckoutQuoteDestinationCity")
-  orders         Order[]         @relation("OrderDestinationCity")
+  id                   String                     @id @default(uuid()) @db.Uuid
+  districtId           String                     @db.Uuid
+  code                 String
+  name                 String
+  kind                 String
+  status               AreaStatus                 @default(DRAFT)
+  district             District                   @relation(fields: [districtId], references: [id])
+  zones                ServiceZone[]
+  stores               Store[]
+  checkoutQuotes       CheckoutQuote[]            @relation("CheckoutQuoteDestinationCity")
+  orders               Order[]                    @relation("OrderDestinationCity")
+  deliveryDestinations OrderDeliveryDestination[] @relation("DeliveryDestinationCity")
 
   @@unique([districtId, code])
 }
 
 model ServiceZone {
-  id                String             @id @default(uuid()) @db.Uuid
-  cityId            String             @db.Uuid
-  code              String
-  name              String
-  status            AreaStatus         @default(DRAFT)
-  priority          Int                @default(0)
-  city              City               @relation(fields: [cityId], references: [id])
-  neighborhoods     Neighborhood[]
-  storeServiceAreas StoreServiceArea[]
-  riderZoneGrants   RiderZoneGrant[]
+  id                      String                     @id @default(uuid()) @db.Uuid
+  cityId                  String                     @db.Uuid
+  code                    String
+  name                    String
+  status                  AreaStatus                 @default(DRAFT)
+  priority                Int                        @default(0)
+  city                    City                       @relation(fields: [cityId], references: [id])
+  neighborhoods           Neighborhood[]
+  storeServiceAreas       StoreServiceArea[]
+  riderZoneGrants         RiderZoneGrant[]
+  deliveryDestinations    OrderDeliveryDestination[]
+  pickupDispatchRuns      DispatchRun[]              @relation("DispatchPickupZone")
+  destinationDispatchRuns DispatchRun[]              @relation("DispatchDestinationZone")
 
   @@unique([cityId, code])
 }
@@ -438,6 +475,8 @@ model BoundaryVersion {
   approvedBy  String?                                    @db.Uuid
   contentHash String
   createdAt   DateTime                                   @default(now())
+
+  deliveryDestinations OrderDeliveryDestination[]
 
   @@unique([ownerType, ownerId, version])
 }
@@ -506,6 +545,8 @@ model RiderShift {
   updatedAt       DateTime              @updatedAt
   rider           RiderProfile          @relation(fields: [riderId], references: [id])
   locationSamples RiderLocationSample[]
+  dispatchOffers  DispatchOffer[]
+  assignments     RiderAssignment[]
 
   @@index([riderId, status])
 }
@@ -529,26 +570,179 @@ model RiderLocationSample {
   receivedAt     DateTime                            @default(now())
   rider          RiderProfile                        @relation(fields: [riderId], references: [id])
   shift          RiderShift                          @relation(fields: [shiftId], references: [id])
+  dispatchOffers DispatchOffer[]
+  assignments    RiderAssignment[]
 
   @@index([riderId, receivedAt])
   @@index([shiftId, receivedAt])
 }
 
 model RiderZoneGrant {
-  id            String       @id @default(uuid()) @db.Uuid
-  riderId       String       @db.Uuid
-  serviceZoneId String       @db.Uuid
-  grantedBy     String       @db.Uuid
-  reason        String       @db.VarChar(512)
-  expiresAt     DateTime?
-  revokedAt     DateTime?
-  createdAt     DateTime     @default(now())
-  rider         RiderProfile @relation(fields: [riderId], references: [id])
-  serviceZone   ServiceZone  @relation(fields: [serviceZoneId], references: [id])
-  grantor       User         @relation("RiderZoneGrantGrantedBy", fields: [grantedBy], references: [id])
+  id                     String          @id @default(uuid()) @db.Uuid
+  riderId                String          @db.Uuid
+  serviceZoneId          String          @db.Uuid
+  grantedBy              String          @db.Uuid
+  reason                 String          @db.VarChar(512)
+  expiresAt              DateTime?
+  revokedAt              DateTime?
+  createdAt              DateTime        @default(now())
+  rider                  RiderProfile    @relation(fields: [riderId], references: [id])
+  serviceZone            ServiceZone     @relation(fields: [serviceZoneId], references: [id])
+  grantor                User            @relation("RiderZoneGrantGrantedBy", fields: [grantedBy], references: [id])
+  pickupOfferGrants      DispatchOffer[] @relation("DispatchOfferPickupGrant")
+  destinationOfferGrants DispatchOffer[] @relation("DispatchOfferDestinationGrant")
 
   @@index([riderId, revokedAt])
   @@index([serviceZoneId, revokedAt])
+}
+
+model OrderDeliveryDestination {
+  id                String                              @id @default(uuid()) @db.Uuid
+  orderId           String                              @unique @db.Uuid
+  countryId         String                              @db.Uuid
+  cityId            String                              @db.Uuid
+  serviceZoneId     String                              @db.Uuid
+  boundaryVersionId String                              @db.Uuid
+  destinationPoint  Unsupported("geometry(Point,4326)")
+  addressLine       String                              @db.VarChar(500)
+  commandKey        String                              @db.VarChar(128)
+  payloadHash       String                              @db.VarChar(64)
+  setByUserId       String                              @db.Uuid
+  createdAt         DateTime                            @default(now())
+  order             Order                               @relation(fields: [orderId], references: [id])
+  country           Country                             @relation(fields: [countryId], references: [id])
+  city              City                                @relation("DeliveryDestinationCity", fields: [cityId], references: [id])
+  serviceZone       ServiceZone                         @relation(fields: [serviceZoneId], references: [id])
+  boundaryVersion   BoundaryVersion                     @relation(fields: [boundaryVersionId], references: [id])
+  setBy             User                                @relation("DeliveryDestinationSetBy", fields: [setByUserId], references: [id])
+  dispatchRuns      DispatchRun[]
+
+  @@index([serviceZoneId])
+}
+
+model DispatchRun {
+  id                String                              @id @default(uuid()) @db.Uuid
+  suborderId        String                              @unique @db.Uuid
+  countryId         String                              @db.Uuid
+  storeId           String                              @db.Uuid
+  destinationId     String                              @db.Uuid
+  pickupZoneId      String                              @db.Uuid
+  destinationZoneId String                              @db.Uuid
+  pickupPoint       Unsupported("geometry(Point,4326)")
+  destinationPoint  Unsupported("geometry(Point,4326)")
+  status            DispatchRunStatus                   @default(SEARCHING)
+  version           Int                                 @default(1)
+  attemptCount      Int                                 @default(0)
+  maxAttempts       Int                                 @default(5)
+  commandKey        String                              @db.VarChar(128)
+  payloadHash       String                              @db.VarChar(64)
+  createdByUserId   String                              @db.Uuid
+  createdAt         DateTime                            @default(now())
+  updatedAt         DateTime                            @updatedAt
+  suborder          VendorSuborder                      @relation(fields: [suborderId], references: [id])
+  country           Country                             @relation(fields: [countryId], references: [id])
+  store             Store                               @relation(fields: [storeId], references: [id])
+  destination       OrderDeliveryDestination            @relation(fields: [destinationId], references: [id])
+  pickupZone        ServiceZone                         @relation("DispatchPickupZone", fields: [pickupZoneId], references: [id])
+  destinationZone   ServiceZone                         @relation("DispatchDestinationZone", fields: [destinationZoneId], references: [id])
+  createdBy         User                                @relation("DispatchRunCreatedBy", fields: [createdByUserId], references: [id])
+  offers            DispatchOffer[]
+  assignment        RiderAssignment?
+  events            DispatchEvent[]
+
+  @@index([countryId, status, createdAt])
+  @@index([storeId, status])
+  @@index([status, updatedAt])
+}
+
+model DispatchOffer {
+  id                     String              @id @default(uuid()) @db.Uuid
+  runId                  String              @db.Uuid
+  riderId                String              @db.Uuid
+  sequence               Int
+  status                 DispatchOfferStatus @default(OFFERED)
+  offerTokenHash         String              @db.VarChar(64)
+  shiftId                String              @db.Uuid
+  locationSampleId       String              @db.Uuid
+  pickupZoneGrantId      String              @db.Uuid
+  destinationZoneGrantId String              @db.Uuid
+  pickupDistanceMeters   Int
+  roadDistanceMeters     Int
+  durationSeconds        Int?
+  routingProvider        String              @db.VarChar(40)
+  routingMode            RoadRoutingMode
+  routeEvidenceHash      String              @db.VarChar(64)
+  commandKey             String              @db.VarChar(128)
+  payloadHash            String              @db.VarChar(64)
+  offeredAt              DateTime            @default(now())
+  expiresAt              DateTime
+  respondedAt            DateTime?
+  responseCommandKey     String?             @db.VarChar(128)
+  responsePayloadHash    String?             @db.VarChar(64)
+  responseReason         String?             @db.VarChar(512)
+  run                    DispatchRun         @relation(fields: [runId], references: [id])
+  rider                  RiderProfile        @relation(fields: [riderId], references: [id])
+  shift                  RiderShift          @relation(fields: [shiftId], references: [id])
+  locationSample         RiderLocationSample @relation(fields: [locationSampleId], references: [id])
+  pickupZoneGrant        RiderZoneGrant      @relation("DispatchOfferPickupGrant", fields: [pickupZoneGrantId], references: [id])
+  destinationZoneGrant   RiderZoneGrant      @relation("DispatchOfferDestinationGrant", fields: [destinationZoneGrantId], references: [id])
+  assignment             RiderAssignment?
+  events                 DispatchEvent[]
+
+  @@unique([runId, sequence])
+  @@unique([runId, commandKey])
+  @@index([riderId, status, expiresAt])
+  @@index([runId, status])
+}
+
+model RiderAssignment {
+  id                   String                @id @default(uuid()) @db.Uuid
+  runId                String                @unique @db.Uuid
+  offerId              String                @unique @db.Uuid
+  riderId              String                @db.Uuid
+  suborderId           String                @db.Uuid
+  countryId            String                @db.Uuid
+  status               RiderAssignmentStatus @default(ACTIVE)
+  shiftId              String                @db.Uuid
+  locationSampleId     String                @db.Uuid
+  pickupDistanceMeters Int
+  roadDistanceMeters   Int
+  durationSeconds      Int?
+  routingProvider      String                @db.VarChar(40)
+  routingMode          RoadRoutingMode
+  routeEvidenceHash    String                @db.VarChar(64)
+  assignedAt           DateTime              @default(now())
+  run                  DispatchRun           @relation(fields: [runId], references: [id])
+  offer                DispatchOffer         @relation(fields: [offerId], references: [id])
+  rider                RiderProfile          @relation(fields: [riderId], references: [id])
+  suborder             VendorSuborder        @relation(fields: [suborderId], references: [id])
+  country              Country               @relation(fields: [countryId], references: [id])
+  shift                RiderShift            @relation(fields: [shiftId], references: [id])
+  locationSample       RiderLocationSample   @relation(fields: [locationSampleId], references: [id])
+  events               DispatchEvent[]
+
+  @@index([riderId, status])
+  @@index([suborderId])
+}
+
+model DispatchEvent {
+  id           String           @id @default(uuid()) @db.Uuid
+  runId        String           @db.Uuid
+  offerId      String?          @db.Uuid
+  assignmentId String?          @db.Uuid
+  eventType    String           @db.VarChar(80)
+  actorUserId  String?          @db.Uuid
+  commandKey   String           @db.VarChar(128)
+  payloadHash  String           @db.VarChar(64)
+  reason       String?          @db.VarChar(512)
+  occurredAt   DateTime         @default(now())
+  run          DispatchRun      @relation(fields: [runId], references: [id])
+  offer        DispatchOffer?   @relation(fields: [offerId], references: [id])
+  assignment   RiderAssignment? @relation(fields: [assignmentId], references: [id])
+  actor        User?            @relation("DispatchEventActor", fields: [actorUserId], references: [id])
+
+  @@unique([runId, commandKey])
+  @@index([runId, occurredAt])
 }
 
 model AuditLog {
@@ -871,6 +1065,9 @@ model RiderProfile {
   locationConsent   RiderLocationConsent?
   locationSamples   RiderLocationSample[]
   zoneGrants        RiderZoneGrant[]
+  dispatchOffers    DispatchOffer[]
+  assignments       RiderAssignment[]
+  dispatchPriority  Int                   @default(0)
 
   @@index([countryId, status])
 }
@@ -899,6 +1096,7 @@ model Store {
   cartItems         CartItem[]
   checkoutGroups    CheckoutQuoteGroup[]
   suborders         VendorSuborder[]
+  dispatchRuns      DispatchRun[]
   memberships       VendorMembership[]
   pickupPoint       StorePickupPoint?
   operatingHours    StoreOperatingHour[]
@@ -1259,29 +1457,30 @@ enum PaymentWebhookStatus {
 }
 
 model Order {
-  id                String             @id @default(uuid()) @db.Uuid
-  publicReference   String             @unique @db.VarChar(40)
-  buyerId           String             @db.Uuid
-  countryId         String             @db.Uuid
-  destinationCityId String             @db.Uuid
-  quoteId           String             @unique @db.Uuid
-  commandKey        String             @db.VarChar(128)
-  payloadHash       String             @db.VarChar(64)
-  currency          String             @db.VarChar(3)
-  amountMinor       BigInt
-  pricingScope      String             @default("PRODUCT_SUBTOTAL_ONLY") @db.VarChar(40)
-  paymentMethod     OrderPaymentMethod
-  paymentStatus     OrderPaymentStatus
-  codEligibility    Json?
-  version           Int                @default(1)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  buyer             User               @relation(fields: [buyerId], references: [id])
-  country           Country            @relation(fields: [countryId], references: [id])
-  destinationCity   City               @relation("OrderDestinationCity", fields: [destinationCityId], references: [id])
-  quote             CheckoutQuote      @relation(fields: [quoteId], references: [id])
-  suborders         VendorSuborder[]
-  paymentIntents    PaymentIntent[]
+  id                  String                    @id @default(uuid()) @db.Uuid
+  publicReference     String                    @unique @db.VarChar(40)
+  buyerId             String                    @db.Uuid
+  countryId           String                    @db.Uuid
+  destinationCityId   String                    @db.Uuid
+  quoteId             String                    @unique @db.Uuid
+  commandKey          String                    @db.VarChar(128)
+  payloadHash         String                    @db.VarChar(64)
+  currency            String                    @db.VarChar(3)
+  amountMinor         BigInt
+  pricingScope        String                    @default("PRODUCT_SUBTOTAL_ONLY") @db.VarChar(40)
+  paymentMethod       OrderPaymentMethod
+  paymentStatus       OrderPaymentStatus
+  codEligibility      Json?
+  version             Int                       @default(1)
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  buyer               User                      @relation(fields: [buyerId], references: [id])
+  country             Country                   @relation(fields: [countryId], references: [id])
+  destinationCity     City                      @relation("OrderDestinationCity", fields: [destinationCityId], references: [id])
+  quote               CheckoutQuote             @relation(fields: [quoteId], references: [id])
+  suborders           VendorSuborder[]
+  paymentIntents      PaymentIntent[]
+  deliveryDestination OrderDeliveryDestination?
 
   @@unique([buyerId, commandKey])
   @@index([buyerId, createdAt])
@@ -1316,6 +1515,8 @@ model VendorSuborder {
   rejectedBy             User?                       @relation("SuborderRejectedBy", fields: [rejectedByUserId], references: [id])
   items                  OrderItem[]
   statusEvents           VendorSuborderStatusEvent[]
+  dispatchRun            DispatchRun?
+  riderAssignments       RiderAssignment[]
 
   @@unique([orderId, vendorId, storeId])
   @@index([vendorId, createdAt])

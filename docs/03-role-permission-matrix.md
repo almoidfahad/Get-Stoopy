@@ -40,6 +40,7 @@ Status: proposed deny-by-default policy. Machine-readable companion: `../contrac
 | Manual dispatch / override | G | C delegated | R delegated | T delegated | Z/L delegated | — | — | — |
 | Rider zone grant/revoke | G, step-up, non-self | C delegated, step-up, non-self | — by default | — by default | — | — | — | — |
 | Store pickup/hours/service-area approval | G, step-up, non-self | C delegated, step-up, non-self | — by default | — by default | — | V, proposal only | — | — |
+| Dispatch run/offer management | G, step-up, pickup+destination scope | C delegated, step-up, pickup+destination scope | R delegated, step-up | Z/L delegated, step-up | — | — | D, own offers/assignment only | — |
 | Pickup / OTP delivery proof | — | — | — | — | Audited exception only | V, pickup handoff only | D | Recipient OTP, not account role |
 | Commission / rider rates | G | C only if delegated | — | — | — | V, view effective own charges | D, view own snapshot | — |
 | COD country policy | G, step-up | C delegated, step-up | — by default | — by default | — | — | — | — |

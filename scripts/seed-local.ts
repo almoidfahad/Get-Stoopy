@@ -31,6 +31,9 @@ async function main() {
       { key: 'rider:profile:suspend', resource: 'rider', action: 'profile:suspend', sensitivity: 'critical' },
       { key: 'rider:zone:grant', resource: 'rider', action: 'zone:grant', sensitivity: 'critical' }
     ];
+    const dispatchPerms = [
+      { key: 'dispatch:run:manage', resource: 'dispatch', action: 'run:manage', sensitivity: 'critical' }
+    ];
     const catalogPerms = [
       { key: 'catalog:store:activate', resource: 'catalog', action: 'store:activate', sensitivity: 'high' },
       { key: 'catalog:store:suspend', resource: 'catalog', action: 'store:suspend', sensitivity: 'high' },
@@ -40,7 +43,7 @@ async function main() {
       { key: 'catalog:category:manage', resource: 'catalog', action: 'category:manage', sensitivity: 'high' },
       { key: 'catalog:product-image:review', resource: 'catalog', action: 'product-image:review', sensitivity: 'high' }
     ];
-    for (const p of [...basePerms, ...kycReviewerPerms, ...financePerms, ...partyPerms, ...catalogPerms]) await tx.permission.upsert({ where: { key: p.key }, update: {}, create: p });
+    for (const p of [...basePerms, ...kycReviewerPerms, ...financePerms, ...partyPerms, ...dispatchPerms, ...catalogPerms]) await tx.permission.upsert({ where: { key: p.key }, update: {}, create: p });
 
     const role = await tx.role.upsert({ where: { key: 'country_admin' }, update: {}, create: { key: 'country_admin', name: 'Country Admin', description: 'Development country-scoped administrator; sensitive review/finance permissions are separate' } });
     for (const p of basePerms) {
@@ -66,6 +69,12 @@ async function main() {
       await tx.rolePermission.upsert({ where: { roleId_permissionId: { roleId: partyRole.id, permissionId: permission.id } }, update: {}, create: { roleId: partyRole.id, permissionId: permission.id } });
     }
 
+    const dispatchRole = await tx.role.upsert({ where: { key: 'dispatch_operator' }, update: {}, create: { key: 'dispatch_operator', name: 'Dispatch Operator', description: 'Privileged dispatch run/offer management; requires scope, step-up and road-route evidence' } });
+    for (const p of dispatchPerms) {
+      const permission = await tx.permission.findUniqueOrThrow({ where: { key: p.key } });
+      await tx.rolePermission.upsert({ where: { roleId_permissionId: { roleId: dispatchRole.id, permissionId: permission.id } }, update: {}, create: { roleId: dispatchRole.id, permissionId: permission.id } });
+    }
+
     const catalogRole = await tx.role.upsert({ where: { key: 'catalog_store_admin' }, update: {}, create: { key: 'catalog_store_admin', name: 'Catalog Store Admin', description: 'Privileged non-self store activation/suspension; requires scope and step-up' } });
     for (const p of catalogPerms.filter(x => x.key.startsWith('catalog:store:'))) {
       const permission = await tx.permission.findUniqueOrThrow({ where: { key: p.key } });
@@ -84,7 +93,7 @@ async function main() {
     const mediaPerm = await tx.permission.findUniqueOrThrow({ where: { key: 'catalog:product-image:review' } });
     await tx.rolePermission.upsert({ where: { roleId_permissionId: { roleId: mediaRole.id, permissionId: mediaPerm.id } }, update: {}, create: { roleId: mediaRole.id, permissionId: mediaPerm.id } });
 
-    console.log(JSON.stringify({ seeded: true, countryId: country.id, roleId: role.id, kycRoleId: kycRole.id, financeRoleId: financeRole.id, partyRoleId: partyRole.id, catalogRoleId: catalogRole.id, moderationRoleId: moderationRole.id, taxonomyRoleId: taxonomyRole.id, mediaRoleId: mediaRole.id, note: 'No user credentials or admin identity were fabricated. Sensitive permissions require explicit role assignment and scope.' }));
+    console.log(JSON.stringify({ seeded: true, countryId: country.id, roleId: role.id, kycRoleId: kycRole.id, financeRoleId: financeRole.id, partyRoleId: partyRole.id, dispatchRoleId: dispatchRole.id, catalogRoleId: catalogRole.id, moderationRoleId: moderationRole.id, taxonomyRoleId: taxonomyRole.id, mediaRoleId: mediaRole.id, note: 'No user credentials or admin identity were fabricated. Sensitive permissions require explicit role assignment and scope.' }));
   });
 }
 main().finally(() => db.$disconnect());

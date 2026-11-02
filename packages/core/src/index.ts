@@ -12,3 +12,4 @@ export * from './payment.js';
 export * from './fulfillment.js';
 export * from './serviceability.js';
 export * from './rider.js';
+export * from './dispatch.js';
