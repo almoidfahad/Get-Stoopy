@@ -18,9 +18,9 @@ export function assertPartyTransition(from: PartyStatus, to: PartyStatus): void 
  * unexpired, unrevoked memberships of ACTIVE vendors with unexpired KYC approval.
  */
 export const vendorRolePermissions: Record<VendorMembershipRole, string[]> = {
-  OWNER: ['vendor:profile:read', 'vendor:profile:write', 'vendor:membership:read', 'vendor:membership:write', 'vendor:catalog:write', 'vendor:order:read', 'vendor:order:write'],
-  MANAGER: ['vendor:profile:read', 'vendor:membership:read', 'vendor:catalog:write', 'vendor:order:read', 'vendor:order:write'],
-  STAFF: ['vendor:profile:read', 'vendor:order:read']
+  OWNER: ['vendor:profile:read', 'vendor:profile:write', 'vendor:membership:read', 'vendor:membership:write', 'vendor:catalog:write', 'vendor:inventory:read', 'vendor:inventory:write', 'vendor:order:read', 'vendor:order:write'],
+  MANAGER: ['vendor:profile:read', 'vendor:membership:read', 'vendor:catalog:write', 'vendor:inventory:read', 'vendor:inventory:write', 'vendor:order:read', 'vendor:order:write'],
+  STAFF: ['vendor:profile:read', 'vendor:inventory:read', 'vendor:order:read']
 };
 
 export function vendorMembershipPermissions(role: VendorMembershipRole): string[] {

@@ -22,7 +22,9 @@ Status: proposed deny-by-default policy. Machine-readable companion: `../contrac
 | Vendor application | — | — | — | — | — | V, draft only | — | O, applicant only |
 | Vendor/rider activation/suspension | G, step-up, non-self | C delegated, step-up, non-self | — by default | — by default | — | — | — | — |
 | Vendor membership grant/revoke | G oversight | C oversight | — | — | — | V owner, step-up, non-OWNER roles | — | — |
-| Product/variant/inventory write | G moderation | C oversight | R oversight | T oversight | Z/L monitoring only by default | V, approved store; draft catalog writes implemented, inventory pending | — | — |
+| Product/variant write | G moderation | C oversight | R oversight | T oversight | Z/L monitoring only by default | V, approved store; draft catalog writes implemented | — | — |
+| Inventory read/adjust | G oversight | C oversight | R oversight | T oversight | Z/L monitoring only by default | V: OWNER/MANAGER read+write, STAFF read-only; KYC-gated | — | — |
+| Stock reservation commands | G oversight | — | — | — | — | — | — | Internal checkout service only; no public HTTP route yet |
 | Product moderation/review | G, step-up, non-self | C delegated, step-up, non-self | — by default | — by default | — | — | — | — |
 | Product publication/unpublication | G, step-up, non-self | C delegated, step-up, non-self | — by default | — by default | — | — | — | — |
 | Category taxonomy management | G, step-up, non-self activation | C delegated, step-up, non-self activation | — by default | — by default | — | — | — | — |

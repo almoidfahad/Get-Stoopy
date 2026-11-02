@@ -1428,7 +1428,7 @@ Status: architecture proposal, not an implemented schema. UUID primary keys and 
 | reorderLevel | int |
 | version | int |
 
-**Constraints / authorization:** UNIQUE(variantId,storeId); onHand>=reserved>=0; updates locked/versioned
+**Constraints / authorization:** Executable foundation (`docs/32`): UNIQUE(variantId); 0<=reserved<=onHand<=1000000; locked/versioned updates; append-only InventoryMovement; vendor membership read/write; privileged-write RLS. Original logical UNIQUE(variantId,storeId) remains a future multi-location design target.
 
 **Retention:** Business policy; see retention register
 
@@ -1442,7 +1442,7 @@ Status: architecture proposal, not an implemented schema. UUID primary keys and 
 | expiresAt | datetime |
 | state | ReservationState |
 
-**Constraints / authorization:** Positive quantity; idempotent checkout reservation; expiry releases stock; no negative inventory
+**Constraints / authorization:** Executable foundation (`docs/32`): UNIQUE(userId,commandKey); quantity 1..100; TTL 60..900s; ACTIVE->RELEASED|CONSUMED|EXPIRED; deferred reserved=sum(ACTIVE); service-only until checkout. Original logical quoteId wiring remains pending with cart/checkout.
 
 **Retention:** Business policy; see retention register
 

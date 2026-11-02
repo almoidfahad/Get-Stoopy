@@ -27,5 +27,8 @@ describe('party activation and vendor membership helpers', () => {
     owner.push('admin:scope:grant');
     expect(vendorMembershipPermissions('OWNER')).not.toContain('admin:scope:grant');
     expect(vendorMembershipPermissions('STAFF')).not.toContain('vendor:catalog:write');
+    expect(vendorMembershipPermissions('STAFF')).toContain('vendor:inventory:read');
+    expect(vendorMembershipPermissions('STAFF')).not.toContain('vendor:inventory:write');
+    expect(vendorMembershipPermissions('MANAGER')).toContain('vendor:inventory:write');
   });
 });
