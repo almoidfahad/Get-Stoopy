@@ -110,12 +110,19 @@ export class InventoryService {
 
   /** Internal checkout-facing command. No public HTTP route is exposed until checkout quote orchestration exists. */
   async reserveStock(input: ReserveStockInput) {
+    return this.privileged.$transaction(async tx => {
+      await setRls(tx, { userId: input.userId, authorizationVersion: 0, isSuper: true });
+      return this.reserveStockTx(tx, input);
+    });
+  }
+
+  /** Transaction-scoped reservation command for atomic checkout orchestration. Caller must set privileged RLS. */
+  async reserveStockTx(tx: any, input: ReserveStockInput) {
     assertCommandKey(input.commandKey);
     const ttlSeconds = input.ttlSeconds ?? DEFAULT_RESERVATION_TTL_SECONDS;
     try { assertReservationQuantity(input.quantity); assertReservationTtl(ttlSeconds); } catch (e: any) { throw new BadRequestException({ code: e.message ?? 'RESERVATION_INVALID', message: 'Invalid reservation' }); }
     const payloadHash = hashPayload({ variantId: input.variantId, quantity: input.quantity, ttlSeconds });
-    return this.privileged.$transaction(async tx => {
-      await setRls(tx, { userId: input.userId, authorizationVersion: 0, isSuper: true });
+    {
       const variant = await this.lockVariant(tx, input.variantId);
       const inventory = await this.lockInventoryByVariant(tx, input.variantId);
       const existing = await tx.inventoryReservation.findUnique({ where: { userId_commandKey: { userId: input.userId, commandKey: input.commandKey } } });
@@ -134,12 +141,19 @@ export class InventoryService {
       await this.audit(tx, input.userId, 'inventory.reserved', 'InventoryReservation', reservation.id, inventory.countryId);
       await this.outbox(tx, inventory.id, 'inventory.reserved', `inventory-reserved-${reservation.id}`, inventory.countryId, { reservationId: reservation.id, quantity: input.quantity, version: updated.version });
       return { reservationId: reservation.id, state: reservation.state, quantity: reservation.quantity, expiresAt: reservation.expiresAt, duplicate: false };
-    });
+    }
   }
 
   private async closeReservation(reservationId: string, target: 'RELEASED' | 'CONSUMED', actorUserId: string | null, reason: string) {
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: actorUserId ?? '00000000-0000-0000-0000-000000000000', authorizationVersion: 0, isSuper: true });
+      return this.closeReservationTx(tx, reservationId, target, actorUserId, reason);
+    });
+  }
+
+  /** Transaction-scoped close command for checkout orchestration. Caller must set privileged RLS. */
+  async closeReservationTx(tx: any, reservationId: string, target: 'RELEASED' | 'CONSUMED', actorUserId: string | null, reason: string) {
+    {
       const probe = await tx.inventoryReservation.findUnique({ where: { id: reservationId } });
       if (!probe) throw new NotFoundException({ code: 'RESERVATION_NOT_FOUND', message: 'Reservation not found' });
       const invRows = await tx.$queryRaw`SELECT * FROM "Inventory" WHERE "id"=${probe.inventoryId}::uuid FOR UPDATE`;
@@ -156,7 +170,7 @@ export class InventoryService {
       await this.audit(tx, actorUserId, `inventory.${kind.toLowerCase()}`, 'InventoryReservation', reservation.id, inventory.countryId, reason);
       await this.outbox(tx, inventory.id, `inventory.${kind.toLowerCase()}`, `inventory-${kind.toLowerCase()}-${reservation.id}`, inventory.countryId, { reservationId: reservation.id, quantity: reservation.quantity, version: updated.version });
       return { reservationId, state: closed.state, duplicate: false };
-    });
+    }
   }
 
   async releaseReservation(reservationId: string, actorUserId: string | null, reason: string) { return this.closeReservation(reservationId, 'RELEASED', actorUserId, assertReason(reason)); }

@@ -455,7 +455,7 @@ Status: architecture proposal, not an implemented schema. UUID primary keys and 
 | currency | string |
 | version | int |
 
-**Constraints / authorization:** Exactly one owner kind; merge only after authenticated ownership proof; never trust client totals
+**Constraints / authorization:** Executable foundation (`docs/33`): authenticated owner only, UNIQUE(userId,countryId), server currency, optimistic version, bounded sellable items; never trust client totals. Original logical guestTokenHash/merge and destinationAddressSnapshot remain pending.
 
 **Retention:** Business policy; see retention register
 
@@ -468,7 +468,7 @@ Status: architecture proposal, not an implemented schema. UUID primary keys and 
 | quantity | int |
 | addedAt | datetime |
 
-**Constraints / authorization:** UNIQUE(cartId,variantId,storeId); quantity >0; revalidate price/stock/destination
+**Constraints / authorization:** Executable foundation (`docs/33`): UNIQUE(cartId,variantId); quantity 1..100; max 50 lines; ancestry/sellability guards; mutations bump cart version; price/stock revalidated at quote. Original logical storeId uniqueness target remains represented by variant ancestry.
 
 **Retention:** Business policy; see retention register
 

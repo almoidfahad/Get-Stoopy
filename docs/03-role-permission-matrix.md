@@ -17,7 +17,7 @@ Status: proposed deny-by-default policy. Machine-readable companion: `../contrac
 |---|---|---|---|---|---|---|---|---|
 | Public catalog/search | Public | Public | Public | Public | Public | Public | Public | Public |
 | Customer profile/addresses | G, restricted support | C support | R support | T support | Z/L support | — | — | O |
-| Wishlist/cart/checkout | — | — | — | — | — | — | — | O |
+| Wishlist/cart/checkout | — | — | — | — | — | — | — | O; authenticated cart + reserved checkout quote implemented, order/payment pending |
 | Own orders/remote tracking | — | — | — | — | — | — | D, minimum data | O, buyer view |
 | Vendor application | — | — | — | — | — | V, draft only | — | O, applicant only |
 | Vendor/rider activation/suspension | G, step-up, non-self | C delegated, step-up, non-self | — by default | — by default | — | — | — | — |

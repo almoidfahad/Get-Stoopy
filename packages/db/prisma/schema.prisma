@@ -208,6 +208,8 @@ model User {
   reviewedProductImages  ProductImage[]         @relation("ProductImageReviewedBy")
   inventoryMovements     InventoryMovement[]
   inventoryReservations  InventoryReservation[]
+  carts                  Cart[]
+  checkoutQuotes         CheckoutQuote[]
 }
 
 model UserIdentity {
@@ -307,22 +309,24 @@ model Session {
 }
 
 model Country {
-  id            String         @id @default(uuid()) @db.Uuid
-  iso2          String         @unique
-  name          String
-  currencyCode  String
-  callingCode   String
-  timezone      String
-  status        AreaStatus     @default(DRAFT)
-  regions       Region[]
-  kycCases      KycCase[]
-  vendors       Vendor[]
-  riderProfiles RiderProfile[]
-  stores        Store[]
-  products      Product[]
-  categories    Category[]
-  productImages ProductImage[]
-  inventories   Inventory[]
+  id             String          @id @default(uuid()) @db.Uuid
+  iso2           String          @unique
+  name           String
+  currencyCode   String
+  callingCode    String
+  timezone       String
+  status         AreaStatus      @default(DRAFT)
+  regions        Region[]
+  kycCases       KycCase[]
+  vendors        Vendor[]
+  riderProfiles  RiderProfile[]
+  stores         Store[]
+  products       Product[]
+  categories     Category[]
+  productImages  ProductImage[]
+  inventories    Inventory[]
+  carts          Cart[]
+  checkoutQuotes CheckoutQuote[]
 }
 
 model Region {
@@ -350,15 +354,16 @@ model District {
 }
 
 model City {
-  id         String        @id @default(uuid()) @db.Uuid
-  districtId String        @db.Uuid
-  code       String
-  name       String
-  kind       String
-  status     AreaStatus    @default(DRAFT)
-  district   District      @relation(fields: [districtId], references: [id])
-  zones      ServiceZone[]
-  stores     Store[]
+  id             String          @id @default(uuid()) @db.Uuid
+  districtId     String          @db.Uuid
+  code           String
+  name           String
+  kind           String
+  status         AreaStatus      @default(DRAFT)
+  district       District        @relation(fields: [districtId], references: [id])
+  zones          ServiceZone[]
+  stores         Store[]
+  checkoutQuotes CheckoutQuote[] @relation("CheckoutQuoteDestinationCity")
 
   @@unique([districtId, code])
 }
@@ -719,26 +724,28 @@ model RiderProfile {
 }
 
 model Store {
-  id                String      @id @default(uuid()) @db.Uuid
-  vendorId          String      @db.Uuid
-  countryId         String      @db.Uuid
-  cityId            String      @db.Uuid
-  name              String      @db.VarChar(120)
-  slug              String      @db.VarChar(140)
-  addressLine       String      @db.VarChar(500)
-  status            StoreStatus @default(DRAFT)
+  id                String               @id @default(uuid()) @db.Uuid
+  vendorId          String               @db.Uuid
+  countryId         String               @db.Uuid
+  cityId            String               @db.Uuid
+  name              String               @db.VarChar(120)
+  slug              String               @db.VarChar(140)
+  addressLine       String               @db.VarChar(500)
+  status            StoreStatus          @default(DRAFT)
   activatedAt       DateTime?
-  activatedByUserId String?     @db.Uuid
+  activatedByUserId String?              @db.Uuid
   suspendedAt       DateTime?
-  version           Int         @default(1)
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-  vendor            Vendor      @relation(fields: [vendorId], references: [id])
-  country           Country     @relation(fields: [countryId], references: [id])
-  city              City        @relation(fields: [cityId], references: [id])
-  activatedBy       User?       @relation("StoreActivatedBy", fields: [activatedByUserId], references: [id])
+  version           Int                  @default(1)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  vendor            Vendor               @relation(fields: [vendorId], references: [id])
+  country           Country              @relation(fields: [countryId], references: [id])
+  city              City                 @relation(fields: [cityId], references: [id])
+  activatedBy       User?                @relation("StoreActivatedBy", fields: [activatedByUserId], references: [id])
   products          Product[]
   inventories       Inventory[]
+  cartItems         CartItem[]
+  checkoutGroups    CheckoutQuoteGroup[]
 
   @@unique([vendorId, slug])
   @@index([countryId, status])
@@ -785,20 +792,22 @@ model Product {
 }
 
 model ProductVariant {
-  id                   String     @id @default(uuid()) @db.Uuid
-  productId            String     @db.Uuid
-  sku                  String     @db.VarChar(120)
+  id                   String              @id @default(uuid()) @db.Uuid
+  productId            String              @db.Uuid
+  sku                  String              @db.VarChar(120)
   optionValues         Json
   priceAmountMinor     BigInt
   compareAtAmountMinor BigInt?
-  currency             String     @db.VarChar(3)
+  currency             String              @db.VarChar(3)
   weightGrams          Int?
-  active               Boolean    @default(true)
-  version              Int        @default(1)
-  createdAt            DateTime   @default(now())
-  updatedAt            DateTime   @updatedAt
-  product              Product    @relation(fields: [productId], references: [id])
+  active               Boolean             @default(true)
+  version              Int                 @default(1)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  product              Product             @relation(fields: [productId], references: [id])
   inventory            Inventory?
+  cartItems            CartItem[]
+  checkoutQuoteItems   CheckoutQuoteItem[]
 
   @@unique([productId, sku])
   @@index([productId, active])
@@ -906,24 +915,137 @@ model InventoryMovement {
 }
 
 model InventoryReservation {
-  id          String                    @id @default(uuid()) @db.Uuid
-  inventoryId String                    @db.Uuid
-  userId      String                    @db.Uuid
-  commandKey  String                    @db.VarChar(128)
-  payloadHash String                    @db.VarChar(64)
-  quantity    Int
-  state       InventoryReservationState @default(ACTIVE)
-  expiresAt   DateTime
-  closedAt    DateTime?
-  version     Int                       @default(1)
-  createdAt   DateTime                  @default(now())
-  updatedAt   DateTime                  @updatedAt
-  inventory   Inventory                 @relation(fields: [inventoryId], references: [id])
-  user        User                      @relation(fields: [userId], references: [id])
-  movements   InventoryMovement[]
+  id                String                    @id @default(uuid()) @db.Uuid
+  inventoryId       String                    @db.Uuid
+  userId            String                    @db.Uuid
+  commandKey        String                    @db.VarChar(128)
+  payloadHash       String                    @db.VarChar(64)
+  quantity          Int
+  state             InventoryReservationState @default(ACTIVE)
+  expiresAt         DateTime
+  closedAt          DateTime?
+  version           Int                       @default(1)
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  inventory         Inventory                 @relation(fields: [inventoryId], references: [id])
+  user              User                      @relation(fields: [userId], references: [id])
+  movements         InventoryMovement[]
+  checkoutQuoteItem CheckoutQuoteItem?
 
   @@unique([userId, commandKey])
   @@index([inventoryId, state])
   @@index([state, expiresAt])
   @@index([userId, state, createdAt])
+}
+
+enum CheckoutQuoteState {
+  RESERVED
+  RELEASED
+  EXPIRED
+}
+
+model Cart {
+  id        String          @id @default(uuid()) @db.Uuid
+  userId    String          @db.Uuid
+  countryId String          @db.Uuid
+  currency  String          @db.VarChar(3)
+  version   Int             @default(1)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  user      User            @relation(fields: [userId], references: [id])
+  country   Country         @relation(fields: [countryId], references: [id])
+  items     CartItem[]
+  quotes    CheckoutQuote[]
+
+  @@unique([userId, countryId])
+  @@index([countryId, createdAt])
+}
+
+model CartItem {
+  id        String         @id @default(uuid()) @db.Uuid
+  cartId    String         @db.Uuid
+  variantId String         @db.Uuid
+  storeId   String         @db.Uuid
+  vendorId  String         @db.Uuid
+  countryId String         @db.Uuid
+  quantity  Int
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  cart      Cart           @relation(fields: [cartId], references: [id])
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  store     Store          @relation(fields: [storeId], references: [id])
+
+  @@unique([cartId, variantId])
+  @@index([cartId, createdAt])
+  @@index([variantId])
+}
+
+model CheckoutQuote {
+  id                String               @id @default(uuid()) @db.Uuid
+  userId            String               @db.Uuid
+  countryId         String               @db.Uuid
+  cartId            String               @db.Uuid
+  cartVersion       Int
+  destinationCityId String               @db.Uuid
+  commandKey        String               @db.VarChar(128)
+  payloadHash       String               @db.VarChar(64)
+  currency          String               @db.VarChar(3)
+  subtotalMinor     BigInt
+  state             CheckoutQuoteState   @default(RESERVED)
+  expiresAt         DateTime
+  closedAt          DateTime?
+  version           Int                  @default(1)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  user              User                 @relation(fields: [userId], references: [id])
+  country           Country              @relation(fields: [countryId], references: [id])
+  cart              Cart                 @relation(fields: [cartId], references: [id])
+  destinationCity   City                 @relation("CheckoutQuoteDestinationCity", fields: [destinationCityId], references: [id])
+  groups            CheckoutQuoteGroup[]
+  items             CheckoutQuoteItem[]
+
+  @@unique([userId, commandKey])
+  @@index([userId, state, createdAt])
+  @@index([cartId, state])
+  @@index([state, expiresAt])
+}
+
+model CheckoutQuoteGroup {
+  id            String              @id @default(uuid()) @db.Uuid
+  quoteId       String              @db.Uuid
+  vendorId      String              @db.Uuid
+  storeId       String              @db.Uuid
+  currency      String              @db.VarChar(3)
+  subtotalMinor BigInt
+  createdAt     DateTime            @default(now())
+  quote         CheckoutQuote       @relation(fields: [quoteId], references: [id])
+  store         Store               @relation(fields: [storeId], references: [id])
+  items         CheckoutQuoteItem[]
+
+  @@unique([quoteId, vendorId, storeId])
+  @@index([quoteId])
+}
+
+model CheckoutQuoteItem {
+  id             String               @id @default(uuid()) @db.Uuid
+  quoteId        String               @db.Uuid
+  groupId        String               @db.Uuid
+  reservationId  String               @unique @db.Uuid
+  variantId      String               @db.Uuid
+  productId      String               @db.Uuid
+  productTitle   String               @db.VarChar(200)
+  sku            String               @db.VarChar(120)
+  quantity       Int
+  unitPriceMinor BigInt
+  lineTotalMinor BigInt
+  currency       String               @db.VarChar(3)
+  createdAt      DateTime             @default(now())
+  quote          CheckoutQuote        @relation(fields: [quoteId], references: [id])
+  group          CheckoutQuoteGroup   @relation(fields: [groupId], references: [id])
+  reservation    InventoryReservation @relation(fields: [reservationId], references: [id])
+  variant        ProductVariant       @relation(fields: [variantId], references: [id])
+
+  @@unique([quoteId, variantId])
+  @@index([quoteId])
+  @@index([groupId])
 }
