@@ -35,3 +35,5 @@ Run Redis and PostgreSQL/PostGIS, apply migrations, then use `npm run dev:worker
 ## 2026-11-02 hardening addendum
 
 The original claim/publish window was not crash/concurrency safe. Migration `0008_outbox_visibility_lease` adds a durable visibility lease and fencing token; stale workers can no longer finalize a row after lease expiry/reclaim. See `23-outbox-visibility-lease.md` for semantics, rollout boundary and the current local test evidence. Delivery remains at-least-once; domain handlers must still be idempotent.
+
+Terminal inbox failures are now persisted to `InboxDeadLetter` by migration `0009_inbox_dead_letter`; invalid envelopes/unknown handlers are unrecoverable, handler failures retry before terminal dead-lettering, and raw exception text is not stored. See `24-inbox-dead-letter.md`.

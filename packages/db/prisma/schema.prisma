@@ -304,6 +304,21 @@ model InboxReceipt {
   @@id([consumer, eventKey])
 }
 
+model InboxDeadLetter {
+  id            String   @id @default(uuid()) @db.Uuid
+  consumer      String   @db.VarChar(128)
+  eventKey      String?  @db.VarChar(128)
+  eventType     String?  @db.VarChar(128)
+  payloadHash   String   @db.VarChar(64)
+  payload       Json
+  errorCode     String   @db.VarChar(64)
+  attempts      Int
+  firstFailedAt DateTime @default(now())
+  lastFailedAt  DateTime @default(now())
+  @@unique([consumer, payloadHash])
+  @@index([consumer, lastFailedAt])
+}
+
 model IdempotencyRecord {
   id                String           @id @default(uuid()) @db.Uuid
   actorId           String           @db.Uuid

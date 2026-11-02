@@ -2,7 +2,7 @@
 
 **Shop Smart. Live Better.**
 
-Status: **Architecture approved for development 2026-11-01; Phase 2 in progress.** The original review package remains below. Executable foundation slices now include API/BFF/RLS, local Keycloak OIDC, worker/outbox/inbox, privileged TOTP/session controls and private local encrypted storage. Current local verification: **79 unit tests / 11 files PASS** and **34 integration tests / 6 files PASS** against isolated PostgreSQL/PostGIS + Redis. This is still not a running marketplace; no paid resource, live payment collection or production deployment exists. See `docs/17-phase2-foundation.md` through `docs/23-outbox-visibility-lease.md`.
+Status: **Architecture approved for development 2026-11-01; Phase 2 in progress.** The original review package remains below. Executable foundation slices now include API/BFF/RLS, local Keycloak OIDC, worker/outbox/inbox, privileged TOTP/session controls and private local encrypted storage. Current local verification: **82 unit tests / 12 files PASS** and **38 integration tests / 7 files PASS** against isolated PostgreSQL/PostGIS + Redis. This is still not a running marketplace; no paid resource, live payment collection or production deployment exists. See `docs/17-phase2-foundation.md` through `docs/24-inbox-dead-letter.md`.
 
 ## Source control
 
@@ -27,7 +27,7 @@ The companion ZIP contains the same package plus Markdown/CSV/YAML/JSON sources,
 
 ## Phase-2 runtime slice
 
-`apps/api` (NestJS) and `apps/web` (Next.js BFF) now exist. Real local PostgreSQL/PostGIS migrations and RLS integration tests pass; see `docs/18-phase2-api-bff-rls.md`. Local Keycloak OIDC login/logout smoke verification passes (`docs/19-phase2-keycloak-live.md`), and the worker/outbox/inbox foundation passes real PostgreSQL + Redis integration tests (`docs/20-phase2-worker-outbox.md`). TOTP/step-up, safe-linking interface, recovery/session controls, emergency revocation and private encrypted storage are implemented and locally integration-tested (`docs/21-phase2-security-storage.md`). The outbox publisher now has a durable visibility lease and stale-worker fencing (`docs/23-outbox-visibility-lease.md`). Foundation audit and dependency-ordered commerce plan: `docs/22-foundation-audit-and-plan.md`. Full marketplace modules and production IdP/storage hardening are not yet proven.
+`apps/api` (NestJS) and `apps/web` (Next.js BFF) now exist. Real local PostgreSQL/PostGIS migrations and RLS integration tests pass; see `docs/18-phase2-api-bff-rls.md`. Local Keycloak OIDC login/logout smoke verification passes (`docs/19-phase2-keycloak-live.md`), and the worker/outbox/inbox foundation passes real PostgreSQL + Redis integration tests (`docs/20-phase2-worker-outbox.md`). TOTP/step-up, safe-linking interface, recovery/session controls, emergency revocation and private encrypted storage are implemented and locally integration-tested (`docs/21-phase2-security-storage.md`). The outbox publisher now has a durable visibility lease and stale-worker fencing (`docs/23-outbox-visibility-lease.md`), and terminal inbox failures are persisted to a dead-letter table (`docs/24-inbox-dead-letter.md`). Foundation audit and dependency-ordered commerce plan: `docs/22-foundation-audit-and-plan.md`. Full marketplace modules and production IdP/storage hardening are not yet proven.
 
 ## Validation boundary
 

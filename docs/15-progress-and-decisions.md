@@ -14,6 +14,7 @@ Last updated: 2026-11-02.
 - **Phase 1 architecture approved by owner on 2026-11-01 for development only, including the proposed Keycloak identity model. Phase 2 started. Paid resources, live payment collection and production deployment remain unauthorized. Phases 3–11 not started.**
 - **2026-11-02 foundation audit:** executable schema has 23 Prisma models vs 113 logical design entities; commerce/finance/KYC/delivery domains are not implemented. Dependency-ordered plan recorded in `22-foundation-audit-and-plan.md`.
 - **2026-11-02 first hardening slice:** outbox visibility lease + stale-worker fencing implemented (`0008_outbox_visibility_lease`). Applied only to isolated local test DB. Local verification: 79 unit tests / 11 files PASS; 34 integration tests / 6 files PASS; typecheck and Prisma validation PASS. See `23-outbox-visibility-lease.md`.
+- **2026-11-02 second hardening slice:** terminal inbox dead-letter persistence implemented (`0009_inbox_dead_letter`). Applied only to isolated local test DB. Local verification: 82 unit tests / 12 files PASS; 38 integration tests / 7 files PASS; typecheck and Prisma validation PASS. See `24-inbox-dead-letter.md`.
 
 ## Decisions retained from the user
 
@@ -66,3 +67,4 @@ None of these blockers justifies fabricated credentials, payments, KYC results o
 |---|---|---|
 | 2026-11-01 | Initial source recovery and Phase-1 design package | Document/contract checks only; no application tests |
 | 2026-11-02 | Foundation audit + outbox visibility lease/fencing | Isolated test DB migration; unit/integration/typecheck/Prisma validation PASS; no production/existing-data migration |
+| 2026-11-02 | Terminal inbox dead-letter hardening | Isolated test DB migration; unit/integration/typecheck/Prisma validation PASS; operator replay/resolve still pending |

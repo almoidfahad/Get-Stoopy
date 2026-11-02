@@ -45,8 +45,9 @@ Executable Prisma schema has **23 models**. The Phase-1 logical design has **113
 | 9 | Settlement/payout operations | Requires immutable earnings, verified destinations and reconciliation | Sunday payout, reserve, retry/unknown-result, maker-checker tests |
 | 10 | Full admin/fraud/AI/QA/deployment prep | Cross-cutting hardening after domain invariants exist | Role/scope negative tests, performance budgets, restore drill, owner authorization |
 
-## First implemented slice
+## Implemented hardening slices
 
-Only order item 1 was implemented in this change: migration `0008_outbox_visibility_lease`, durable lease/fencing columns, publisher finalization guards, worker lease configuration, unit/integration tests and operational documentation. See `23-outbox-visibility-lease.md`.
+- Order item 1: migration `0008_outbox_visibility_lease`, durable lease/fencing columns, publisher finalization guards, worker lease configuration, unit/integration tests and operational documentation. See `23-outbox-visibility-lease.md`.
+- Order item 2: migration `0009_inbox_dead_letter`, durable terminal inbox failure persistence, unrecoverable classification for invalid/unknown events, stable error codes and worker integration tests. See `24-inbox-dead-letter.md`. Operator replay/resolve API/UI remains pending.
 
-No commerce, finance, KYC or delivery domain model was added in this slice. No production deployment, live payment, paid resource or existing-data migration was performed.
+No commerce, finance, KYC or delivery domain model was added in these slices. No production deployment, live payment, paid resource or existing-data migration was performed.

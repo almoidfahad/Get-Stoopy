@@ -18,6 +18,7 @@ GRANT INSERT, UPDATE, DELETE ON TABLE "IdempotencyRecord" TO gs_runtime;
 GRANT INSERT ON TABLE "AuditLog" TO gs_runtime;
 GRANT INSERT, UPDATE ON TABLE "OutboxEvent" TO gs_runtime;
 GRANT INSERT ON TABLE "InboxReceipt" TO gs_runtime;
+GRANT SELECT, INSERT, UPDATE ON TABLE "InboxDeadLetter" TO gs_runtime;
 GRANT INSERT, UPDATE ON TABLE "UserMfa" TO gs_runtime;
 GRANT INSERT, UPDATE ON TABLE "RecoveryCode" TO gs_runtime;
 GRANT INSERT, UPDATE ON TABLE "StorageObject" TO gs_runtime;

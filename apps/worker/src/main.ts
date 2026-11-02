@@ -1,10 +1,12 @@
 import 'dotenv/config';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { z } from 'zod';
-import { publishOutboxBatch, processWithInbox, type EventEnvelope } from '@getstoopy/events';
+import { publishOutboxBatch, type EventEnvelope } from '@getstoopy/events';
 import { StructuredLogger } from '@getstoopy/observability';
+import { attachInboxDeadLetter, createInboxProcessor, type InboxHandlers } from './inbox-processing.js';
+
 const envSchema = z.object({
   DATABASE_URL: z.string().startsWith('postgresql://'),
   REDIS_URL: z.string().startsWith('redis://'),
@@ -21,17 +23,13 @@ const pool = new Pool({ connectionString: env.DATABASE_URL, max: 8 });
 const queueConnection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const workerConnection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const queue = new Queue(env.WORKER_QUEUE, { connection: queueConnection });
-const handlers = new Map<string, (e: EventEnvelope, tx: any) => Promise<void>>();
-export function registerHandler(eventType: string, fn: (e: EventEnvelope, tx: any) => Promise<void>) { handlers.set(eventType, fn); }
+const handlers: InboxHandlers = new Map<string, (e: EventEnvelope, tx: PoolClient) => Promise<void>>();
+export function registerHandler(eventType: string, fn: (e: EventEnvelope, tx: PoolClient) => Promise<void>) { handlers.set(eventType, fn); }
 registerHandler('test.created', async () => undefined);
 registerHandler('security.user.revoked', async () => undefined);
-const worker = new Worker(env.WORKER_QUEUE, async job => {
-  const handler = handlers.get(job.data.eventType);
-  if (!handler) throw new Error('HANDLER_NOT_REGISTERED');
-  const result = await processWithInbox(pool, `worker:${env.WORKER_QUEUE}`, job.data, async (event, tx) => handler(event, tx));
-  log.info('inbox_event', { eventKey: job.data.eventKey, eventType: job.data.eventType, result });
-}, { connection: workerConnection, concurrency: env.WORKER_CONCURRENCY });
-worker.on('failed', (job, err) => log.error('worker_job_failed', { jobId: job?.id, error: err.message }));
+const consumer = `worker:${env.WORKER_QUEUE}`;
+const worker = new Worker(env.WORKER_QUEUE, createInboxProcessor(pool, consumer, handlers, log), { connection: workerConnection, concurrency: env.WORKER_CONCURRENCY });
+attachInboxDeadLetter(worker, pool, consumer, log);
 let stopping = false;
 async function poll() {
   while (!stopping) {
