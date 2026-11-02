@@ -25,6 +25,8 @@ Status: proposed deny-by-default policy. Machine-readable companion: `../contrac
 | Product/variant/inventory write | G moderation | C oversight | R oversight | T oversight | Z/L monitoring only by default | V, approved store; draft catalog writes implemented, inventory pending | — | — |
 | Product moderation/review | G, step-up, non-self | C delegated, step-up, non-self | — by default | — by default | — | — | — | — |
 | Product publication/unpublication | G, step-up, non-self | C delegated, step-up, non-self | — by default | — by default | — | — | — | — |
+| Category taxonomy management | G, step-up, non-self activation | C delegated, step-up, non-self activation | — by default | — by default | — | — | — | — |
+| Product image review | G, step-up, non-self | C delegated, step-up, non-self | — by default | — by default | — | — | — | — |
 | Store activation/suspension | G, step-up, non-self | C delegated, step-up, non-self | — by default | — by default | — | — | — | — |
 | Accept/reject/set prep/ready | G exception, audited | C exception policy | R exception policy | T operations | Z/L delegated operations | V, own suborder | — | — |
 | KYC submit/upload | — | — | — | — | Authorized office assistance | V | D, own profile | — |

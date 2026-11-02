@@ -135,6 +135,18 @@ enum ProductModerationState {
   REJECTED
 }
 
+enum CategoryStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+}
+
+enum ProductImageStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
 enum IdempotencyState {
   IN_PROGRESS
   COMPLETED
@@ -175,6 +187,10 @@ model User {
   createdProducts        Product[]          @relation("ProductCreatedBy")
   reviewedProducts       Product[]          @relation("ProductReviewedBy")
   publishedProducts      Product[]          @relation("ProductPublishedBy")
+  createdCategories      Category[]         @relation("CategoryCreatedBy")
+  activatedCategories    Category[]         @relation("CategoryActivatedBy")
+  createdProductImages   ProductImage[]     @relation("ProductImageCreatedBy")
+  reviewedProductImages  ProductImage[]     @relation("ProductImageReviewedBy")
 }
 
 model UserIdentity {
@@ -287,6 +303,8 @@ model Country {
   riderProfiles RiderProfile[]
   stores        Store[]
   products      Product[]
+  categories    Category[]
+  productImages ProductImage[]
 }
 
 model Region {
@@ -506,6 +524,7 @@ model StorageObject {
   owner            User               @relation(fields: [ownerUserId], references: [id])
   reviewedBy       User?              @relation("StorageObjectReviewedBy", fields: [reviewedByUserId], references: [id])
   kycDocument      KycDocument?
+  productImage     ProductImage?
 
   @@index([ownerUserId, purpose, state])
   @@index([state, createdAt])
@@ -711,6 +730,7 @@ model Product {
   vendorId          String                 @db.Uuid
   storeId           String                 @db.Uuid
   countryId         String                 @db.Uuid
+  categoryId        String?                @db.Uuid
   title             String                 @db.VarChar(200)
   description       String                 @db.VarChar(5000)
   brand             String?                @db.VarChar(120)
@@ -729,16 +749,19 @@ model Product {
   vendor            Vendor                 @relation(fields: [vendorId], references: [id])
   store             Store                  @relation(fields: [storeId], references: [id])
   country           Country                @relation(fields: [countryId], references: [id])
+  category          Category?              @relation(fields: [categoryId], references: [id])
   createdBy         User                   @relation("ProductCreatedBy", fields: [createdByUserId], references: [id])
   reviewedBy        User?                  @relation("ProductReviewedBy", fields: [reviewedByUserId], references: [id])
   publishedBy       User?                  @relation("ProductPublishedBy", fields: [publishedByUserId], references: [id])
   variants          ProductVariant[]
+  images            ProductImage[]
 
   @@index([storeId, status])
   @@index([vendorId, status])
   @@index([countryId, status])
   @@index([countryId, moderationState, createdAt])
   @@index([countryId, status, createdAt, id])
+  @@index([categoryId, status])
 }
 
 model ProductVariant {
@@ -758,4 +781,57 @@ model ProductVariant {
 
   @@unique([productId, sku])
   @@index([productId, active])
+}
+
+model Category {
+  id                String         @id @default(uuid()) @db.Uuid
+  countryId         String         @db.Uuid
+  parentId          String?        @db.Uuid
+  name              String         @db.VarChar(120)
+  slug              String         @db.VarChar(140)
+  description       String?        @db.VarChar(500)
+  status            CategoryStatus @default(DRAFT)
+  sortOrder         Int            @default(0)
+  version           Int            @default(1)
+  createdByUserId   String         @db.Uuid
+  activatedByUserId String?        @db.Uuid
+  suspendedAt       DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  country           Country        @relation(fields: [countryId], references: [id])
+  parent            Category?      @relation("CategoryParent", fields: [parentId], references: [id])
+  children          Category[]     @relation("CategoryParent")
+  createdBy         User           @relation("CategoryCreatedBy", fields: [createdByUserId], references: [id])
+  activatedBy       User?          @relation("CategoryActivatedBy", fields: [activatedByUserId], references: [id])
+  products          Product[]
+
+  @@unique([countryId, slug])
+  @@index([countryId, status, sortOrder])
+  @@index([parentId, status])
+}
+
+model ProductImage {
+  id               String             @id @default(uuid()) @db.Uuid
+  productId        String             @db.Uuid
+  storageObjectId  String             @unique @db.Uuid
+  countryId        String             @db.Uuid
+  altText          String             @db.VarChar(180)
+  sortOrder        Int                @default(0)
+  state            ProductImageStatus @default(PENDING_REVIEW)
+  version          Int                @default(1)
+  createdByUserId  String             @db.Uuid
+  reviewedByUserId String?            @db.Uuid
+  reviewedAt       DateTime?
+  reviewReason     String?            @db.VarChar(512)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  product          Product            @relation(fields: [productId], references: [id])
+  storageObject    StorageObject      @relation(fields: [storageObjectId], references: [id])
+  country          Country            @relation(fields: [countryId], references: [id])
+  createdBy        User               @relation("ProductImageCreatedBy", fields: [createdByUserId], references: [id])
+  reviewedBy       User?              @relation("ProductImageReviewedBy", fields: [reviewedByUserId], references: [id])
+
+  @@unique([productId, sortOrder])
+  @@index([productId, state])
+  @@index([countryId, state, createdAt])
 }

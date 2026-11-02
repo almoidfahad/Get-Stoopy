@@ -5,13 +5,15 @@ import { PrismaService, PrivilegedPrismaService, setRls } from '../common/prisma
 import { ENV } from '../common/env.js';
 import type { ApiEnv } from '@getstoopy/config';
 import { LocalEncryptedObjectStorage, signStorageToken, verifyStorageToken, assertMagicContentType } from '@getstoopy/storage';
-import { hasPermission, type AccessContext } from '@getstoopy/core';
+import { hasPermission, inGeographicScope, type AccessContext } from '@getstoopy/core';
 
 const ALLOWED_TYPES = new Map<string, string[]>([
   ['kyc-document', ['image/png', 'image/jpeg', 'application/pdf']],
-  ['profile-avatar', ['image/png', 'image/jpeg', 'image/webp']]
+  ['profile-avatar', ['image/png', 'image/jpeg', 'image/webp']],
+  ['product-image', ['image/png', 'image/jpeg', 'image/webp']]
 ]);
 const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_BYTES_BY_PURPOSE: Record<string, number> = { 'product-image': 5 * 1024 * 1024 };
 const REVIEW_PERMISSION = 'storage:kyc:review';
 
 @Injectable()
@@ -31,7 +33,8 @@ export class StorageService {
     const allowed = ALLOWED_TYPES.get(input.purpose);
     if (!allowed) throw new BadRequestException({ code: 'PURPOSE_NOT_ALLOWED', message: 'Storage purpose is not allowed' });
     if (!allowed.includes(input.contentType)) throw new BadRequestException({ code: 'CONTENT_TYPE_NOT_ALLOWED', message: 'Content type is not allowed for this purpose' });
-    if (!Number.isInteger(input.sizeBytes) || input.sizeBytes <= 0 || input.sizeBytes > MAX_BYTES) throw new BadRequestException({ code: 'SIZE_NOT_ALLOWED', message: 'Object size is not allowed' });
+    const maxBytes = MAX_BYTES_BY_PURPOSE[input.purpose] ?? MAX_BYTES;
+    if (!Number.isInteger(input.sizeBytes) || input.sizeBytes <= 0 || input.sizeBytes > maxBytes) throw new BadRequestException({ code: 'SIZE_NOT_ALLOWED', message: 'Object size is not allowed' });
     const id = randomUUID(); const objectKey = `${input.purpose}/${ctx.userId}/${id}`;
     await this.db.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion });
@@ -39,7 +42,7 @@ export class StorageService {
       await this.audit(tx, ctx, 'storage.upload.created', id);
     });
     const token = signStorageToken({ objectId: id, action: 'upload', exp: Date.now() + 10 * 60_000 }, this.env.STORAGE_ENCRYPTION_KEY);
-    return { objectId: id, uploadUrl: `/api/v1/storage/uploads/${id}`, token, expiresIn: 600, maxBytes: MAX_BYTES };
+    return { objectId: id, uploadUrl: `/api/v1/storage/uploads/${id}`, token, expiresIn: 600, maxBytes };
   }
   private verifyToken(token: string, objectId: string, action: 'upload' | 'download' | 'review-download') {
     try { const payload = verifyStorageToken(token, this.env.STORAGE_ENCRYPTION_KEY); if (payload.objectId !== objectId || payload.action !== action) throw new Error('denied'); return payload; }
@@ -60,8 +63,8 @@ export class StorageService {
       try { assertMagicContentType(data, obj.contentType); }
       catch { throw new BadRequestException({ code: 'CONTENT_TYPE_MISMATCH', message: 'Object content does not match the declared type' }); }
       const meta = await this.storage.put(obj.objectKey, data, obj.contentType);
-      const state = obj.purpose === 'kyc-document' ? 'QUARANTINED' : 'UPLOADED';
-      await tx.storageObject.update({ where: { id: objectId }, data: { state, magicValid: true, sha256: meta.sha256, sizeBytes: BigInt(meta.sizeBytes), encryptionKeyId: meta.encryptionKeyId } });
+      const state = obj.purpose === 'kyc-document' || obj.purpose === 'product-image' ? 'QUARANTINED' : 'UPLOADED';
+      await tx.storageObject.update({ where: { id: objectId }, data: { state, magicValid: true, sha256: meta.sha256, sizeBytes: BigInt(meta.sizeBytes), encryptionKeyId: meta.encryptionKeyId, ...(obj.purpose === 'product-image' ? { expiresAt: null } : {}) } });
       await this.audit(tx, ctx, 'storage.upload.completed', objectId);
       return { objectId, state };
     });
@@ -119,7 +122,30 @@ export class StorageService {
     });
     if (!row) throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
     if (payload.action === 'download' && row.state !== 'UPLOADED') throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
-    if (payload.action === 'review-download' && (row.state !== 'QUARANTINED' || row.purpose !== 'kyc-document')) throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
+    if (payload.action === 'review-download' && (row.state !== 'QUARANTINED' || !['kyc-document', 'product-image'].includes(row.purpose))) throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
+    const data = await this.storage.get(row.objectKey);
+    return { data, contentType: row.contentType };
+  }
+  async createProductImageReviewDownload(ctx: AccessContext, imageId: string) {
+    if (!hasPermission(ctx, 'catalog:product-image:review')) throw new ForbiddenException({ code: 'PERMISSION_DENIED', message: 'Product image review permission is required' });
+    if (ctx.assurance !== 'STEP_UP') throw new ForbiddenException({ code: 'STEP_UP_REQUIRED', message: 'Recent step-up is required' });
+    const obj = await this.privileged.$transaction(async tx => {
+      await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      const image = await tx.productImage.findUnique({ where: { id: imageId }, include: { storageObject: true } });
+      if (!image || image.state !== 'PENDING_REVIEW' || image.storageObject.purpose !== 'product-image' || image.storageObject.state !== 'QUARANTINED') throw new NotFoundException({ code: 'PRODUCT_IMAGE_NOT_FOUND', message: 'Product image not found' });
+      if (!inGeographicScope(ctx, { countryId: image.countryId })) throw new NotFoundException({ code: 'PRODUCT_IMAGE_NOT_FOUND', message: 'Product image not found' });
+      await this.audit(tx, ctx, 'catalog.product-image.review.download.issued', image.id);
+      return image.storageObject;
+    });
+    const token = signStorageToken({ objectId: obj.id, action: 'review-download', exp: Date.now() + 5 * 60_000 }, this.env.STORAGE_ENCRYPTION_KEY);
+    return { imageId, downloadUrl: `/api/v1/storage/downloads/${obj.id}?token=${encodeURIComponent(token)}`, expiresIn: 300, contentType: obj.contentType };
+  }
+  async readApprovedProductImage(objectId: string) {
+    const row = await this.privileged.$transaction(async tx => {
+      await setRls(tx, { userId: '00000000-0000-0000-0000-000000000000', authorizationVersion: 0, isSuper: true });
+      return tx.storageObject.findUnique({ where: { id: objectId } });
+    });
+    if (!row || row.purpose !== 'product-image' || row.state !== 'UPLOADED' || !row.magicValid || row.deletedAt) throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
     const data = await this.storage.get(row.objectKey);
     return { data, contentType: row.contentType };
   }

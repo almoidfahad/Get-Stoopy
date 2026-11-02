@@ -70,4 +70,4 @@ Integration tests cover:
 - Production S3-compatible object store, KMS key rotation, malware scanning and quarantine bucket isolation.
 - Full KYC checklist policy, vendor/rider/admin activation, expiry/renewal automation, retention/legal hold and appeal workflow. A user-level KYC case/review foundation now exists in `27-kyc-case-foundation.md`.
 - Geographic scope for reviewer queues and sensitive-read/export audit at scale.
-- Product image moderation and public CDN policy.
+- Product image moderation and public CDN policy. A local quarantined/reviewed product-image foundation now exists in `31-category-taxonomy-product-images.md`; production AV/CDN policy remains pending.

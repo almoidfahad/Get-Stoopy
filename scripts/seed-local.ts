@@ -33,7 +33,9 @@ async function main() {
       { key: 'catalog:store:activate', resource: 'catalog', action: 'store:activate', sensitivity: 'high' },
       { key: 'catalog:store:suspend', resource: 'catalog', action: 'store:suspend', sensitivity: 'high' },
       { key: 'catalog:product:review', resource: 'catalog', action: 'product:review', sensitivity: 'high' },
-      { key: 'catalog:product:publish', resource: 'catalog', action: 'product:publish', sensitivity: 'high' }
+      { key: 'catalog:product:publish', resource: 'catalog', action: 'product:publish', sensitivity: 'high' },
+      { key: 'catalog:category:manage', resource: 'catalog', action: 'category:manage', sensitivity: 'high' },
+      { key: 'catalog:product-image:review', resource: 'catalog', action: 'product-image:review', sensitivity: 'high' }
     ];
     for (const p of [...basePerms, ...kycReviewerPerms, ...financePerms, ...partyPerms, ...catalogPerms]) await tx.permission.upsert({ where: { key: p.key }, update: {}, create: p });
 
@@ -72,7 +74,14 @@ async function main() {
       await tx.rolePermission.upsert({ where: { roleId_permissionId: { roleId: moderationRole.id, permissionId: permission.id } }, update: {}, create: { roleId: moderationRole.id, permissionId: permission.id } });
     }
 
-    console.log(JSON.stringify({ seeded: true, countryId: country.id, roleId: role.id, kycRoleId: kycRole.id, financeRoleId: financeRole.id, partyRoleId: partyRole.id, catalogRoleId: catalogRole.id, moderationRoleId: moderationRole.id, note: 'No user credentials or admin identity were fabricated. Sensitive permissions require explicit role assignment and scope.' }));
+    const taxonomyRole = await tx.role.upsert({ where: { key: 'catalog_taxonomy_admin' }, update: {}, create: { key: 'catalog_taxonomy_admin', name: 'Catalog Taxonomy Admin', description: 'Privileged country-scoped category creation/activation/suspension; requires step-up' } });
+    const taxonomyPerm = await tx.permission.findUniqueOrThrow({ where: { key: 'catalog:category:manage' } });
+    await tx.rolePermission.upsert({ where: { roleId_permissionId: { roleId: taxonomyRole.id, permissionId: taxonomyPerm.id } }, update: {}, create: { roleId: taxonomyRole.id, permissionId: taxonomyPerm.id } });
+    const mediaRole = await tx.role.upsert({ where: { key: 'catalog_media_reviewer' }, update: {}, create: { key: 'catalog_media_reviewer', name: 'Catalog Media Reviewer', description: 'Privileged non-self product image review; requires scope and step-up' } });
+    const mediaPerm = await tx.permission.findUniqueOrThrow({ where: { key: 'catalog:product-image:review' } });
+    await tx.rolePermission.upsert({ where: { roleId_permissionId: { roleId: mediaRole.id, permissionId: mediaPerm.id } }, update: {}, create: { roleId: mediaRole.id, permissionId: mediaPerm.id } });
+
+    console.log(JSON.stringify({ seeded: true, countryId: country.id, roleId: role.id, kycRoleId: kycRole.id, financeRoleId: financeRole.id, partyRoleId: partyRole.id, catalogRoleId: catalogRole.id, moderationRoleId: moderationRole.id, taxonomyRoleId: taxonomyRole.id, mediaRoleId: mediaRole.id, note: 'No user credentials or admin identity were fabricated. Sensitive permissions require explicit role assignment and scope.' }));
   });
 }
 main().finally(() => db.$disconnect());

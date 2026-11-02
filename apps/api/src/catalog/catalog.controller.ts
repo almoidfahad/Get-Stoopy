@@ -1,10 +1,11 @@
-import { BadRequestException, Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Matches, MaxLength, Min, MinLength } from 'class-validator';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { SessionGuard } from '../auth/session.guard.js';
 import { CsrfGuard } from '../common/csrf.js';
 import { CatalogService } from './catalog.service.js';
+import { StorageService } from '../storage/storage.service.js';
 import type { AccessContext } from '@getstoopy/core';
 
 class CreateStoreDto {
@@ -46,11 +47,37 @@ class PublishProductDto {
   @IsInt() @Min(1) version!: number;
   @IsString() @MinLength(8) @MaxLength(512) reason!: string;
 }
+class CreateCategoryDto {
+  @IsUUID() countryId!: string;
+  @IsOptional() @IsUUID() parentId?: string;
+  @IsString() @MinLength(2) @MaxLength(120) name!: string;
+  @IsString() @MinLength(1) @MaxLength(140) slug!: string;
+  @IsOptional() @IsString() @MaxLength(500) description?: string;
+  @IsOptional() @IsInt() @Min(0) sortOrder?: number;
+}
+class CategoryDecisionDto {
+  @IsInt() @Min(1) version!: number;
+  @IsString() @MinLength(8) @MaxLength(512) reason!: string;
+}
+class AssignCategoryDto {
+  @IsOptional() @IsUUID() categoryId!: string | null;
+  @IsInt() @Min(1) version!: number;
+}
+class AttachImageDto {
+  @IsUUID() storageObjectId!: string;
+  @IsString() @MinLength(3) @MaxLength(180) altText!: string;
+  @IsInt() @Min(0) sortOrder!: number;
+}
+class ReviewImageDto {
+  @IsInt() @Min(1) version!: number;
+  @IsIn(['APPROVE', 'REJECT']) decision!: 'APPROVE' | 'REJECT';
+  @IsString() @MinLength(8) @MaxLength(512) reason!: string;
+}
 
 @ApiTags('catalog')
 @Controller('catalog')
 export class CatalogController {
-  constructor(@Inject(CatalogService) private readonly catalog: CatalogService) {}
+  constructor(@Inject(CatalogService) private readonly catalog: CatalogService, @Inject(StorageService) private readonly storage: StorageService) {}
   private ctx(req: Request) { return (req as any).accessContext as AccessContext; }
 
   @Post('stores') @UseGuards(SessionGuard, CsrfGuard)
@@ -88,6 +115,25 @@ export class CatalogController {
   publishProduct(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: PublishProductDto) { return this.catalog.publishProduct(this.ctx(req), id, body); }
   @Post('admin/products/:id/unpublish') @UseGuards(SessionGuard, CsrfGuard)
   unpublishProduct(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: PublishProductDto) { return this.catalog.unpublishProduct(this.ctx(req), id, body); }
+
+  @Post('admin/categories') @UseGuards(SessionGuard, CsrfGuard)
+  createCategory(@Req() req: Request, @Body() body: CreateCategoryDto) { return this.catalog.createCategory(this.ctx(req), body); }
+  @Get('admin/categories') @UseGuards(SessionGuard)
+  adminCategories(@Req() req: Request, @Query('countryId', ParseUUIDPipe) countryId: string) { return this.catalog.adminCategories(this.ctx(req), countryId); }
+  @Post('admin/categories/:id/activate') @UseGuards(SessionGuard, CsrfGuard)
+  activateCategory(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: CategoryDecisionDto) { return this.catalog.categoryDecision(this.ctx(req), id, body, 'activate'); }
+  @Post('admin/categories/:id/suspend') @UseGuards(SessionGuard, CsrfGuard)
+  suspendCategory(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: CategoryDecisionDto) { return this.catalog.categoryDecision(this.ctx(req), id, body, 'suspend'); }
+  @Post('products/:id/category') @UseGuards(SessionGuard, CsrfGuard)
+  assignCategory(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: AssignCategoryDto) { return this.catalog.assignProductCategory(this.ctx(req), id, { categoryId: body.categoryId ?? null, version: body.version }); }
+  @Post('products/:id/images') @UseGuards(SessionGuard, CsrfGuard)
+  attachImage(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: AttachImageDto) { return this.catalog.attachProductImage(this.ctx(req), id, body); }
+  @Get('products/:id/images') @UseGuards(SessionGuard)
+  listImages(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) { return this.catalog.listProductImages(this.ctx(req), id); }
+  @Post('admin/product-images/:id/review') @UseGuards(SessionGuard, CsrfGuard)
+  reviewImage(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: ReviewImageDto) { return this.catalog.reviewProductImage(this.ctx(req), id, body); }
+  @Post('admin/product-images/:id/review-download-url') @UseGuards(SessionGuard, CsrfGuard)
+  reviewImageDownload(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) { return this.storage.createProductImageReviewDownload(this.ctx(req), id); }
 }
 
 @ApiTags('public-catalog')
@@ -95,14 +141,22 @@ export class CatalogController {
 export class PublicCatalogController {
   constructor(@Inject(CatalogService) private readonly catalog: CatalogService) {}
   @Get('products')
-  list(@Query('countryId', ParseUUIDPipe) countryId: string, @Query('cityId') cityId?: string, @Query('q') q?: string, @Query('limit') limit?: string, @Query('cursor') cursor?: string) {
+  list(@Query('countryId', ParseUUIDPipe) countryId: string, @Query('cityId') cityId?: string, @Query('categoryId') categoryId?: string, @Query('q') q?: string, @Query('limit') limit?: string, @Query('cursor') cursor?: string) {
     const parsedLimit = limit === undefined ? 20 : Number(limit);
     if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 50) throw new BadRequestException({ code: 'LIMIT_INVALID', message: 'limit must be 1-50' });
     if (cityId !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cityId)) throw new BadRequestException({ code: 'CITY_ID_INVALID', message: 'Invalid cityId' });
+    if (categoryId !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId)) throw new BadRequestException({ code: 'CATEGORY_ID_INVALID', message: 'Invalid categoryId' });
     if (cursor !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cursor)) throw new BadRequestException({ code: 'CURSOR_INVALID', message: 'Invalid cursor' });
     if (q !== undefined && q.length > 120) throw new BadRequestException({ code: 'QUERY_INVALID', message: 'q is too long' });
-    return this.catalog.publicList({ countryId, ...(cityId ? { cityId } : {}), ...(q?.trim() ? { q: q.trim() } : {}), limit: parsedLimit, ...(cursor ? { cursor } : {}) });
+    return this.catalog.publicList({ countryId, ...(cityId ? { cityId } : {}), ...(categoryId ? { categoryId } : {}), ...(q?.trim() ? { q: q.trim() } : {}), limit: parsedLimit, ...(cursor ? { cursor } : {}) });
   }
+  @Get('categories')
+  categories(@Query('countryId', ParseUUIDPipe) countryId: string) { return this.catalog.publicCategories(countryId); }
   @Get('products/:id')
   detail(@Param('id', ParseUUIDPipe) id: string, @Query('countryId', ParseUUIDPipe) countryId: string) { return this.catalog.publicDetail(id, countryId); }
+  @Get('products/:id/images/:imageId')
+  async image(@Param('id', ParseUUIDPipe) id: string, @Param('imageId', ParseUUIDPipe) imageId: string, @Query('countryId', ParseUUIDPipe) countryId: string, @Res() res: Response) {
+    const { data, contentType } = await this.catalog.publicProductImage(id, imageId, countryId);
+    res.setHeader('Content-Type', contentType); res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options', 'nosniff'); res.send(data);
+  }
 }

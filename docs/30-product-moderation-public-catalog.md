@@ -139,7 +139,7 @@ New integration coverage in `tests/integration/catalog-moderation.test.ts` verif
 ## Known limitations / next gates
 
 - Public search is a bounded database substring filter; ranking, facets, synonyms and dedicated search infrastructure remain pending.
-- No category taxonomy or product images yet.
+- No category taxonomy or product images in this historical slice. Superseded by `31-category-taxonomy-product-images.md`.
 - No inventory, stock reservation, cart or checkout yet.
 - Store pickup geometry, operating hours and service-area approval remain pending.
 - Store-level membership (`storeId`) is still optional in the core interface and not fully exercised by store-scoped grants.
