@@ -2,7 +2,7 @@
 
 **Shop Smart. Live Better.**
 
-Status: **Architecture approved for development 2026-11-01; Phase 2 in progress.** The original review package remains below. Executable foundation slices now include API/BFF/RLS, local Keycloak OIDC, worker/outbox/inbox, privileged TOTP/session controls and private local encrypted storage. Current local verification: **113 unit tests / 20 files PASS** and **80 integration tests / 15 files PASS** against isolated PostgreSQL/PostGIS + Redis. This is still not a running marketplace; no paid resource, live payment collection or production deployment exists. See `docs/17-phase2-foundation.md` through `docs/33-cart-checkout-quote.md`.
+Status: **Architecture approved for development 2026-11-01; Phase 2 in progress.** The original review package remains below. Executable foundation slices now include API/BFF/RLS, local Keycloak OIDC, worker/outbox/inbox, privileged TOTP/session controls and private local encrypted storage. Current local verification: **117 unit tests / 21 files PASS** and **84 integration tests / 16 files PASS** against isolated PostgreSQL/PostGIS + Redis. This is still not a running marketplace; no paid resource, live payment collection or production deployment exists. See `docs/17-phase2-foundation.md` through `docs/34-payment-cod-sandbox.md`.
 
 ## Source control
 

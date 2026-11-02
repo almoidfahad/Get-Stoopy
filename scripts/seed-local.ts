@@ -21,7 +21,8 @@ async function main() {
     ];
     const financePerms = [
       { key: 'finance:ledger:post', resource: 'finance', action: 'ledger:post', sensitivity: 'critical' },
-      { key: 'finance:ledger:read', resource: 'finance', action: 'ledger:read', sensitivity: 'high' }
+      { key: 'finance:ledger:read', resource: 'finance', action: 'ledger:read', sensitivity: 'high' },
+      { key: 'finance:cod:manage', resource: 'finance', action: 'cod:manage', sensitivity: 'critical' }
     ];
     const partyPerms = [
       { key: 'vendor:profile:activate', resource: 'vendor', action: 'profile:activate', sensitivity: 'critical' },
@@ -51,7 +52,7 @@ async function main() {
       await tx.rolePermission.upsert({ where: { roleId_permissionId: { roleId: kycRole.id, permissionId: permission.id } }, update: {}, create: { roleId: kycRole.id, permissionId: permission.id } });
     }
 
-    const financeRole = await tx.role.upsert({ where: { key: 'finance_ledger' }, update: {}, create: { key: 'finance_ledger', name: 'Finance Ledger', description: 'Privileged ledger primitives; domain finance commands are not implemented yet' } });
+    const financeRole = await tx.role.upsert({ where: { key: 'finance_ledger' }, update: {}, create: { key: 'finance_ledger', name: 'Finance Ledger', description: 'Privileged ledger primitives and COD policy; live payments/payouts remain disabled' } });
     for (const p of financePerms) {
       const permission = await tx.permission.findUniqueOrThrow({ where: { key: p.key } });
       await tx.rolePermission.upsert({ where: { roleId_permissionId: { roleId: financeRole.id, permissionId: permission.id } }, update: {}, create: { roleId: financeRole.id, permissionId: permission.id } });

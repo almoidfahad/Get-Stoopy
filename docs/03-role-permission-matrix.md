@@ -40,6 +40,8 @@ Status: proposed deny-by-default policy. Machine-readable companion: `../contrac
 | Manual dispatch / override | G | C delegated | R delegated | T delegated | Z/L delegated | — | — | — |
 | Pickup / OTP delivery proof | — | — | — | — | Audited exception only | V, pickup handoff only | D | Recipient OTP, not account role |
 | Commission / rider rates | G | C only if delegated | — | — | — | V, view effective own charges | D, view own snapshot | — |
+| COD country policy | G, step-up | C delegated, step-up | — by default | — by default | — | — | — | — |
+| Sandbox payment intents/webhooks | G oversight | — | — | — | — | — | — | O, own order; webhook authenticated by HMAC |
 | Financial ledger direct edit | — | — | — | — | — | — | — | — |
 | Refund request/review | G approval policy | C delegated review | R review | T review | L intake | V, own request | D, evidence only | O, request |
 | Refund approval | G, maker–checker | C, explicit permission | R, explicit permission | T, explicit permission | — | — | — | — |

@@ -13,6 +13,8 @@ export const envSchema = z.object({
   SESSION_IDLE_MINUTES: z.coerce.number().int().positive().default(15),
   PRIVILEGED_ABSOLUTE_HOURS: z.coerce.number().int().positive().default(8),
   PAYMENTS_LIVE_ENABLED: bool.default('false'),
+  PAYMENTS_SANDBOX_ENABLED: bool.default('false'),
+  PAYMENT_SANDBOX_WEBHOOK_SECRET: z.string().min(32).optional(),
   BANGLA_QR_ENABLED: bool.default('false'),
   PAYOUTS_LIVE_ENABLED: bool.default('false'),
   CROSS_BORDER_ENABLED: bool.default('false'),
@@ -35,6 +37,9 @@ export function loadApiEnv(input: NodeJS.ProcessEnv): ApiEnv {
     if (!env.SESSION_COOKIE_NAME.startsWith('__Host-')) throw new Error('HOST_COOKIE_REQUIRED');
   }
   if (env.CROSS_BORDER_ENABLED) throw new Error('CROSS_BORDER_NOT_AUTHORIZED');
+  if (env.PAYMENTS_LIVE_ENABLED) throw new Error('PAYMENTS_LIVE_NOT_AUTHORIZED');
+  if (env.PAYMENTS_SANDBOX_ENABLED && !env.PAYMENT_SANDBOX_WEBHOOK_SECRET) throw new Error('PAYMENT_SANDBOX_WEBHOOK_SECRET_REQUIRED');
+  if (env.NODE_ENV === 'production' && env.PAYMENTS_SANDBOX_ENABLED) throw new Error('PAYMENT_SANDBOX_FORBIDDEN_IN_PRODUCTION');
   return env;
 }
 export type Env = z.infer<typeof envSchema>;
@@ -46,5 +51,8 @@ export function loadEnv(input: NodeJS.ProcessEnv): Env {
     if (!env.SESSION_COOKIE_NAME.startsWith('__Host-')) throw new Error('HOST_COOKIE_REQUIRED');
   }
   if (env.CROSS_BORDER_ENABLED) throw new Error('CROSS_BORDER_NOT_AUTHORIZED');
+  if (env.PAYMENTS_LIVE_ENABLED) throw new Error('PAYMENTS_LIVE_NOT_AUTHORIZED');
+  if (env.PAYMENTS_SANDBOX_ENABLED && !env.PAYMENT_SANDBOX_WEBHOOK_SECRET) throw new Error('PAYMENT_SANDBOX_WEBHOOK_SECRET_REQUIRED');
+  if (env.NODE_ENV === 'production' && env.PAYMENTS_SANDBOX_ENABLED) throw new Error('PAYMENT_SANDBOX_FORBIDDEN_IN_PRODUCTION');
   return env;
 }

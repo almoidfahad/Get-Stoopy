@@ -1,6 +1,6 @@
 # Payment, QR, payout and integration readiness
 
-**Status:** research and secure interface design only. No merchant account, credential, payment, subscription, cloud resource or live integration exists.
+**Status:** research and secure interface design, plus an implemented sandbox/manual order-payment/COD foundation (`docs/34-payment-cod-sandbox.md`). No merchant account, live credential, real payment, subscription, cloud resource or live integration exists. Live provider adapters remain disabled capability shells.
 
 ## Non-negotiable capability gate
 

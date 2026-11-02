@@ -8,7 +8,7 @@ import { AppModule } from './app.module.js';
 import { loadApiEnv } from '@getstoopy/config';
 export async function createApp() {
   const env = loadApiEnv(process.env);
-  const app = await NestFactory.create(AppModule, { logger: ['error','warn','log'] });
+  const app = await NestFactory.create(AppModule, { logger: ['error','warn','log'], rawBody: true });
   app.use(helmet());
   app.enableCors({ origin: env.WEB_ORIGIN, credentials: true });
   app.setGlobalPrefix('api/v1');

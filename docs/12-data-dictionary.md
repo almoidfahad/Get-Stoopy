@@ -1502,7 +1502,7 @@ Status: architecture proposal, not an implemented schema. UUID primary keys and 
 | idempotencyKey | string |
 | version | int |
 
-**Constraints / authorization:** UNIQUE(buyerId,idempotencyKey); total equation; same buyer/recipient country initially; parent aggregates suborders
+**Constraints / authorization:** Executable foundation (`docs/34`): UNIQUE(buyerId,commandKey), UNIQUE(quoteId), immutable product-subtotal amount/currency, atomic reservation consumption, deferred suborder/item total equation; sandbox/COD only. Original logical destinationZoneId, delivery/discount/tax totals, riskCaseId and full recipient privacy remain pending.
 
 **Retention:** Business policy; see retention register
 

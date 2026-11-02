@@ -210,6 +210,10 @@ model User {
   inventoryReservations  InventoryReservation[]
   carts                  Cart[]
   checkoutQuotes         CheckoutQuote[]
+  orders                 Order[]
+  paymentIntents         PaymentIntent[]
+  codPoliciesCreated     CodPolicy[]            @relation("CodPolicyCreatedBy")
+  codPoliciesUpdated     CodPolicy[]            @relation("CodPolicyUpdatedBy")
 }
 
 model UserIdentity {
@@ -327,6 +331,8 @@ model Country {
   inventories    Inventory[]
   carts          Cart[]
   checkoutQuotes CheckoutQuote[]
+  orders         Order[]
+  codPolicies    CodPolicy[]
 }
 
 model Region {
@@ -364,6 +370,7 @@ model City {
   zones          ServiceZone[]
   stores         Store[]
   checkoutQuotes CheckoutQuote[] @relation("CheckoutQuoteDestinationCity")
+  orders         Order[]         @relation("OrderDestinationCity")
 
   @@unique([districtId, code])
 }
@@ -746,6 +753,7 @@ model Store {
   inventories       Inventory[]
   cartItems         CartItem[]
   checkoutGroups    CheckoutQuoteGroup[]
+  suborders         VendorSuborder[]
 
   @@unique([vendorId, slug])
   @@index([countryId, status])
@@ -942,6 +950,7 @@ enum CheckoutQuoteState {
   RESERVED
   RELEASED
   EXPIRED
+  CONSUMED
 }
 
 model Cart {
@@ -1003,6 +1012,7 @@ model CheckoutQuote {
   destinationCity   City                 @relation("CheckoutQuoteDestinationCity", fields: [destinationCityId], references: [id])
   groups            CheckoutQuoteGroup[]
   items             CheckoutQuoteItem[]
+  order             Order?
 
   @@unique([userId, commandKey])
   @@index([userId, state, createdAt])
@@ -1044,8 +1054,188 @@ model CheckoutQuoteItem {
   group          CheckoutQuoteGroup   @relation(fields: [groupId], references: [id])
   reservation    InventoryReservation @relation(fields: [reservationId], references: [id])
   variant        ProductVariant       @relation(fields: [variantId], references: [id])
+  orderItem      OrderItem?
 
   @@unique([quoteId, variantId])
   @@index([quoteId])
   @@index([groupId])
+}
+
+enum OrderPaymentStatus {
+  AWAITING_PAYMENT
+  PAYMENT_VERIFIED
+  PAYMENT_FAILED
+  AWAITING_COD
+}
+
+enum VendorSuborderStatus {
+  PENDING_VENDOR
+}
+
+enum OrderPaymentMethod {
+  SANDBOX_MANUAL
+  COD
+}
+
+enum PaymentProvider {
+  SANDBOX_MANUAL
+  SSLCOMMERZ
+  AAMARPAY
+  SHURJOPAY
+}
+
+enum PaymentEnvironment {
+  SANDBOX
+  LIVE
+}
+
+enum PaymentIntentStatus {
+  CREATED
+  PENDING
+  UNKNOWN
+  VERIFIED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentWebhookStatus {
+  APPLIED
+  REJECTED
+  IGNORED_OUT_OF_ORDER
+}
+
+model Order {
+  id                String             @id @default(uuid()) @db.Uuid
+  publicReference   String             @unique @db.VarChar(40)
+  buyerId           String             @db.Uuid
+  countryId         String             @db.Uuid
+  destinationCityId String             @db.Uuid
+  quoteId           String             @unique @db.Uuid
+  commandKey        String             @db.VarChar(128)
+  payloadHash       String             @db.VarChar(64)
+  currency          String             @db.VarChar(3)
+  amountMinor       BigInt
+  pricingScope      String             @default("PRODUCT_SUBTOTAL_ONLY") @db.VarChar(40)
+  paymentMethod     OrderPaymentMethod
+  paymentStatus     OrderPaymentStatus
+  codEligibility    Json?
+  version           Int                @default(1)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  buyer             User               @relation(fields: [buyerId], references: [id])
+  country           Country            @relation(fields: [countryId], references: [id])
+  destinationCity   City               @relation("OrderDestinationCity", fields: [destinationCityId], references: [id])
+  quote             CheckoutQuote      @relation(fields: [quoteId], references: [id])
+  suborders         VendorSuborder[]
+  paymentIntents    PaymentIntent[]
+
+  @@unique([buyerId, commandKey])
+  @@index([buyerId, createdAt])
+  @@index([countryId, paymentStatus, createdAt])
+}
+
+model VendorSuborder {
+  id              String               @id @default(uuid()) @db.Uuid
+  publicReference String               @unique @db.VarChar(40)
+  orderId         String               @db.Uuid
+  vendorId        String               @db.Uuid
+  storeId         String               @db.Uuid
+  currency        String               @db.VarChar(3)
+  subtotalMinor   BigInt
+  status          VendorSuborderStatus @default(PENDING_VENDOR)
+  version         Int                  @default(1)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  order           Order                @relation(fields: [orderId], references: [id])
+  store           Store                @relation(fields: [storeId], references: [id])
+  items           OrderItem[]
+
+  @@unique([orderId, vendorId, storeId])
+  @@index([vendorId, createdAt])
+  @@index([storeId, createdAt])
+}
+
+model OrderItem {
+  id             String            @id @default(uuid()) @db.Uuid
+  suborderId     String            @db.Uuid
+  quoteItemId    String            @unique @db.Uuid
+  variantId      String            @db.Uuid
+  productId      String            @db.Uuid
+  productTitle   String            @db.VarChar(200)
+  sku            String            @db.VarChar(120)
+  quantity       Int
+  unitPriceMinor BigInt
+  lineTotalMinor BigInt
+  currency       String            @db.VarChar(3)
+  createdAt      DateTime          @default(now())
+  suborder       VendorSuborder    @relation(fields: [suborderId], references: [id])
+  quoteItem      CheckoutQuoteItem @relation(fields: [quoteItemId], references: [id])
+
+  @@index([suborderId])
+  @@index([variantId])
+}
+
+model PaymentIntent {
+  id                 String                @id @default(uuid()) @db.Uuid
+  orderId            String                @db.Uuid
+  userId             String                @db.Uuid
+  commandKey         String                @db.VarChar(128)
+  payloadHash        String                @db.VarChar(64)
+  merchantReference  String                @unique @db.VarChar(64)
+  provider           PaymentProvider
+  environment        PaymentEnvironment
+  amountMinor        BigInt
+  currency           String                @db.VarChar(3)
+  status             PaymentIntentStatus   @default(CREATED)
+  providerReference  String?               @db.VarChar(128)
+  verificationMethod String?               @db.VarChar(64)
+  expiresAt          DateTime
+  closedAt           DateTime?
+  version            Int                   @default(1)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  order              Order                 @relation(fields: [orderId], references: [id])
+  user               User                  @relation(fields: [userId], references: [id])
+  webhookEvents      PaymentWebhookEvent[]
+
+  @@unique([orderId, commandKey])
+  @@index([orderId, status])
+  @@index([userId, createdAt])
+  @@index([status, expiresAt])
+}
+
+model PaymentWebhookEvent {
+  id                String               @id @default(uuid()) @db.Uuid
+  provider          PaymentProvider
+  environment       PaymentEnvironment
+  dedupeKey         String               @unique @db.VarChar(160)
+  providerEventId   String               @db.VarChar(128)
+  providerReference String?              @db.VarChar(128)
+  merchantReference String               @db.VarChar(64)
+  intentId          String?              @db.Uuid
+  payloadHash       String               @db.VarChar(64)
+  status            PaymentWebhookStatus
+  rejectionReason   String?              @db.VarChar(128)
+  redactedPayload   Json
+  receivedAt        DateTime             @default(now())
+  intent            PaymentIntent?       @relation(fields: [intentId], references: [id])
+
+  @@index([intentId, receivedAt])
+  @@index([merchantReference, receivedAt])
+}
+
+model CodPolicy {
+  id              String   @id @default(uuid()) @db.Uuid
+  countryId       String   @unique @db.Uuid
+  enabled         Boolean  @default(false)
+  maxOrderMinor   BigInt
+  version         Int      @default(1)
+  createdByUserId String   @db.Uuid
+  updatedByUserId String   @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  country         Country  @relation(fields: [countryId], references: [id])
+  createdBy       User     @relation("CodPolicyCreatedBy", fields: [createdByUserId], references: [id])
+  updatedBy       User     @relation("CodPolicyUpdatedBy", fields: [updatedByUserId], references: [id])
 }
