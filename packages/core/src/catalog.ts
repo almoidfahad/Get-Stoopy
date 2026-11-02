@@ -11,7 +11,30 @@ export function assertStoreTransition(from: StoreStatus, to: StoreStatus): void 
   if (!(storeTransitions[from] ?? []).includes(to)) throw new Error(`STORE_INVALID_TRANSITION_${from}_${to}`);
 }
 
-/** Draft-only catalog foundation. Publication/moderation is a later gated slice. */
+export type ProductModerationState = 'NOT_SUBMITTED' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+
+export const productModerationTransitions: Record<ProductModerationState, ProductModerationState[]> = {
+  NOT_SUBMITTED: ['PENDING_REVIEW'],
+  PENDING_REVIEW: ['APPROVED', 'REJECTED'],
+  APPROVED: [],
+  REJECTED: ['PENDING_REVIEW']
+};
+
+export function assertProductModerationTransition(from: ProductModerationState, to: ProductModerationState): void {
+  if (!(productModerationTransitions[from] ?? []).includes(to)) throw new Error(`PRODUCT_MODERATION_INVALID_TRANSITION_${from}_${to}`);
+}
+
+export const productTransitions: Record<ProductStatus, ProductStatus[]> = {
+  DRAFT: ['PUBLISHED', 'ARCHIVED'],
+  PUBLISHED: ['DRAFT', 'ARCHIVED'],
+  ARCHIVED: []
+};
+
+export function assertProductTransition(from: ProductStatus, to: ProductStatus): void {
+  if (!(productTransitions[from] ?? []).includes(to)) throw new Error(`PRODUCT_INVALID_TRANSITION_${from}_${to}`);
+}
+
+/** @deprecated Draft-only helper retained for archive compatibility; publication now requires moderation. */
 export const productDraftTransitions: Record<ProductStatus, ProductStatus[]> = {
   DRAFT: ['ARCHIVED'],
   PUBLISHED: ['ARCHIVED'],
@@ -19,7 +42,7 @@ export const productDraftTransitions: Record<ProductStatus, ProductStatus[]> = {
 };
 
 export function assertProductDraftTransition(from: ProductStatus, to: ProductStatus): void {
-  if (to === 'PUBLISHED') throw new Error('PRODUCT_PUBLICATION_NOT_ENABLED');
+  if (to === 'PUBLISHED') throw new Error('PRODUCT_PUBLICATION_REQUIRES_MODERATION');
   if (!(productDraftTransitions[from] ?? []).includes(to)) throw new Error(`PRODUCT_INVALID_TRANSITION_${from}_${to}`);
 }
 

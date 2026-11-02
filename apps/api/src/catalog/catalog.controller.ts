@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { IsInt, IsObject, IsOptional, IsString, IsUUID, Matches, MaxLength, Min, MinLength } from 'class-validator';
+import { IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Matches, MaxLength, Min, MinLength } from 'class-validator';
 import type { Request } from 'express';
 import { SessionGuard } from '../auth/session.guard.js';
 import { CsrfGuard } from '../common/csrf.js';
@@ -34,6 +34,18 @@ class CreateVariantDto {
   @IsString() @Matches(/^[A-Z]{3}$/) currency!: string;
   @IsOptional() @IsInt() @Min(1) weightGrams?: number;
 }
+class SubmitProductDto {
+  @IsInt() @Min(1) version!: number;
+}
+class ReviewProductDto {
+  @IsInt() @Min(1) version!: number;
+  @IsIn(['APPROVE', 'REJECT']) decision!: 'APPROVE' | 'REJECT';
+  @IsString() @MinLength(8) @MaxLength(512) reason!: string;
+}
+class PublishProductDto {
+  @IsInt() @Min(1) version!: number;
+  @IsString() @MinLength(8) @MaxLength(512) reason!: string;
+}
 
 @ApiTags('catalog')
 @Controller('catalog')
@@ -60,4 +72,37 @@ export class CatalogController {
   createVariant(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: CreateVariantDto) { return this.catalog.createVariant(this.ctx(req), id, body); }
   @Get('products/:id/variants') @UseGuards(SessionGuard)
   listVariants(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) { return this.catalog.listVariants(this.ctx(req), id); }
+
+  @Post('products/:id/submit') @UseGuards(SessionGuard, CsrfGuard)
+  submitProduct(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: SubmitProductDto) { return this.catalog.submitProduct(this.ctx(req), id, body.version); }
+  @Get('admin/products') @UseGuards(SessionGuard)
+  moderationQueue(@Req() req: Request, @Query('countryId', ParseUUIDPipe) countryId: string, @Query('moderationState') moderationState?: string, @Query('limit') limit?: string, @Query('cursor') cursor?: string) {
+    const parsedLimit = limit === undefined ? 20 : Number(limit);
+    if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) throw new BadRequestException({ code: 'LIMIT_INVALID', message: 'limit must be 1-100' });
+    if (cursor !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cursor)) throw new BadRequestException({ code: 'CURSOR_INVALID', message: 'Invalid cursor' });
+    return this.catalog.moderationQueue(this.ctx(req), countryId, moderationState, parsedLimit, cursor);
+  }
+  @Post('admin/products/:id/review') @UseGuards(SessionGuard, CsrfGuard)
+  reviewProduct(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: ReviewProductDto) { return this.catalog.reviewProduct(this.ctx(req), id, body); }
+  @Post('admin/products/:id/publish') @UseGuards(SessionGuard, CsrfGuard)
+  publishProduct(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: PublishProductDto) { return this.catalog.publishProduct(this.ctx(req), id, body); }
+  @Post('admin/products/:id/unpublish') @UseGuards(SessionGuard, CsrfGuard)
+  unpublishProduct(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: PublishProductDto) { return this.catalog.unpublishProduct(this.ctx(req), id, body); }
+}
+
+@ApiTags('public-catalog')
+@Controller('public/catalog')
+export class PublicCatalogController {
+  constructor(@Inject(CatalogService) private readonly catalog: CatalogService) {}
+  @Get('products')
+  list(@Query('countryId', ParseUUIDPipe) countryId: string, @Query('cityId') cityId?: string, @Query('q') q?: string, @Query('limit') limit?: string, @Query('cursor') cursor?: string) {
+    const parsedLimit = limit === undefined ? 20 : Number(limit);
+    if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 50) throw new BadRequestException({ code: 'LIMIT_INVALID', message: 'limit must be 1-50' });
+    if (cityId !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cityId)) throw new BadRequestException({ code: 'CITY_ID_INVALID', message: 'Invalid cityId' });
+    if (cursor !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cursor)) throw new BadRequestException({ code: 'CURSOR_INVALID', message: 'Invalid cursor' });
+    if (q !== undefined && q.length > 120) throw new BadRequestException({ code: 'QUERY_INVALID', message: 'q is too long' });
+    return this.catalog.publicList({ countryId, ...(cityId ? { cityId } : {}), ...(q?.trim() ? { q: q.trim() } : {}), limit: parsedLimit, ...(cursor ? { cursor } : {}) });
+  }
+  @Get('products/:id')
+  detail(@Param('id', ParseUUIDPipe) id: string, @Query('countryId', ParseUUIDPipe) countryId: string) { return this.catalog.publicDetail(id, countryId); }
 }

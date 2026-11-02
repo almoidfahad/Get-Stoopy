@@ -128,6 +128,13 @@ enum ProductStatus {
   ARCHIVED
 }
 
+enum ProductModerationState {
+  NOT_SUBMITTED
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
 enum IdempotencyState {
   IN_PROGRESS
   COMPLETED
@@ -166,6 +173,8 @@ model User {
   activatedRiderProfiles RiderProfile[]     @relation("RiderActivatedBy")
   activatedStores        Store[]            @relation("StoreActivatedBy")
   createdProducts        Product[]          @relation("ProductCreatedBy")
+  reviewedProducts       Product[]          @relation("ProductReviewedBy")
+  publishedProducts      Product[]          @relation("ProductPublishedBy")
 }
 
 model UserIdentity {
@@ -698,27 +707,38 @@ model Store {
 }
 
 model Product {
-  id              String           @id @default(uuid()) @db.Uuid
-  vendorId        String           @db.Uuid
-  storeId         String           @db.Uuid
-  countryId       String           @db.Uuid
-  title           String           @db.VarChar(200)
-  description     String           @db.VarChar(5000)
-  brand           String?          @db.VarChar(120)
-  status          ProductStatus    @default(DRAFT)
-  version         Int              @default(1)
-  createdByUserId String           @db.Uuid
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  vendor          Vendor           @relation(fields: [vendorId], references: [id])
-  store           Store            @relation(fields: [storeId], references: [id])
-  country         Country          @relation(fields: [countryId], references: [id])
-  createdBy       User             @relation("ProductCreatedBy", fields: [createdByUserId], references: [id])
-  variants        ProductVariant[]
+  id                String                 @id @default(uuid()) @db.Uuid
+  vendorId          String                 @db.Uuid
+  storeId           String                 @db.Uuid
+  countryId         String                 @db.Uuid
+  title             String                 @db.VarChar(200)
+  description       String                 @db.VarChar(5000)
+  brand             String?                @db.VarChar(120)
+  status            ProductStatus          @default(DRAFT)
+  moderationState   ProductModerationState @default(NOT_SUBMITTED)
+  moderationReason  String?                @db.VarChar(512)
+  submittedAt       DateTime?
+  reviewedAt        DateTime?
+  reviewedByUserId  String?                @db.Uuid
+  publishedAt       DateTime?
+  publishedByUserId String?                @db.Uuid
+  version           Int                    @default(1)
+  createdByUserId   String                 @db.Uuid
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  vendor            Vendor                 @relation(fields: [vendorId], references: [id])
+  store             Store                  @relation(fields: [storeId], references: [id])
+  country           Country                @relation(fields: [countryId], references: [id])
+  createdBy         User                   @relation("ProductCreatedBy", fields: [createdByUserId], references: [id])
+  reviewedBy        User?                  @relation("ProductReviewedBy", fields: [reviewedByUserId], references: [id])
+  publishedBy       User?                  @relation("ProductPublishedBy", fields: [publishedByUserId], references: [id])
+  variants          ProductVariant[]
 
   @@index([storeId, status])
   @@index([vendorId, status])
   @@index([countryId, status])
+  @@index([countryId, moderationState, createdAt])
+  @@index([countryId, status, createdAt, id])
 }
 
 model ProductVariant {

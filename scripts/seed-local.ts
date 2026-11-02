@@ -31,7 +31,9 @@ async function main() {
     ];
     const catalogPerms = [
       { key: 'catalog:store:activate', resource: 'catalog', action: 'store:activate', sensitivity: 'high' },
-      { key: 'catalog:store:suspend', resource: 'catalog', action: 'store:suspend', sensitivity: 'high' }
+      { key: 'catalog:store:suspend', resource: 'catalog', action: 'store:suspend', sensitivity: 'high' },
+      { key: 'catalog:product:review', resource: 'catalog', action: 'product:review', sensitivity: 'high' },
+      { key: 'catalog:product:publish', resource: 'catalog', action: 'product:publish', sensitivity: 'high' }
     ];
     for (const p of [...basePerms, ...kycReviewerPerms, ...financePerms, ...partyPerms, ...catalogPerms]) await tx.permission.upsert({ where: { key: p.key }, update: {}, create: p });
 
@@ -60,12 +62,17 @@ async function main() {
     }
 
     const catalogRole = await tx.role.upsert({ where: { key: 'catalog_store_admin' }, update: {}, create: { key: 'catalog_store_admin', name: 'Catalog Store Admin', description: 'Privileged non-self store activation/suspension; requires scope and step-up' } });
-    for (const p of catalogPerms) {
+    for (const p of catalogPerms.filter(x => x.key.startsWith('catalog:store:'))) {
       const permission = await tx.permission.findUniqueOrThrow({ where: { key: p.key } });
       await tx.rolePermission.upsert({ where: { roleId_permissionId: { roleId: catalogRole.id, permissionId: permission.id } }, update: {}, create: { roleId: catalogRole.id, permissionId: permission.id } });
     }
+    const moderationRole = await tx.role.upsert({ where: { key: 'catalog_product_moderator' }, update: {}, create: { key: 'catalog_product_moderator', name: 'Catalog Product Moderator', description: 'Privileged non-self product review/publication; requires scope and step-up' } });
+    for (const p of catalogPerms.filter(x => x.key.startsWith('catalog:product:'))) {
+      const permission = await tx.permission.findUniqueOrThrow({ where: { key: p.key } });
+      await tx.rolePermission.upsert({ where: { roleId_permissionId: { roleId: moderationRole.id, permissionId: permission.id } }, update: {}, create: { roleId: moderationRole.id, permissionId: permission.id } });
+    }
 
-    console.log(JSON.stringify({ seeded: true, countryId: country.id, roleId: role.id, kycRoleId: kycRole.id, financeRoleId: financeRole.id, partyRoleId: partyRole.id, catalogRoleId: catalogRole.id, note: 'No user credentials or admin identity were fabricated. Sensitive permissions require explicit role assignment and scope.' }));
+    console.log(JSON.stringify({ seeded: true, countryId: country.id, roleId: role.id, kycRoleId: kycRole.id, financeRoleId: financeRole.id, partyRoleId: partyRole.id, catalogRoleId: catalogRole.id, moderationRoleId: moderationRole.id, note: 'No user credentials or admin identity were fabricated. Sensitive permissions require explicit role assignment and scope.' }));
   });
 }
 main().finally(() => db.$disconnect());

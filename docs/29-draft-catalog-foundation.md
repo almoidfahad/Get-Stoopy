@@ -2,6 +2,8 @@
 
 Date: 2026-11-02. Scope: first executable catalog slice after vendor/rider party activation. This slice adds vendor stores, draft products and draft variants with vendor-membership authorization, KYC-gated vendor eligibility, privileged store activation/suspension, RLS, audit and outbox. It does **not** add public catalog/search, product publication/moderation, cart, checkout, inventory reservation, payments, dispatch, earnings, settlement or payout.
 
+> Update: product moderation/publication and public catalog reads were added later in `30-product-moderation-public-catalog.md`. The historical verification below describes the draft-only slice at migration `0016`.
+
 ## Why this slice comes next
 
 Commerce writes need a store/product anchor that cannot be created or mutated by an unapproved vendor. The previous party slice resolved vendor memberships only for ACTIVE KYC-eligible vendors. This slice uses that session context and adds database-level guards so draft catalog writes fail closed when vendor eligibility, store state, country/city ancestry or membership is invalid.
@@ -110,8 +112,8 @@ New integration coverage in `tests/integration/catalog.test.ts` verifies:
 
 ## Known limitations / next gates
 
-- No public catalog/search/read API yet; this is vendor-side draft catalog only.
-- No product moderation/publication workflow yet; `PUBLISHED` is intentionally rejected.
+- No public catalog/search/read API in this historical slice; this is vendor-side draft catalog only. Superseded by `30-product-moderation-public-catalog.md`.
+- No product moderation/publication workflow in this historical slice; `PUBLISHED` was intentionally rejected. Superseded by `30-product-moderation-public-catalog.md`.
 - No category taxonomy, product images, inventory, reservation, cart or checkout yet.
 - Store pickup geometry, operating hours and service-area approval remain pending.
 - Store-level membership (`storeId`) is still optional in the core interface and not resolved from a store table.

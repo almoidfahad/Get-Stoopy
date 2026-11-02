@@ -194,7 +194,7 @@ describe('draft catalog foundation with vendor eligibility gates', () => {
     expect(foreignVariant.rowCount).toBe(0);
     await get(`/api/v1/catalog/stores/${storeId}/products`, stranger).expect(404);
     await expect(asUser(u.runtime, owner.userId, c => c.query(`UPDATE "Product" SET status='PUBLISHED', version=2 WHERE id=$1`, [productId]))).rejects.toThrow(/permission denied/);
-    await expect(asSuper(u.privileged, c => c.query(`UPDATE "Product" SET status='PUBLISHED', version=2 WHERE id=$1`, [productId]))).rejects.toThrow(/product_publication_not_enabled/);
+    await expect(asSuper(u.privileged, c => c.query(`UPDATE "Product" SET status='PUBLISHED', version=2 WHERE id=$1`, [productId]))).rejects.toThrow(/product_moderation_approved_required/);
     await expect(asSuper(u.privileged, c => c.query(`DELETE FROM "Store" WHERE id=$1`, [storeId]))).rejects.toThrow(/permission denied/);
     await expect(asSuper(u.privileged, c => c.query(`INSERT INTO "ProductVariant"(id,"productId",sku,"optionValues","priceAmountMinor",currency,"updatedAt") VALUES ($1,$2,$3,$4,$5,$6,now())`, [randomUUID(), productId, 'BAD-CURRENCY', '{}', 1000, 'USD']))).rejects.toThrow(/variant_currency_mismatch/);
   });
