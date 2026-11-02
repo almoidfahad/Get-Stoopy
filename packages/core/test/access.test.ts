@@ -17,9 +17,11 @@ describe('geographic authorization', () => {
   it('does not let buyer residence widen destination scope', () => expect(authorize(base, 'order:read', { countryId: 'bd', cityId: 'dhaka', ownerUserId: 'other' }).allow).toBe(false));
 });
 describe('vendor/rider ownership', () => {
-  it('allows own vendor store', () => expect(authorize({ ...base, vendorMemberships: [{ vendorId: 'v1', storeId: 'st1', permissions: ['order:read'] }] }, 'order:read', { countryId: 'bd', vendorId: 'v1', storeId: 'st1' }, { allowVendor: true }).allow).toBe(true));
-  it('denies other vendor', () => expect(authorize({ ...base, vendorMemberships: [{ vendorId: 'v1', permissions: ['order:read'] }] }, 'order:read', { countryId: 'bd', vendorId: 'v2' }, { allowVendor: true }).allow).toBe(false));
-  it('denies store mismatch', () => expect(authorize({ ...base, vendorMemberships: [{ vendorId: 'v1', storeId: 'st1', permissions: ['order:read'] }] }, 'order:read', { countryId: 'bd', vendorId: 'v1', storeId: 'st2' }, { allowVendor: true }).allow).toBe(false));
+  it('allows own vendor store through vendor-scoped membership without global RBAC', () => expect(authorize({ ...base, permissions: [], vendorMemberships: [{ vendorId: 'v1', countryId: 'bd', storeId: 'st1', permissions: ['vendor:order:read'] }] }, 'vendor:order:read', { countryId: 'bd', vendorId: 'v1', storeId: 'st1' }, { allowVendor: true }).allow).toBe(true));
+  it('denies other vendor', () => expect(authorize({ ...base, permissions: [], vendorMemberships: [{ vendorId: 'v1', countryId: 'bd', permissions: ['vendor:order:read'] }] }, 'vendor:order:read', { countryId: 'bd', vendorId: 'v2' }, { allowVendor: true }).allow).toBe(false));
+  it('denies store mismatch', () => expect(authorize({ ...base, permissions: [], vendorMemberships: [{ vendorId: 'v1', countryId: 'bd', storeId: 'st1', permissions: ['vendor:order:read'] }] }, 'vendor:order:read', { countryId: 'bd', vendorId: 'v1', storeId: 'st2' }, { allowVendor: true }).allow).toBe(false));
+  it('denies vendor membership country mismatch', () => expect(authorize({ ...base, permissions: [], vendorMemberships: [{ vendorId: 'v1', countryId: 'bd', permissions: ['vendor:order:read'] }] }, 'vendor:order:read', { countryId: 'lk', vendorId: 'v1' }, { allowVendor: true })).toEqual({ allow: false, reason: 'GEOGRAPHIC_SCOPE_DENIED' }));
+  it('does not let vendor membership satisfy non-vendor permissions', () => expect(authorize({ ...base, permissions: [], vendorMemberships: [{ vendorId: 'v1', countryId: 'bd', permissions: ['admin:scope:grant', '*'] }] }, 'admin:scope:grant', { countryId: 'bd', vendorId: 'v1' }, { allowVendor: true }).allow).toBe(false));
   it('allows own rider resource', () => expect(authorize({ ...base, riderId: 'r1' }, 'order:read', { countryId: 'bd', riderId: 'r1' }, { allowRider: true }).allow).toBe(true));
 });
 describe('scope grants', () => {

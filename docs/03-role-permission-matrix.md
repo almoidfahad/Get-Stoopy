@@ -20,6 +20,8 @@ Status: proposed deny-by-default policy. Machine-readable companion: `../contrac
 | Wishlist/cart/checkout | — | — | — | — | — | — | — | O |
 | Own orders/remote tracking | — | — | — | — | — | — | D, minimum data | O, buyer view |
 | Vendor application | — | — | — | — | — | V, draft only | — | O, applicant only |
+| Vendor/rider activation/suspension | G, step-up, non-self | C delegated, step-up, non-self | — by default | — by default | — | — | — | — |
+| Vendor membership grant/revoke | G oversight | C oversight | — | — | — | V owner, step-up, non-OWNER roles | — | — |
 | Product/variant/inventory write | G moderation | C oversight | R oversight | T oversight | Z/L monitoring only by default | V, approved store | — | — |
 | Accept/reject/set prep/ready | G exception, audited | C exception policy | R exception policy | T operations | Z/L delegated operations | V, own suborder | — | — |
 | KYC submit/upload | — | — | — | — | Authorized office assistance | V | D, own profile | — |

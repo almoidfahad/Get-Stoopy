@@ -2,7 +2,7 @@ export type GeographyType = 'COUNTRY' | 'REGION' | 'DISTRICT' | 'CITY' | 'ZONE' 
 export type Assurance = 'PASSWORD' | 'MFA' | 'STEP_UP';
 export interface GeoPath { countryId: string; regionId?: string; districtId?: string; cityId?: string; zoneId?: string; neighborhoodId?: string; }
 export interface ScopeGrant extends GeoPath { id: string; type: GeographyType; expiresAt?: string; revokedAt?: string; }
-export interface VendorMembership { vendorId: string; storeId?: string; permissions: string[]; }
+export interface VendorMembership { vendorId: string; storeId?: string; countryId?: string; permissions: string[]; }
 export interface AccessContext {
   userId: string; sessionId: string; authorizationVersion: number; accountStatus: 'ACTIVE' | 'SUSPENDED' | 'CLOSED';
   assurance: Assurance; permissions: string[]; scopes: ScopeGrant[]; vendorMemberships: VendorMembership[];
@@ -33,15 +33,22 @@ export function inGeographicScope(ctx: AccessContext, resource: GeoPath): boolea
 }
 export function authorize(ctx: AccessContext, permission: string, resource: ResourceScope, opts: { requireMfa?: boolean; requireStepUp?: boolean; allowOwner?: boolean; allowVendor?: boolean; allowRider?: boolean } = {}): Decision {
   if (ctx.accountStatus !== 'ACTIVE') return deny('ACCOUNT_INACTIVE');
-  if (!hasPermission(ctx, permission)) return deny('PERMISSION_DENIED');
+  // Vendor membership is a separate, vendor-scoped grant path. It can satisfy only
+  // vendor:* permissions, only when the caller explicitly opts into vendor resources,
+  // and only when the membership country anchor matches the resource country.
+  const vendorMembership = opts.allowVendor && resource.vendorId && permission.startsWith('vendor:')
+    ? ctx.vendorMemberships.find(x => x.vendorId === resource.vendorId && (!x.storeId || x.storeId === resource.storeId))
+    : undefined;
+  if (!vendorMembership && !hasPermission(ctx, permission)) return deny('PERMISSION_DENIED');
   if (opts.requireMfa && ctx.assurance === 'PASSWORD') return deny('MFA_REQUIRED');
   if (opts.requireStepUp && ctx.assurance !== 'STEP_UP') return deny('STEP_UP_REQUIRED');
-  if (opts.allowOwner && resource.ownerUserId === ctx.userId) return { allow: true };
-  if (opts.allowRider && ctx.riderId && resource.riderId === ctx.riderId) return { allow: true };
-  if (opts.allowVendor && resource.vendorId) {
-    const m = ctx.vendorMemberships.find(x => x.vendorId === resource.vendorId && (!x.storeId || x.storeId === resource.storeId));
-    if (m && (m.permissions.includes(permission) || m.permissions.includes('*'))) return { allow: true };
+  if (vendorMembership) {
+    if (!vendorMembership.countryId || !resource.countryId || vendorMembership.countryId !== resource.countryId) return deny('GEOGRAPHIC_SCOPE_DENIED');
+    if (vendorMembership.permissions.includes(permission) || vendorMembership.permissions.includes('*')) return { allow: true };
   }
+  if (opts.allowOwner && resource.ownerUserId === ctx.userId && hasPermission(ctx, permission)) return { allow: true };
+  if (opts.allowRider && ctx.riderId && resource.riderId === ctx.riderId && hasPermission(ctx, permission)) return { allow: true };
+  if (!hasPermission(ctx, permission)) return deny('PERMISSION_DENIED');
   if (!inGeographicScope(ctx, resource)) return deny('GEOGRAPHIC_SCOPE_DENIED');
   return { allow: true };
 }

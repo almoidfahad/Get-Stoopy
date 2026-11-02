@@ -1,6 +1,6 @@
 # KYC, privileged enrollment and verification workflow
 
-**Status:** proposed policy, with a partial executable foundation. No real identity documents have been collected; no government verification is connected. The implemented user-level KYC case/review state machine, storage linkage, scoped step-up review, idempotent decisions and fail-closed eligibility helper are documented in `27-kyc-case-foundation.md`. Vendor/rider/admin activation, checklist policy engine, delegated local scope, retention automation and provider verification remain pending.
+**Status:** proposed policy, with a partial executable foundation. No real identity documents have been collected; no government verification is connected. The implemented user-level KYC case/review state machine, storage linkage, scoped step-up review, idempotent decisions and fail-closed eligibility helper are documented in `27-kyc-case-foundation.md`. Vendor/rider party profiles and privileged KYC-gated activation are documented in `28-party-profiles-activation.md`. Admin activation, checklist policy engine, delegated local scope, retention automation and provider verification remain pending.
 
 ## Common lifecycle
 

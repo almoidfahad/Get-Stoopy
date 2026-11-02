@@ -23,7 +23,13 @@ async function main() {
       { key: 'finance:ledger:post', resource: 'finance', action: 'ledger:post', sensitivity: 'critical' },
       { key: 'finance:ledger:read', resource: 'finance', action: 'ledger:read', sensitivity: 'high' }
     ];
-    for (const p of [...basePerms, ...kycReviewerPerms, ...financePerms]) await tx.permission.upsert({ where: { key: p.key }, update: {}, create: p });
+    const partyPerms = [
+      { key: 'vendor:profile:activate', resource: 'vendor', action: 'profile:activate', sensitivity: 'critical' },
+      { key: 'vendor:profile:suspend', resource: 'vendor', action: 'profile:suspend', sensitivity: 'critical' },
+      { key: 'rider:profile:activate', resource: 'rider', action: 'profile:activate', sensitivity: 'critical' },
+      { key: 'rider:profile:suspend', resource: 'rider', action: 'profile:suspend', sensitivity: 'critical' }
+    ];
+    for (const p of [...basePerms, ...kycReviewerPerms, ...financePerms, ...partyPerms]) await tx.permission.upsert({ where: { key: p.key }, update: {}, create: p });
 
     const role = await tx.role.upsert({ where: { key: 'country_admin' }, update: {}, create: { key: 'country_admin', name: 'Country Admin', description: 'Development country-scoped administrator; sensitive review/finance permissions are separate' } });
     for (const p of basePerms) {
@@ -43,7 +49,13 @@ async function main() {
       await tx.rolePermission.upsert({ where: { roleId_permissionId: { roleId: financeRole.id, permissionId: permission.id } }, update: {}, create: { roleId: financeRole.id, permissionId: permission.id } });
     }
 
-    console.log(JSON.stringify({ seeded: true, countryId: country.id, roleId: role.id, kycRoleId: kycRole.id, financeRoleId: financeRole.id, note: 'No user credentials or admin identity were fabricated. Sensitive permissions require explicit role assignment and scope.' }));
+    const partyRole = await tx.role.upsert({ where: { key: 'party_activation' }, update: {}, create: { key: 'party_activation', name: 'Party Activation', description: 'Privileged non-self vendor/rider activation/suspension; requires scope, step-up and approved KYC' } });
+    for (const p of partyPerms) {
+      const permission = await tx.permission.findUniqueOrThrow({ where: { key: p.key } });
+      await tx.rolePermission.upsert({ where: { roleId_permissionId: { roleId: partyRole.id, permissionId: permission.id } }, update: {}, create: { roleId: partyRole.id, permissionId: permission.id } });
+    }
+
+    console.log(JSON.stringify({ seeded: true, countryId: country.id, roleId: role.id, kycRoleId: kycRole.id, financeRoleId: financeRole.id, partyRoleId: partyRole.id, note: 'No user credentials or admin identity were fabricated. Sensitive permissions require explicit role assignment and scope.' }));
   });
 }
 main().finally(() => db.$disconnect());

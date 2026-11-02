@@ -5,7 +5,7 @@ import type { ApiEnv } from '@getstoopy/config';
 import { hashToken, newOpaqueToken, sessionExpiry, sessionValid } from '@getstoopy/auth';
 import { encryptJson, csrfTokenForSession } from '@getstoopy/bff';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import type { AccessContext } from '@getstoopy/core';
+import { isPartyActiveWithKyc, vendorMembershipPermissions, type AccessContext, type VendorMembershipRole } from '@getstoopy/core';
 @Injectable()
 export class SessionService {
   private jwks?: ReturnType<typeof createRemoteJWKSet>;
@@ -70,6 +70,7 @@ export class SessionService {
       return { session, user, permissions, scopes, assurance };
     });
     if (!result) throw new UnauthorizedException({ code: 'UNAUTHENTICATED', message: 'Session is invalid or expired' });
+    const party = await this.resolvePartyContext(result.user.id);
     const context: AccessContext = {
       userId: result.user.id, sessionId: result.session.id, authorizationVersion: result.user.authorizationVersion,
       accountStatus: result.user.status as any, assurance: result.assurance as any,
@@ -80,9 +81,28 @@ export class SessionService {
         ...(s.neighborhoodId ? { neighborhoodId: s.neighborhoodId } : {}),
         ...(s.expiresAt ? { expiresAt: s.expiresAt.toISOString() } : {}), ...(s.revokedAt ? { revokedAt: s.revokedAt.toISOString() } : {})
       })),
-      vendorMemberships: [], now: new Date().toISOString()
+      vendorMemberships: party.vendorMemberships, ...(party.riderId ? { riderId: party.riderId } : {}), now: new Date().toISOString()
     };
     return { context, sessionToken: token };
+  }
+  private async resolvePartyContext(userId: string): Promise<{ vendorMemberships: AccessContext['vendorMemberships']; riderId?: string }> {
+    return this.privileged.$transaction(async tx => {
+      await setRls(tx, { userId, authorizationVersion: 0, isSuper: true });
+      const now = new Date();
+      const memberships = await tx.vendorMembership.findMany({
+        where: { userId, revokedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }], vendor: { status: 'ACTIVE', kycCaseId: { not: null } } },
+        include: { vendor: { include: { kycCase: true } } }
+      });
+      const vendorMemberships = memberships
+        .filter(m => {
+          const k = m.vendor.kycCase;
+          return !!k && k.subjectUserId === m.vendor.ownerUserId && k.countryId === m.vendor.countryId && isPartyActiveWithKyc({ status: m.vendor.status, countryId: m.vendor.countryId, kycCase: k }, 'VENDOR', m.vendor.countryId, now);
+        })
+        .map(m => ({ vendorId: m.vendorId, countryId: m.vendor.countryId, permissions: vendorMembershipPermissions(m.role as VendorMembershipRole) }));
+      const rider = await tx.riderProfile.findUnique({ where: { userId }, include: { kycCase: true } });
+      const riderEligible = !!rider && !!rider.kycCase && rider.kycCase.subjectUserId === rider.userId && rider.kycCase.countryId === rider.countryId && isPartyActiveWithKyc({ status: rider.status, countryId: rider.countryId, kycCase: rider.kycCase }, 'RIDER', rider.countryId, now);
+      return { vendorMemberships, ...(riderEligible && rider ? { riderId: rider.id } : {}) };
+    });
   }
   async revoke(token: string): Promise<void> {
     const tokenHash = hashToken(token);

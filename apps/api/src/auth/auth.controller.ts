@@ -35,7 +35,7 @@ export class AuthController {
   @UseGuards(SessionGuard)
   me(@Req() req: Request) {
     const ctx = (req as any).accessContext;
-    return { user: { id: ctx.userId, assurance: ctx.assurance }, permissions: ctx.permissions, scopes: ctx.scopes, csrfToken: csrfTokenForSession((req as any).sessionToken) };
+    return { user: { id: ctx.userId, assurance: ctx.assurance }, permissions: ctx.permissions, scopes: ctx.scopes, vendorMemberships: ctx.vendorMemberships, riderId: ctx.riderId ?? null, csrfToken: csrfTokenForSession((req as any).sessionToken) };
   }
   @Post('logout')
   @UseGuards(SessionGuard, CsrfGuard)

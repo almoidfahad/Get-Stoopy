@@ -74,3 +74,4 @@ None of these blockers justifies fabricated credentials, payments, KYC results o
 | 2026-11-02 | Storage magic-byte validation + KYC quarantine/review | Isolated test DB migration; unit/integration/typecheck/Prisma validation PASS; production AV/KMS/object store still pending |
 | 2026-11-02 | Immutable double-entry ledger primitives | Isolated test DB migration; unit/integration/typecheck/Prisma validation PASS; domain finance commands still pending |
 | 2026-11-02 | KYC case foundation + review state machine | Isolated test DB migrations; unit/integration/typecheck/build/doc validation PASS; vendor/rider/admin activation and checklist policy still pending |
+| 2026-11-02 | Vendor/rider party profiles + membership resolution + KYC-gated activation | Isolated test DB migrations 0014/0015; unit 97/16 and integration 58/10 PASS; catalog/checkout/dispatch and admin activation still pending |

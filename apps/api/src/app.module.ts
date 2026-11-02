@@ -10,8 +10,9 @@ import { AdminModule } from './admin/admin.module.js';
 import { SecurityModule } from './security/security.module.js';
 import { StorageModule } from './storage/storage.module.js';
 import { KycModule } from './kyc/kyc.module.js';
+import { PartyModule } from './party/party.module.js';
 @Module({
-  imports: [CoreModule, ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]), HealthModule, AuthModule, AdminModule, SecurityModule, StorageModule, KycModule],
+  imports: [CoreModule, ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]), HealthModule, AuthModule, AdminModule, SecurityModule, StorageModule, KycModule, PartyModule],
   providers: [{ provide: APP_FILTER, useClass: StableExceptionFilter }, { provide: APP_GUARD, useClass: ThrottlerGuard }]
 })
 export class AppModule implements NestModule {

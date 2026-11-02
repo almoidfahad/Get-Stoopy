@@ -97,6 +97,25 @@ enum KycDecision {
   REVOKE
 }
 
+enum PartyStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+}
+
+enum VendorMembershipRole {
+  OWNER
+  MANAGER
+  STAFF
+}
+
+enum RiderVehicleType {
+  BICYCLE
+  MOTORBIKE
+  CAR
+  OTHER
+}
+
 enum IdempotencyState {
   IN_PROGRESS
   COMPLETED
@@ -104,16 +123,16 @@ enum IdempotencyState {
 }
 
 model User {
-  id                     String          @id @default(uuid()) @db.Uuid
-  emailNormalized        String?         @unique
+  id                     String             @id @default(uuid()) @db.Uuid
+  emailNormalized        String?            @unique
   emailVerifiedAt        DateTime?
   phoneE164              String?
   phoneVerifiedAt        DateTime?
   displayName            String
-  status                 UserStatus      @default(ACTIVE)
-  authorizationVersion   Int             @default(1)
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
+  status                 UserStatus         @default(ACTIVE)
+  authorizationVersion   Int                @default(1)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
   identities             UserIdentity[]
   sessions               Session[]
   roles                  UserRole[]
@@ -122,12 +141,17 @@ model User {
   mfa                    UserMfa?
   recoveryCodes          RecoveryCode[]
   storageObjects         StorageObject[]
-  reviewedStorageObjects StorageObject[] @relation("StorageObjectReviewedBy")
+  reviewedStorageObjects StorageObject[]    @relation("StorageObjectReviewedBy")
   ledgerAccounts         LedgerAccount[]
   ledgerJournals         LedgerJournal[]
-  kycCases               KycCase[]       @relation("KycCaseSubject")
-  kycReviews             KycReview[]     @relation("KycReviewReviewer")
-  kycDocumentsLinked     KycDocument[]   @relation("KycDocumentLinkedBy")
+  kycCases               KycCase[]          @relation("KycCaseSubject")
+  kycReviews             KycReview[]        @relation("KycReviewReviewer")
+  kycDocumentsLinked     KycDocument[]      @relation("KycDocumentLinkedBy")
+  ownedVendors           Vendor[]           @relation("VendorOwner")
+  activatedVendors       Vendor[]           @relation("VendorActivatedBy")
+  vendorMemberships      VendorMembership[]
+  riderProfile           RiderProfile?      @relation("RiderProfileUser")
+  activatedRiderProfiles RiderProfile[]     @relation("RiderActivatedBy")
 }
 
 model UserIdentity {
@@ -227,15 +251,17 @@ model Session {
 }
 
 model Country {
-  id           String     @id @default(uuid()) @db.Uuid
-  iso2         String     @unique
-  name         String
-  currencyCode String
-  callingCode  String
-  timezone     String
-  status       AreaStatus @default(DRAFT)
-  regions      Region[]
-  kycCases     KycCase[]
+  id            String         @id @default(uuid()) @db.Uuid
+  iso2          String         @unique
+  name          String
+  currencyCode  String
+  callingCode   String
+  timezone      String
+  status        AreaStatus     @default(DRAFT)
+  regions       Region[]
+  kycCases      KycCase[]
+  vendors       Vendor[]
+  riderProfiles RiderProfile[]
 }
 
 model Region {
@@ -523,6 +549,8 @@ model KycCase {
   country        Country        @relation(fields: [countryId], references: [id])
   documents      KycDocument[]
   reviews        KycReview[]
+  vendor         Vendor?        @relation("VendorKycCase")
+  riderProfile   RiderProfile?  @relation("RiderKycCase")
 
   @@index([subjectUserId, subjectType, status])
   @@index([countryId, status, createdAt])
@@ -561,4 +589,65 @@ model KycReview {
 
   @@unique([caseId, commandKey])
   @@index([caseId, occurredAt])
+}
+
+model Vendor {
+  id                String             @id @default(uuid()) @db.Uuid
+  ownerUserId       String             @db.Uuid
+  countryId         String             @db.Uuid
+  displayName       String             @db.VarChar(120)
+  legalName         String?            @db.VarChar(200)
+  status            PartyStatus        @default(DRAFT)
+  kycCaseId         String?            @unique @db.Uuid
+  activatedAt       DateTime?
+  activatedByUserId String?            @db.Uuid
+  suspendedAt       DateTime?
+  version           Int                @default(1)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  owner             User               @relation("VendorOwner", fields: [ownerUserId], references: [id])
+  country           Country            @relation(fields: [countryId], references: [id])
+  kycCase           KycCase?           @relation("VendorKycCase", fields: [kycCaseId], references: [id])
+  activatedBy       User?              @relation("VendorActivatedBy", fields: [activatedByUserId], references: [id])
+  memberships       VendorMembership[]
+
+  @@unique([ownerUserId, countryId])
+  @@index([countryId, status])
+}
+
+model VendorMembership {
+  id        String               @id @default(uuid()) @db.Uuid
+  vendorId  String               @db.Uuid
+  userId    String               @db.Uuid
+  role      VendorMembershipRole
+  grantedBy String               @db.Uuid
+  expiresAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime             @default(now())
+  vendor    Vendor               @relation(fields: [vendorId], references: [id])
+  user      User                 @relation(fields: [userId], references: [id])
+
+  @@unique([vendorId, userId])
+  @@index([userId, revokedAt])
+}
+
+model RiderProfile {
+  id                String           @id @default(uuid()) @db.Uuid
+  userId            String           @unique @db.Uuid
+  countryId         String           @db.Uuid
+  vehicleType       RiderVehicleType
+  status            PartyStatus      @default(DRAFT)
+  kycCaseId         String?          @unique @db.Uuid
+  activatedAt       DateTime?
+  activatedByUserId String?          @db.Uuid
+  suspendedAt       DateTime?
+  version           Int              @default(1)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  user              User             @relation("RiderProfileUser", fields: [userId], references: [id])
+  country           Country          @relation(fields: [countryId], references: [id])
+  kycCase           KycCase?         @relation("RiderKycCase", fields: [kycCaseId], references: [id])
+  activatedBy       User?            @relation("RiderActivatedBy", fields: [activatedByUserId], references: [id])
+
+  @@index([countryId, status])
 }
