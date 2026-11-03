@@ -44,5 +44,8 @@ export class LocalEncryptedObjectStorage implements ObjectStorage {
     const decipher = createDecipheriv('aes-256-gcm', Buffer.from(this.hexKey, 'hex'), iv); decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(enc), decipher.final()]);
   }
-  async delete(key: string): Promise<void> { await unlink(this.path(key)).catch(() => undefined); }
+  async delete(key: string): Promise<void> {
+    try { await unlink(this.path(key)); }
+    catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; }
+  }
 }

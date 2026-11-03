@@ -366,3 +366,9 @@ REVOKE DELETE ON "AdminActivation","KycRetentionPolicy","KycLegalHold","KycDelet
 REVOKE UPDATE ON "KycRetentionEvent" FROM gs_runtime,gs_privileged;
 REVOKE ALL ON FUNCTION gs_kyc_retention_tick(INTEGER,UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION gs_kyc_retention_tick(INTEGER,UUID) TO gs_privileged;
+
+-- Admin activation closure helpers
+REVOKE ALL ON FUNCTION gs_close_admin_activation(UUID,VARCHAR) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION gs_close_admin_activation(UUID,VARCHAR) TO gs_privileged;
+REVOKE ALL ON FUNCTION gs_admin_activation_expiry_tick(INTEGER,UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION gs_admin_activation_expiry_tick(INTEGER,UUID) TO gs_privileged;

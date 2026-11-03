@@ -176,6 +176,11 @@ export class KycService {
       let retentionDueAt: Date | null = null; let retentionPolicyId: string | null = null;
       if (['REJECTED','REVOKED'].includes(target)) { const full = await tx.kycCase.findUniqueOrThrow({ where: { id: caseId } }); const policy = full.retentionPolicyId ? await tx.kycRetentionPolicy.findUnique({ where: { id: full.retentionPolicyId } }) : await tx.kycRetentionPolicy.findFirst({ where: { countryId: full.countryId, subjectType: full.subjectType, active: true } }); if (policy) { retentionPolicyId = policy.id; const days = target === 'REJECTED' ? policy.rejectedRetentionDays : policy.revokedRetentionDays; retentionDueAt = new Date(Date.now() + days * 86400_000); } }
       const updated = await tx.kycCase.update({ where: { id: caseId }, data: { status: target, version: { increment: 1 }, reviewedAt: new Date(), ...(retentionPolicyId ? { retentionPolicyId, retentionDueAt } : {}), ...(input.decision === 'APPROVE' ? { expiresAt: approvalExpiry } : {}), ...(input.decision === 'REVOKE' ? { expiresAt: null } : {}) } });
+      if (target === 'REVOKED') {
+        await tx.$executeRaw`UPDATE "Vendor" SET status='RESTRICTED',"suspendedAt"=CURRENT_TIMESTAMP,version=version+1 WHERE "kycCaseId"=${caseId}::uuid AND status='ACTIVE'`;
+        await tx.$executeRaw`UPDATE "RiderProfile" SET status='RESTRICTED',"suspendedAt"=CURRENT_TIMESTAMP,version=version+1 WHERE "kycCaseId"=${caseId}::uuid AND status='ACTIVE'`;
+        await tx.$executeRaw`SELECT gs_close_admin_activation(x.id,'Linked ADMIN KYC revoked') FROM "AdminActivation" x WHERE x."kycCaseId"=${caseId}::uuid AND x.status='ACTIVE'`;
+      }
       await this.audit(tx, ctx, `kyc.case.${input.decision.toLowerCase()}`, caseId, kycCase.countryId, input.reason.trim());
       await this.outbox(tx, caseId, 'kyc.case.reviewed', `kyc-review-${review.id}`, kycCase.countryId, { decision: input.decision, fromStatus: kycCase.status, toStatus: target, version: updated.version });
       return { caseId, reviewId: review.id, status: updated.status, version: updated.version, duplicate: false };

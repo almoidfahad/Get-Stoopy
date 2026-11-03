@@ -351,33 +351,35 @@ model RolePermission {
 }
 
 model UserRole {
-  id        String    @id @default(uuid()) @db.Uuid
-  userId    String    @db.Uuid
-  roleId    String    @db.Uuid
-  grantedBy String    @db.Uuid
-  expiresAt DateTime?
-  revokedAt DateTime?
-  user      User      @relation(fields: [userId], references: [id])
-  role      Role      @relation(fields: [roleId], references: [id])
+  id               String            @id @default(uuid()) @db.Uuid
+  userId           String            @db.Uuid
+  roleId           String            @db.Uuid
+  grantedBy        String            @db.Uuid
+  expiresAt        DateTime?
+  revokedAt        DateTime?
+  user             User              @relation(fields: [userId], references: [id])
+  role             Role              @relation(fields: [roleId], references: [id])
+  adminActivations AdminActivation[]
 
   @@unique([userId, roleId])
 }
 
 model AdminScope {
-  id             String        @id @default(uuid()) @db.Uuid
-  userId         String        @db.Uuid
-  geographyType  GeographyType
-  countryId      String?       @db.Uuid
-  regionId       String?       @db.Uuid
-  districtId     String?       @db.Uuid
-  cityId         String?       @db.Uuid
-  serviceZoneId  String?       @db.Uuid
-  neighborhoodId String?       @db.Uuid
-  grantedBy      String        @db.Uuid
-  effectiveFrom  DateTime      @default(now())
-  expiresAt      DateTime?
-  revokedAt      DateTime?
-  user           User          @relation(fields: [userId], references: [id])
+  id              String           @id @default(uuid()) @db.Uuid
+  userId          String           @db.Uuid
+  geographyType   GeographyType
+  countryId       String?          @db.Uuid
+  regionId        String?          @db.Uuid
+  districtId      String?          @db.Uuid
+  cityId          String?          @db.Uuid
+  serviceZoneId   String?          @db.Uuid
+  neighborhoodId  String?          @db.Uuid
+  grantedBy       String           @db.Uuid
+  effectiveFrom   DateTime         @default(now())
+  expiresAt       DateTime?
+  revokedAt       DateTime?
+  user            User             @relation(fields: [userId], references: [id])
+  adminActivation AdminActivation?
 
   @@index([userId, revokedAt])
 }
@@ -2492,6 +2494,12 @@ model AdminActivation {
   expiresAt         DateTime
   createdAt         DateTime              @default(now())
   reviewedAt        DateTime?
+  userRoleId        String?               @db.Uuid
+  adminScopeId      String?               @unique @db.Uuid
+  closedAt          DateTime?
+  closeReason       String?               @db.VarChar(512)
+  userRole          UserRole?             @relation(fields: [userRoleId], references: [id])
+  adminScope        AdminScope?           @relation(fields: [adminScopeId], references: [id])
   user              User                  @relation("AdminActivationUser", fields: [userId], references: [id])
   country           Country               @relation("AdminActivationCountry", fields: [countryId], references: [id])
   role              Role                  @relation(fields: [roleId], references: [id])

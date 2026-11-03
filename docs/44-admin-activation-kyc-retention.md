@@ -6,7 +6,7 @@ Status: implemented in development; production enablement requires owner/legal s
 - No public admin registration. An authorized inviter creates a time-bounded `AdminActivation` for an existing active user and a non-bootstrap role.
 - The candidate completes an `ADMIN` KYC case (only possible with a pending invitation), enrolls active TOTP, and has a linked identity.
 - A different checker with `admin:activation:review`, country scope and recent step-up activates or rejects. Activation grants a time-bounded `UserRole` and COUNTRY `AdminScope` whose expiry is the earlier of invitation and KYC expiry, and bumps authorization version.
-- Database guards enforce maker/checker separation, immutable invitation fields, KYC/MFA/identity evidence and deferred grant consistency.
+- Database guards enforce maker/checker separation, immutable invitation fields, KYC/MFA/identity evidence and deferred grant consistency. Revoked/expired ADMIN KYC closes the activation and revokes its exact grants.
 
 ## KYC retention
 - `KycRetentionPolicy` is versioned, country + subject scoped, and requires an explicit `legalBasis`. Day counts are owner-approved data; no statutory default is invented. `0` days means immediate eligibility after terminal decision.
@@ -18,11 +18,11 @@ Status: implemented in development; production enablement requires owner/legal s
 ## Legal hold and deletion
 - A legal hold blocks deletion requests, approval and purge. Release requires a reason and is audited.
 - Deletion is maker–checker: requester prepares only after `retentionDueAt`; a different reviewer approves/rejects. Active linked parties block purge.
-- The worker (`KYC_RETENTION_ENABLED=true`, privileged DB + storage key) deletes encrypted objects, tombstones `StorageObject` as `DELETED`, marks the request `PURGED`, and appends retention/audit events. File deletion is retry-safe; a crash before commit leaves an approved request for retry.
+- The worker (`KYC_RETENTION_ENABLED=true`, privileged DB + storage key) deletes encrypted objects, tombstones `StorageObject` as `DELETED`, marks the request `PURGED`, and appends retention/audit events. Storage failures other than missing objects roll back the request and leave it `APPROVED` for retry; privileged context is transaction-local.
 - Database triggers prevent unapproved linked-storage mutation/deletion.
 
 ## Operations
 - API: `POST /kyc/admin/retention-tick` (country-scoped, permission `kyc:retention:manage`, step-up).
 - Worker loop: `KYC_RETENTION_ENABLED`, `KYC_RETENTION_POLL_MS`, `KYC_RETENTION_BATCH_SIZE`.
-- Migrations 0056–0063. Grants in `scripts/db-grants.sql`. Permissions seeded for development super admin only.
+- Migrations 0056–0065. Grants in `scripts/db-grants.sql`. Permissions seeded for development super admin only. See `docs/45-admin-kyc-remediation.md` for post-review fixes.
 - Live payments, payouts and production deployment remain disabled and separately authorized.
