@@ -2487,6 +2487,7 @@ paths:
       - Finance
       summary: Own settlement history and net calculation
       operationId: finance_vendor_settlements_get
+      x-implementation-reference: GET /api/v1/vendors/{vendorId}/settlements and GET /api/v1/vendor-settlements/{id}; docs/42-vendor-settlement-review.md
       security:
       - sessionCookie: []
       x-contract-status: PROPOSED_NOT_IMPLEMENTED
@@ -3685,6 +3686,7 @@ paths:
       - Finance
       summary: Submit verified-destination request; raw details tokenized
       operationId: finance_payout_destinations_post
+      x-implementation-reference: POST/GET /api/v1/vendors/{vendorId}/payout-destinations; docs/41-vendor-payout-destinations.md
       security:
       - sessionCookie: []
       x-contract-status: PROPOSED_NOT_IMPLEMENTED
@@ -5448,6 +5450,7 @@ paths:
       - Admin Finance
       summary: Checker approval of vendor settlement
       operationId: adminfinance_admin_settlements__id__approve_post
+      x-implementation-reference: POST /api/v1/admin/vendor-settlements/{id}/review; approval reserves payable only, never a transfer; docs/42-vendor-settlement-review.md
       security:
       - sessionCookie: []
       x-contract-status: PROPOSED_NOT_IMPLEMENTED

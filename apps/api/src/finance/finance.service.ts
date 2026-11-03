@@ -18,7 +18,7 @@ export class FinanceService {
     const occurredAt = new Date(); const eventKey = `${eventType}-${id}`;
     await tx.outboxEvent.create({ data: { aggregateType: type, aggregateId: id, eventKey, eventType, occurredAt, payload: { schemaVersion: 1, eventKey, eventType, occurredAt: occurredAt.toISOString(), aggregateType: type, aggregateId: id, countryId, data } } });
   }
-  private async account(tx: any, code: string, name: string, type: 'ASSET'|'LIABILITY'|'EXPENSE', currency: string, actor: string) {
+  async account(tx: any, code: string, name: string, type: 'ASSET'|'LIABILITY'|'EXPENSE'|'REVENUE', currency: string, actor: string) {
     const existing = await tx.ledgerAccount.findUnique({ where: { code } });
     if (existing) { if (existing.currency !== currency || existing.type !== type) throw new ConflictException({ code: 'LEDGER_ACCOUNT_CONFLICT', message: 'Ledger account code already used with different type/currency' }); return existing.id as string; }
     const a = await tx.ledgerAccount.create({ data: { code, name, type, currency, createdByUserId: actor } });

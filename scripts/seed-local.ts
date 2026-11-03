@@ -26,7 +26,10 @@ async function main() {
       { key: 'finance:refund:review', resource: 'finance', action: 'refund:review', sensitivity: 'critical' },
       { key: 'finance:rider-rate:manage', resource: 'finance', action: 'rider-rate:manage', sensitivity: 'critical' },
       { key: 'finance:cod:review', resource: 'finance', action: 'cod:review', sensitivity: 'critical' },
-      { key: 'finance:payout-destination:review', resource: 'finance', action: 'payout-destination:review', sensitivity: 'critical' }
+      { key: 'finance:payout-destination:review', resource: 'finance', action: 'payout-destination:review', sensitivity: 'critical' },
+      { key: 'finance:commission:manage', resource: 'finance', action: 'commission:manage', sensitivity: 'critical' },
+      { key: 'finance:settlement:prepare', resource: 'finance', action: 'settlement:prepare', sensitivity: 'critical' },
+      { key: 'finance:settlement:review', resource: 'finance', action: 'settlement:review', sensitivity: 'critical' }
     ];
     const partyPerms = [
       { key: 'vendor:profile:activate', resource: 'vendor', action: 'profile:activate', sensitivity: 'critical' },

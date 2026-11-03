@@ -237,6 +237,10 @@ model User {
   submittedPayoutDestinations PayoutDestination[]         @relation("PayoutDestinationSubmitter")
   reviewedPayoutDestinations  PayoutDestination[]         @relation("PayoutDestinationReviewer")
   payoutDestinationReviews    PayoutDestinationReview[]   @relation("PayoutDestinationReviewActor")
+  commissionPolicies          VendorCommissionPolicy[]    @relation("CommissionPolicyCreator")
+  createdSettlements          VendorSettlement[]          @relation("SettlementCreator")
+  reviewedSettlements         VendorSettlement[]          @relation("SettlementReviewer")
+  settlementReviews           VendorSettlementReview[]    @relation("SettlementReviewActor")
   ledgerAccounts              LedgerAccount[]
   ledgerJournals              LedgerJournal[]
   kycCases                    KycCase[]                   @relation("KycCaseSubject")
@@ -417,6 +421,8 @@ model Country {
   codCollections       CodCollection[]            @relation("CodCollectionCountry")
   codDeposits          CodDeposit[]               @relation("CodDepositCountry")
   payoutDestinations   PayoutDestination[]        @relation("PayoutDestinationCountry")
+  commissionPolicies   VendorCommissionPolicy[]   @relation("CommissionPolicyCountry")
+  vendorSettlements    VendorSettlement[]         @relation("VendorSettlementCountry")
 }
 
 model Region {
@@ -1056,22 +1062,23 @@ model LedgerAccount {
 }
 
 model LedgerJournal {
-  id                  String          @id @default(uuid()) @db.Uuid
-  businessEventKey    String          @unique @db.VarChar(128)
-  payloadHash         String          @db.VarChar(64)
-  currency            String          @db.VarChar(3)
-  description         String          @db.VarChar(512)
-  occurredAt          DateTime        @default(now())
-  createdByUserId     String          @db.Uuid
-  createdAt           DateTime        @default(now())
-  reversalOfJournalId String?         @db.Uuid
-  createdBy           User            @relation(fields: [createdByUserId], references: [id])
-  reversalOf          LedgerJournal?  @relation("LedgerJournalReversal", fields: [reversalOfJournalId], references: [id])
-  reversals           LedgerJournal[] @relation("LedgerJournalReversal")
+  id                  String            @id @default(uuid()) @db.Uuid
+  businessEventKey    String            @unique @db.VarChar(128)
+  payloadHash         String            @db.VarChar(64)
+  currency            String            @db.VarChar(3)
+  description         String            @db.VarChar(512)
+  occurredAt          DateTime          @default(now())
+  createdByUserId     String            @db.Uuid
+  createdAt           DateTime          @default(now())
+  reversalOfJournalId String?           @db.Uuid
+  createdBy           User              @relation(fields: [createdByUserId], references: [id])
+  reversalOf          LedgerJournal?    @relation("LedgerJournalReversal", fields: [reversalOfJournalId], references: [id])
+  reversals           LedgerJournal[]   @relation("LedgerJournalReversal")
   lines               LedgerLine[]
   riderEarning        RiderEarning?
   codCollection       CodCollection?
   codDeposit          CodDeposit?
+  vendorSettlement    VendorSettlement?
 
   @@index([createdAt])
 }
@@ -1153,28 +1160,30 @@ model KycReview {
 }
 
 model Vendor {
-  id                 String              @id @default(uuid()) @db.Uuid
-  ownerUserId        String              @db.Uuid
-  countryId          String              @db.Uuid
-  displayName        String              @db.VarChar(120)
-  legalName          String?             @db.VarChar(200)
-  status             PartyStatus         @default(DRAFT)
-  kycCaseId          String?             @unique @db.Uuid
+  id                 String                   @id @default(uuid()) @db.Uuid
+  ownerUserId        String                   @db.Uuid
+  countryId          String                   @db.Uuid
+  displayName        String                   @db.VarChar(120)
+  legalName          String?                  @db.VarChar(200)
+  status             PartyStatus              @default(DRAFT)
+  kycCaseId          String?                  @unique @db.Uuid
   activatedAt        DateTime?
-  activatedByUserId  String?             @db.Uuid
+  activatedByUserId  String?                  @db.Uuid
   suspendedAt        DateTime?
-  version            Int                 @default(1)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  owner              User                @relation("VendorOwner", fields: [ownerUserId], references: [id])
-  country            Country             @relation(fields: [countryId], references: [id])
-  kycCase            KycCase?            @relation("VendorKycCase", fields: [kycCaseId], references: [id])
-  activatedBy        User?               @relation("VendorActivatedBy", fields: [activatedByUserId], references: [id])
+  version            Int                      @default(1)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  owner              User                     @relation("VendorOwner", fields: [ownerUserId], references: [id])
+  country            Country                  @relation(fields: [countryId], references: [id])
+  kycCase            KycCase?                 @relation("VendorKycCase", fields: [kycCaseId], references: [id])
+  activatedBy        User?                    @relation("VendorActivatedBy", fields: [activatedByUserId], references: [id])
   memberships        VendorMembership[]
   stores             Store[]
   products           Product[]
   Inventory          Inventory[]
   payoutDestinations PayoutDestination[]
+  commissionPolicies VendorCommissionPolicy[]
+  settlements        VendorSettlement[]
 
   @@unique([ownerUserId, countryId])
   @@index([countryId, status])
@@ -1715,6 +1724,7 @@ model VendorSuborder {
   dispatchRun            DispatchRun?
   riderAssignments       RiderAssignment[]
   delivery               Delivery?
+  settlementItems        VendorSettlementItem[]
 
   @@unique([orderId, vendorId, storeId])
   @@index([vendorId, createdAt])
@@ -2107,6 +2117,7 @@ model PayoutDestination {
   submittedBy           User                      @relation("PayoutDestinationSubmitter", fields: [submittedByUserId], references: [id])
   reviewedBy            User?                     @relation("PayoutDestinationReviewer", fields: [reviewedByUserId], references: [id])
   reviews               PayoutDestinationReview[]
+  settlements           VendorSettlement[]
 
   @@unique([vendorId, commandKey])
   @@index([countryId, status, createdAt])
@@ -2130,4 +2141,105 @@ model PayoutDestinationReview {
 
   @@unique([destinationId, commandKey])
   @@unique([destinationId, destinationVersion])
+}
+
+enum VendorSettlementStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum VendorSettlementDecision {
+  APPROVE
+  REJECT
+}
+
+model VendorCommissionPolicy {
+  id              String                 @id @default(uuid()) @db.Uuid
+  vendorId        String                 @db.Uuid
+  countryId       String                 @db.Uuid
+  currency        String                 @db.VarChar(3)
+  commissionBps   Int
+  holdDays        Int
+  effectiveFrom   DateTime
+  commandKey      String                 @db.VarChar(128)
+  payloadHash     String                 @db.VarChar(64)
+  createdByUserId String                 @db.Uuid
+  createdAt       DateTime               @default(now())
+  vendor          Vendor                 @relation(fields: [vendorId], references: [id])
+  country         Country                @relation("CommissionPolicyCountry", fields: [countryId], references: [id])
+  createdBy       User                   @relation("CommissionPolicyCreator", fields: [createdByUserId], references: [id])
+  items           VendorSettlementItem[]
+
+  @@unique([vendorId, commandKey])
+  @@unique([vendorId, currency, effectiveFrom])
+}
+
+model VendorSettlement {
+  id                String                   @id @default(uuid()) @db.Uuid
+  vendorId          String                   @db.Uuid
+  countryId         String                   @db.Uuid
+  currency          String                   @db.VarChar(3)
+  destinationId     String                   @db.Uuid
+  grossMinor        BigInt
+  commissionMinor   BigInt
+  netMinor          BigInt
+  status            VendorSettlementStatus   @default(PENDING_REVIEW)
+  version           Int                      @default(1)
+  commandKey        String                   @db.VarChar(128)
+  payloadHash       String                   @db.VarChar(64)
+  createdByUserId   String                   @db.Uuid
+  reviewedByUserId  String?                  @db.Uuid
+  reviewCommandKey  String?                  @db.VarChar(128)
+  reviewPayloadHash String?                  @db.VarChar(64)
+  reviewReason      String?                  @db.VarChar(512)
+  journalId         String?                  @unique @db.Uuid
+  createdAt         DateTime                 @default(now())
+  reviewedAt        DateTime?
+  vendor            Vendor                   @relation(fields: [vendorId], references: [id])
+  country           Country                  @relation("VendorSettlementCountry", fields: [countryId], references: [id])
+  destination       PayoutDestination        @relation(fields: [destinationId], references: [id])
+  createdBy         User                     @relation("SettlementCreator", fields: [createdByUserId], references: [id])
+  reviewedBy        User?                    @relation("SettlementReviewer", fields: [reviewedByUserId], references: [id])
+  journal           LedgerJournal?           @relation(fields: [journalId], references: [id])
+  items             VendorSettlementItem[]
+  reviews           VendorSettlementReview[]
+
+  @@unique([vendorId, commandKey])
+  @@index([countryId, status, createdAt])
+}
+
+model VendorSettlementItem {
+  id              String                 @id @default(uuid()) @db.Uuid
+  settlementId    String                 @db.Uuid
+  suborderId      String                 @db.Uuid
+  policyId        String                 @db.Uuid
+  grossMinor      BigInt
+  commissionBps   Int
+  commissionMinor BigInt
+  netMinor        BigInt
+  completedAt     DateTime
+  holdUntil       DateTime
+  settlement      VendorSettlement       @relation(fields: [settlementId], references: [id])
+  suborder        VendorSuborder         @relation(fields: [suborderId], references: [id])
+  policy          VendorCommissionPolicy @relation(fields: [policyId], references: [id])
+
+  @@unique([settlementId, suborderId])
+}
+
+model VendorSettlementReview {
+  id                String                   @id @default(uuid()) @db.Uuid
+  settlementId      String                   @db.Uuid
+  decision          VendorSettlementDecision
+  settlementVersion Int
+  actorUserId       String                   @db.Uuid
+  commandKey        String                   @db.VarChar(128)
+  payloadHash       String                   @db.VarChar(64)
+  reason            String                   @db.VarChar(512)
+  occurredAt        DateTime                 @default(now())
+  settlement        VendorSettlement         @relation(fields: [settlementId], references: [id])
+  actor             User                     @relation("SettlementReviewActor", fields: [actorUserId], references: [id])
+
+  @@unique([settlementId, commandKey])
+  @@unique([settlementId, settlementVersion])
 }

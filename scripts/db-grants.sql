@@ -338,3 +338,15 @@ GRANT EXECUTE ON FUNCTION gs_payout_destination_review_guard() TO gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_payout_destination_review_required() TO gs_privileged;
 REVOKE DELETE ON TABLE "PayoutDestination" FROM gs_privileged;
 REVOKE UPDATE, DELETE ON TABLE "PayoutDestinationReview" FROM gs_privileged;
+
+-- Vendor settlement review (0048). No provider-transfer permission is introduced.
+GRANT EXECUTE ON FUNCTION gs_vendor_commission_policy_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_vendor_settlement_insert_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_vendor_settlement_update_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_vendor_settlement_item_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_vendor_settlement_consistent() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_vendor_settlement_review_guard() TO gs_privileged;
+REVOKE UPDATE, DELETE ON TABLE "VendorCommissionPolicy" FROM gs_privileged;
+REVOKE DELETE ON TABLE "VendorSettlement" FROM gs_privileged;
+REVOKE UPDATE, DELETE ON TABLE "VendorSettlementItem" FROM gs_privileged;
+REVOKE UPDATE, DELETE ON TABLE "VendorSettlementReview" FROM gs_privileged;

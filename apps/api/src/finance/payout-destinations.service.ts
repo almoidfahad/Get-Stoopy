@@ -147,9 +147,9 @@ export class PayoutDestinationsService {
     }, { timeout: 30000 });
   }
   /** Future settlement must call this inside its transaction; never trust a client destination status. */
-  async assertUsableTx(tx: any, destinationId: string, vendorId: string, countryId: string, currency: string) {
+  async assertUsableTx(tx: any, destinationId: string, vendorId: string, countryId: string, currency: string, now = new Date()) {
     const d = await tx.payoutDestination.findFirst({ where: { id: destinationId, vendorId }, include: { vendor: { include: { kycCase: true } } } });
-    try { assertDestinationUsable(d ? { ...d, vendor: { ...d.vendor, kycCase: d.vendor.kycCase } } : null, countryId, currency); }
+    try { assertDestinationUsable(d ? { ...d, vendor: { ...d.vendor, kycCase: d.vendor.kycCase } } : null, countryId, currency, now); }
     catch { throw new ConflictException({ code: 'PAYOUT_DESTINATION_REQUIRED', message: 'A usable, verified, cooldown-complete destination with active vendor KYC is required' }); }
     return d;
   }

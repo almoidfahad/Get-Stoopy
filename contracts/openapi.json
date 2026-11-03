@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Get Stoopy \u2014 proposed marketplace API",
+    "title": "Get Stoopy — proposed marketplace API",
     "version": "0.1.0-review",
     "description": "PHASE 1 DESIGN ONLY. No endpoint is implemented or connected. Contract validation is not an application/security test. All authorization, idempotency and provider requirements are mandatory implementation gates. No live server is declared."
   },
@@ -4349,7 +4349,8 @@
               "maxLength": 200
             }
           }
-        ]
+        ],
+        "x-implementation-reference": "GET /api/v1/vendors/{vendorId}/settlements and GET /api/v1/vendor-settlements/{id}; docs/42-vendor-settlement-review.md"
       }
     },
     "/vendor/subscriptions": {
@@ -6407,7 +6408,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation-reference": "POST/GET /api/v1/vendors/{vendorId}/payout-destinations; docs/41-vendor-payout-destinations.md"
       }
     },
     "/rider/payouts": {
@@ -7574,7 +7576,7 @@
           }
         ],
         "x-contract-status": "PROPOSED_NOT_IMPLEMENTED",
-        "x-authorization": "kyc:review \u2229 assigned geography",
+        "x-authorization": "kyc:review ∩ assigned geography",
         "x-required-permission": "admin kyc:get",
         "responses": {
           "200": {
@@ -7683,7 +7685,7 @@
           }
         ],
         "x-contract-status": "PROPOSED_NOT_IMPLEMENTED",
-        "x-authorization": "kyc:review \u2229 assigned geography; step-up",
+        "x-authorization": "kyc:review ∩ assigned geography; step-up",
         "x-required-permission": "admin kyc:post",
         "responses": {
           "200": {
@@ -7932,7 +7934,7 @@
           }
         ],
         "x-contract-status": "PROPOSED_NOT_IMPLEMENTED",
-        "x-authorization": "scope:grant \u2229 grantor descendants; step-up",
+        "x-authorization": "scope:grant ∩ grantor descendants; step-up",
         "x-required-permission": "admin access:post",
         "responses": {
           "200": {
@@ -8061,7 +8063,7 @@
           }
         ],
         "x-contract-status": "PROPOSED_NOT_IMPLEMENTED",
-        "x-authorization": "geography:write \u2229 assigned scope",
+        "x-authorization": "geography:write ∩ assigned scope",
         "x-required-permission": "admin geography:post",
         "responses": {
           "200": {
@@ -8430,7 +8432,7 @@
           }
         ],
         "x-contract-status": "PROPOSED_NOT_IMPLEMENTED",
-        "x-authorization": "rate:write \u2229 assigned scope; maker-checker",
+        "x-authorization": "rate:write ∩ assigned scope; maker-checker",
         "x-required-permission": "admin finance:post",
         "responses": {
           "200": {
@@ -9419,7 +9421,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation-reference": "POST /api/v1/admin/vendor-settlements/{id}/review; approval reserves payable only, never a transfer; docs/42-vendor-settlement-review.md"
       }
     },
     "/admin/fraud/cases": {

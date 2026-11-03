@@ -76,7 +76,8 @@ async function row(id: string) {
   };
 }
 async function expireLease(id: string) {
-  await pool.query('UPDATE "OutboxEvent" SET "leaseUntil" = now() - interval \'1 millisecond\' WHERE id=$1', [id]);
+  const expired = await pool.query('UPDATE "OutboxEvent" SET "leaseUntil" = now() - interval \'1 millisecond\' WHERE id=$1 AND "leaseToken" IS NOT NULL RETURNING id', [id]);
+  expect(expired.rowCount).toBe(1);
 }
 async function dueNow(id: string) {
   await pool.query('UPDATE "OutboxEvent" SET "availableAt" = now() WHERE id=$1', [id]);
@@ -219,8 +220,12 @@ describe('outbox visibility lease and stale-worker fencing', () => {
     const { id } = await insertEvent();
     const client = await pool.connect();
     try {
+      // Past-date only this isolated fixture so deterministic oldest-first claiming
+      // cannot select a same-millisecond row left by another integration suite.
+      await pool.query('UPDATE "OutboxEvent" SET "occurredAt" = now() - interval \'1 day\' WHERE id=$1', [id]);
       await client.query('BEGIN');
-      await claimOutboxBatch(client, { ...opts, maxAttempts: 1, batchSize: 1 });
+      const claimed = await claimOutboxBatch(client, { ...opts, maxAttempts: 1, batchSize: 1 });
+      expect(claimed.map(r => r.id)).toEqual([id]);
       await client.query('COMMIT');
     } finally { client.release(); }
     await expireLease(id);

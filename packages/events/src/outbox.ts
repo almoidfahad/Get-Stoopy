@@ -71,7 +71,7 @@ export async function claimOutboxBatch(client: PoolClient, opts: OutboxOptions):
        WHERE "publishedAt" IS NULL AND "failedAt" IS NULL
          AND "availableAt" <= now() AND attempts >= $2
          AND ("leaseUntil" IS NULL OR "leaseUntil" <= now())
-       ORDER BY "occurredAt"
+       ORDER BY "occurredAt", id
        FOR UPDATE SKIP LOCKED
        LIMIT $1
      )
@@ -88,7 +88,7 @@ export async function claimOutboxBatch(client: PoolClient, opts: OutboxOptions):
          AND "failedAt" IS NULL
          AND "availableAt" <= now()
          AND ("leaseUntil" IS NULL OR "leaseUntil" <= now())
-       ORDER BY "occurredAt"
+       ORDER BY "occurredAt", id
        FOR UPDATE SKIP LOCKED
        LIMIT $1
      )

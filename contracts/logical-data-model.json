@@ -1336,7 +1336,8 @@
         "id UUID PK",
         "createdAt timestamptz",
         "updatedAt timestamptz (omitted on immutable records)"
-      ]
+      ],
+      "x-implementation-reference": "Implemented vendor-specific encrypted destination/review subset: docs/41-vendor-payout-destinations.md. Generic proposed owner model is not an executable schema."
     },
     "KYCCase": {
       "domain": "Verification",
@@ -3536,7 +3537,8 @@
         "id UUID PK",
         "createdAt timestamptz",
         "updatedAt timestamptz (omitted on immutable records)"
-      ]
+      ],
+      "x-implementation-reference": "Implemented calculation/maker-checker payable-reservation subset: VendorSettlement/VendorSettlementItem, docs/42-vendor-settlement-review.md. Proposed period/provider-execution fields are not implemented; approval never moves money."
     },
     "SettlementItem": {
       "domain": "Finance",
@@ -3564,7 +3566,8 @@
         "id UUID PK",
         "createdAt timestamptz",
         "updatedAt timestamptz (omitted on immutable records)"
-      ]
+      ],
+      "x-implementation-reference": "Implemented as append-only VendorSettlementItem with per-suborder policy snapshot and integer arithmetic; docs/42-vendor-settlement-review.md."
     },
     "ReconciliationRecord": {
       "domain": "Finance",

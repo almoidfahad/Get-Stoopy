@@ -1,0 +1,2 @@
+CREATE TYPE "VendorSettlementStatus" AS ENUM ('PENDING_REVIEW','APPROVED','REJECTED');
+CREATE TYPE "VendorSettlementDecision" AS ENUM ('APPROVE','REJECT');

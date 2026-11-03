@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { VendorSettlementsService } from '../../apps/api/src/finance/vendor-settlements.service.js';
 import { randomUUID, createHash } from 'node:crypto';
 import http from 'node:http';
 import request from 'supertest';
@@ -118,6 +119,7 @@ beforeAll(async () => {
   process.env['NODE_ENV'] = 'test'; process.env['WEB_ORIGIN'] = origin; process.env['DATABASE_URL'] = u.runtime; process.env['DATABASE_PRIVILEGED_URL'] = u.privileged;
   process.env['REDIS_URL'] = process.env['TEST_REDIS_URL'] ?? 'redis://localhost:6379/15'; process.env['KEYCLOAK_ISSUER'] = 'http://localhost:8080/realms/get-stoopy'; process.env['KEYCLOAK_CLIENT_ID'] = 'get-stoopy-web'; process.env['KEYCLOAK_CLIENT_SECRET'] = 'test-secret';
   process.env['BFF_API_SHARED_SECRET'] = 'test-bff-secret-000000000000000000000000'; process.env['SESSION_TOKEN_ENCRYPTION_KEY'] = 'c'.repeat(64); process.env['SESSION_COOKIE_NAME'] = 'gs_session_dev';
+  process.env['PAYOUT_DESTINATION_ENCRYPTION_KEY'] = 'f'.repeat(64);
   process.env['STORAGE_ENCRYPTION_KEY'] = 'e'.repeat(64); process.env['STORAGE_LOCAL_DIR'] = `.local/test-storage-${randomUUID()}`;
   process.env['ROAD_ROUTING_ENABLED'] = 'true'; process.env['ROAD_ROUTING_PROVIDER'] = 'google_routes'; process.env['GOOGLE_ROUTES_API_KEY'] = 'test-google-routes-api-key-000000'; process.env['GOOGLE_ROUTES_BASE_URL'] = `http://127.0.0.1:${routePort}`;
   process.env['DISPATCH_OFFER_TOKEN_SECRET'] = 'dispatch-offer-token-secret-000000000000';
@@ -458,5 +460,73 @@ describe('rider rate rule management', () => {
     const conflict = await post('/api/v1/admin/rider-rate-rules', manager, { ...body, currency: 'USD' }).expect(409);
     expect(conflict.body.code).toBe('RATE_IDEMPOTENCY_CONFLICT');
     await expect(asSuper(u.privileged, c => c.query(`UPDATE "RiderRateSlab" SET "amountMinor"=1 WHERE "ruleId"=$1`, [created.body.ruleId]))).rejects.toThrow(/permission denied|append_only/);
+  });
+});
+
+describe('vendor settlement maker-checker with verified destination', () => {
+  async function fixture(label: string, holdDays = 0) {
+    const maker = await makeUser(`${label}-maker`); await grantKeys(maker, ['finance:commission:manage','finance:settlement:prepare','finance:settlement:review']);
+    const checker = await makeUser(`${label}-checker`); await grantKeys(checker, ['finance:settlement:review']);
+    const policy = await post('/api/v1/admin/vendor-commission-policies', maker, { vendorId, commissionBps: 1000, holdDays, effectiveFrom: new Date(Date.now()-3600_000).toISOString(), commandKey: `policy-${randomUUID()}` }).expect(201);
+    const rider = await makeUser(`${label}-rider`); await prepareRider(rider,label);
+    await asSuper(u.privileged, c => c.query(`UPDATE "RiderShift" SET "status"='ENDED',"endedAt"=now(),"updatedAt"=now() WHERE "status"='ACTIVE' AND "riderId" <> (SELECT id FROM "RiderProfile" WHERE "userId"=$1)`,[rider.userId]));
+    const { orderId, suborderId } = await readySuborder('COD'); await setDestination(orderId);
+    await post(`/api/v1/orders/${orderId}/delivery-recipient`,customer,{name:'TEST Recipient',phone:'+8801712345678',commandKey:`recipient-${randomUUID()}`}).expect(201);
+    const run = await post(`/api/v1/admin/dispatch/suborders/${suborderId}/runs`,dispatchAdmin,{commandKey:`run-${randomUUID()}`}).expect(201);
+    const offer = await post(`/api/v1/admin/dispatch/runs/${run.body.runId}/next-offer`,dispatchAdmin,{expectedVersion:1,commandKey:`offer-${randomUUID()}`}).expect(201);
+    const token = (await get('/api/v1/riders/me/dispatch-offers',rider).expect(200)).body.items.find((o:any)=>o.offerId===offer.body.offerId).offerToken;
+    const assignment = await post(`/api/v1/riders/me/dispatch-offers/${offer.body.offerId}/accept`,rider,{offerToken:token,commandKey:`accept-${randomUUID()}`}).expect(201);
+    const pickup = await post(`/api/v1/riders/me/assignments/${assignment.body.assignmentId}/pickup`,rider,{commandKey:`pickup-${randomUUID()}`}).expect(201);
+    const deliveryId=pickup.body.deliveryId;
+    const otp=await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges`,rider,{commandKey:`otp-${randomUUID()}`}).expect(201);
+    await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges/${otp.body.challengeId}/verify`,rider,{code:otpSink.consume(otp.body.challengeId),commandKey:`verify-${randomUUID()}`}).expect(201);
+    await post(`/api/v1/riders/me/deliveries/${deliveryId}/complete`,rider,{expectedVersion:2,commandKey:`complete-${randomUUID()}`}).expect(201);
+    await setStepUp(owner);
+    const proof=randomUUID(); await asSuper(u.privileged,c=>c.query(`INSERT INTO "StorageObject"(id,"ownerUserId",purpose,"objectKey","contentType","sizeBytes",sha256,state,"magicValid","encryptionKeyId","updatedAt") VALUES ($1,$2,'payout-destination-proof',$3,'application/pdf',100,$4,'UPLOADED',true,'local-dev-aes-256-gcm',now())`,[proof,owner.userId,`payout-proof/${proof}`,'a'.repeat(64)]));
+    const dest=await post(`/api/v1/vendors/${vendorId}/payout-destinations`,owner,{countryId,currency:'BDT',rail:'BANK',accountHolderName:'TEST ONLY Vendor',accountNumber:`000${randomUUID().replaceAll('-','').slice(0,12)}`,institutionName:'TEST ONLY Bank',proofStorageObjectId:proof,commandKey:`destination-${randomUUID()}`}).expect(201);
+    const destReviewer=await makeUser(`${label}-dest-reviewer`); await grantKeys(destReviewer,['finance:payout-destination:review']);
+    await post(`/api/v1/admin/payout-destinations/${dest.body.destinationId}/review`,destReviewer,{expectedVersion:1,decision:'VERIFY',verificationReference:`trusted-${randomUUID()}`,reason:'synthetic account ownership verified',commandKey:`review-${randomUUID()}`}).expect(201);
+    return {maker,checker,rider,orderId,suborderId,deliveryId,destinationId:dest.body.destinationId,policyId:policy.body.policyId};
+  }
+  function prepareBody(f:any){return {vendorId,destinationId:f.destinationId,suborderIds:[f.suborderId],commandKey:`settlement-${randomUUID()}`};}
+  it('blocks unpaid COD and destination cooldown, then reserves payable exactly once after verified deposit',async()=>{
+    const f=await fixture('settlement-cod'); const body=prepareBody(f);
+    const cooldownNow=await post('/api/v1/admin/vendor-settlements',f.maker,body).expect(409); expect(cooldownNow.body.code).toBe('PAYOUT_DESTINATION_REQUIRED');
+    const wallet=await get('/api/v1/riders/me/wallet',f.rider).expect(200); const dueAmount=wallet.body.balances.find((b:any)=>b.currency==='BDT').codDueMinor;
+    const deposit=await post('/api/v1/riders/me/cod-deposits',f.rider,{amountMinor:dueAmount,currency:'BDT',method:'BANK',externalReference:`bank-${randomUUID()}`,evidenceHash:createHash('sha256').update(randomUUID()).digest('hex'),commandKey:`deposit-${randomUUID()}`}).expect(201);
+    const codChecker=await makeUser('settlement-cod-checker'); await grantKeys(codChecker,['finance:cod:review']);
+    await post(`/api/v1/admin/cod-deposits/${deposit.body.depositId}/review`,codChecker,{expectedVersion:1,decision:'VERIFY',reason:'trusted synthetic bank record matched',commandKey:`verify-${randomUUID()}`}).expect(201);
+    const cooldown=await post('/api/v1/admin/vendor-settlements',f.maker,body).expect(409); expect(cooldown.body.code).toBe('PAYOUT_DESTINATION_REQUIRED');
+    const clock=vi.spyOn(app.get(VendorSettlementsService),'now').mockReturnValue(new Date(Date.now()+50*3600_000));
+    try {
+      await post('/api/v1/admin/vendor-settlements',stranger,body).expect(403);
+      const prepared=await post('/api/v1/admin/vendor-settlements',f.maker,body).expect(201); const id=prepared.body.settlementId;
+      expect(prepared.body).toMatchObject({grossMinor:'1000',commissionMinor:'100',netMinor:'900',status:'PENDING_REVIEW',execution:'DISABLED',moneyMoved:false});
+      expect((await post('/api/v1/admin/vendor-settlements',f.maker,body).expect(201)).body.duplicate).toBe(true);
+      const review={expectedVersion:1,decision:'APPROVE',commandKey:`approve-${randomUUID()}`,reason:'independently checked synthetic settlement'};
+      expect((await post(`/api/v1/admin/vendor-settlements/${id}/review`,f.maker,review).expect(403)).body.code).toBe('SELF_REVIEW_DENIED');
+      const approved=await post(`/api/v1/admin/vendor-settlements/${id}/review`,f.checker,review); if(approved.status!==201) console.error('settlement-approval',approved.body); expect(approved.status).toBe(201); expect(approved.body.status).toBe('APPROVED'); expect(approved.body.moneyMoved).toBe(false);
+      expect((await post(`/api/v1/admin/vendor-settlements/${id}/review`,f.checker,review).expect(201)).body.duplicate).toBe(true);
+      const journal=await asSuper(u.privileged,c=>c.query(`SELECT SUM(CASE WHEN l.side='DEBIT' THEN l."amountMinor" ELSE -l."amountMinor" END)::bigint AS net,COUNT(*)::int AS n FROM "LedgerLine" l WHERE l."journalId"=$1`,[approved.body.journalId])); expect(journal.rows[0]).toMatchObject({net:'0',n:3});
+      const other=await post('/api/v1/admin/vendor-settlements',f.maker,{...body,commandKey:`settlement-${randomUUID()}`}).expect(409);expect(other.body.code).toBe('SETTLEMENT_SUBORDER_ALREADY_ALLOCATED');
+      const mine=await get(`/api/v1/vendors/${vendorId}/settlements`,owner).expect(200);expect(mine.body.items.some((s:any)=>s.settlementId===id)).toBe(true);
+      await expect(asUser(u.runtime,stranger.userId,c=>c.query(`SELECT id FROM "VendorSettlement" WHERE id=$1`,[id]))).resolves.toMatchObject({rowCount:0});
+      await expect(asSuper(u.privileged,c=>c.query(`UPDATE "VendorSettlementItem" SET "netMinor"=1 WHERE "settlementId"=$1`,[id]))).rejects.toThrow(/permission denied|append_only/);
+    } finally {clock.mockRestore();}
+  });
+  it('enforces the configured hold and allows terminal rejection without a journal',async()=>{
+    const f=await fixture('settlement-hold',7);
+    const dep=await post('/api/v1/riders/me/cod-deposits',f.rider,{amountMinor:'1000',currency:'BDT',method:'COMPANY_OFFICE',externalReference:`office-${randomUUID()}`,evidenceHash:createHash('sha256').update(randomUUID()).digest('hex'),commandKey:`deposit-${randomUUID()}`}).expect(201);
+    const checker=await makeUser('hold-cod-checker');await grantKeys(checker,['finance:cod:review']);await post(`/api/v1/admin/cod-deposits/${dep.body.depositId}/review`,checker,{expectedVersion:1,decision:'VERIFY',reason:'office cash receipt independently matched',commandKey:`verify-${randomUUID()}`}).expect(201);
+    const clock=vi.spyOn(app.get(VendorSettlementsService),'now').mockReturnValue(new Date(Date.now()+50*3600_000));
+    try{
+      expect((await post('/api/v1/admin/vendor-settlements',f.maker,prepareBody(f)).expect(409)).body.code).toBe('SETTLEMENT_HOLD_ACTIVE');
+      clock.mockReturnValue(new Date(Date.now()+8*86400_000));
+      const prepared=await post('/api/v1/admin/vendor-settlements',f.maker,prepareBody(f)).expect(201);
+      const rejected=await post(`/api/v1/admin/vendor-settlements/${prepared.body.settlementId}/review`,f.checker,{expectedVersion:1,decision:'REJECT',commandKey:`reject-${randomUUID()}`,reason:'source documents require correction'}).expect(201);
+      expect(rejected.body.status).toBe('REJECTED');expect(rejected.body.journalId).toBeNull();
+      const retried=await post('/api/v1/admin/vendor-settlements',f.maker,{...prepareBody(f),commandKey:`settlement-${randomUUID()}`}).expect(201);expect(retried.body.settlementId).not.toBe(prepared.body.settlementId);
+      await expect(asSuper(u.privileged,async c=>{await c.query(`SELECT set_config('app.user_id',$1,true)`,[f.checker.userId]);await c.query(`SELECT set_config('app.is_super','true',true)`);await c.query(`UPDATE "VendorSettlement" SET status='REJECTED',version=2,"reviewedByUserId"=$1,"reviewedAt"=now(),"reviewCommandKey"='bypass-review-key',"reviewPayloadHash"='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',"reviewReason"='attempted bypass' WHERE id=$2`,[f.checker.userId,retried.body.settlementId]);})).rejects.toThrow(/settlement_review_required/);
+    }finally{clock.mockRestore();}
   });
 });
