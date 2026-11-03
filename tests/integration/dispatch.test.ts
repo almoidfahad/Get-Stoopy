@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { VendorSettlementsService } from '../../apps/api/src/finance/vendor-settlements.service.js';
+import { FinanceOperationsService } from '../../apps/api/src/finance/finance-operations.service.js';
 import { randomUUID, createHash } from 'node:crypto';
 import http from 'node:http';
 import request from 'supertest';
@@ -42,11 +43,13 @@ function post(path: string, user: { token: string; csrf: string }, body: unknown
 function put(path: string, user: { token: string; csrf: string }, body: unknown = {}) { return request(app.getHttpServer()).put(path).set('Cookie', `gs_session_dev=${user.token}`).set('Origin', origin).set('X-CSRF-Token', user.csrf).send(body); }
 function get(path: string, user: { token: string }) { return request(app.getHttpServer()).get(path).set('Cookie', `gs_session_dev=${user.token}`); }
 async function setStepUp(user: { sessionId: string }) { await asSuper(u.privileged, async c => { await c.query(`UPDATE "Session" SET "assuranceLevel"='STEP_UP', "stepUpExpiresAt"=now()+interval '10 minutes' WHERE id=$1`, [user.sessionId]); }); }
-async function grantKeys(user: { userId: string; sessionId: string }, keys: string[]) {
+async function grantKeys(user: { userId: string; sessionId: string; authVersion?: number }, keys: string[]) {
   await asSuper(u.privileged, async c => {
     const role = await c.query(`INSERT INTO "Role"(id,key,name) VALUES ($1,$2,$3) RETURNING id`, [randomUUID(), `dispatch-role-${randomUUID()}`, 'Dispatch Role']);
     for (const key of keys) { const [resource] = key.split(':'); const perm = await c.query(`INSERT INTO "Permission"(id,key,resource,action,sensitivity) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (key) DO UPDATE SET resource=EXCLUDED.resource RETURNING id`, [randomUUID(), key, resource, key.slice(resource.length + 1), 'high']); await c.query(`INSERT INTO "RolePermission"("roleId","permissionId") VALUES ($1,$2)`, [role.rows[0].id, perm.rows[0].id]); }
     await c.query(`INSERT INTO "UserRole"(id,"userId","roleId","grantedBy") VALUES ($1,$2,$3,$4)`, [randomUUID(), user.userId, role.rows[0].id, user.userId]);
+    await c.query(`UPDATE "User" SET "authorizationVersion"="authorizationVersion"+1 WHERE id=$1`,[user.userId]);
+    await c.query(`UPDATE "Session" SET "authVersion"=(SELECT "authorizationVersion" FROM "User" WHERE id=$1) WHERE id=$2`,[user.userId,user.sessionId]);
     await c.query(`INSERT INTO "AdminScope"(id,"userId","geographyType","countryId","grantedBy") VALUES ($1,$2,$3,$4,$5)`, [randomUUID(), user.userId, 'COUNTRY', countryId, user.userId]);
   });
   await setStepUp(user);
@@ -119,7 +122,7 @@ beforeAll(async () => {
   process.env['NODE_ENV'] = 'test'; process.env['WEB_ORIGIN'] = origin; process.env['DATABASE_URL'] = u.runtime; process.env['DATABASE_PRIVILEGED_URL'] = u.privileged;
   process.env['REDIS_URL'] = process.env['TEST_REDIS_URL'] ?? 'redis://localhost:6379/15'; process.env['KEYCLOAK_ISSUER'] = 'http://localhost:8080/realms/get-stoopy'; process.env['KEYCLOAK_CLIENT_ID'] = 'get-stoopy-web'; process.env['KEYCLOAK_CLIENT_SECRET'] = 'test-secret';
   process.env['BFF_API_SHARED_SECRET'] = 'test-bff-secret-000000000000000000000000'; process.env['SESSION_TOKEN_ENCRYPTION_KEY'] = 'c'.repeat(64); process.env['SESSION_COOKIE_NAME'] = 'gs_session_dev';
-  process.env['PAYOUT_DESTINATION_ENCRYPTION_KEY'] = 'f'.repeat(64);
+  process.env['PAYOUT_DESTINATION_ENCRYPTION_KEY'] = 'f'.repeat(64); process.env['PAYOUTS_SANDBOX_ENABLED'] = 'true'; process.env['PAYOUTS_LIVE_ENABLED'] = 'false';
   process.env['STORAGE_ENCRYPTION_KEY'] = 'e'.repeat(64); process.env['STORAGE_LOCAL_DIR'] = `.local/test-storage-${randomUUID()}`;
   process.env['ROAD_ROUTING_ENABLED'] = 'true'; process.env['ROAD_ROUTING_PROVIDER'] = 'google_routes'; process.env['GOOGLE_ROUTES_API_KEY'] = 'test-google-routes-api-key-000000'; process.env['GOOGLE_ROUTES_BASE_URL'] = `http://127.0.0.1:${routePort}`;
   process.env['DISPATCH_OFFER_TOKEN_SECRET'] = 'dispatch-offer-token-secret-000000000000';
@@ -512,6 +515,25 @@ describe('vendor settlement maker-checker with verified destination', () => {
       const mine=await get(`/api/v1/vendors/${vendorId}/settlements`,owner).expect(200);expect(mine.body.items.some((s:any)=>s.settlementId===id)).toBe(true);
       await expect(asUser(u.runtime,stranger.userId,c=>c.query(`SELECT id FROM "VendorSettlement" WHERE id=$1`,[id]))).resolves.toMatchObject({rowCount:0});
       await expect(asSuper(u.privileged,c=>c.query(`UPDATE "VendorSettlementItem" SET "netMinor"=1 WHERE "settlementId"=$1`,[id]))).rejects.toThrow(/permission denied|append_only/);
+      await grantKeys(f.maker,['finance:adjustment:prepare','finance:adjustment:review','finance:payout:prepare','finance:payout:execute','finance:reconciliation:import']);
+      await grantKeys(f.checker,['finance:adjustment:review']);
+      const evidence=createHash('sha256').update(randomUUID()).digest('hex');
+      const adjustment=await post(`/api/v1/admin/vendor-settlements/${id}/adjustments`,f.maker,{amountMinor:'-50',reason:'verified sandbox fee correction',evidenceHash:evidence,commandKey:`adjust-${randomUUID()}`}).expect(201);
+      await post(`/api/v1/admin/finance-adjustments/${adjustment.body.adjustmentId}/review`,f.maker,{expectedVersion:1,decision:'APPROVE',reason:'independent adjustment check',commandKey:`adjust-review-${randomUUID()}`}).expect(409);
+      await post(`/api/v1/admin/finance-adjustments/${adjustment.body.adjustmentId}/review`,f.checker,{expectedVersion:1,decision:'APPROVE',reason:'independent adjustment check',commandKey:`adjust-review-${randomUUID()}`}).expect(201);
+      const opsClock=vi.spyOn(app.get(FinanceOperationsService),'now').mockReturnValue(new Date(Date.now()+51*3600_000));
+      try {
+        const reserved=await post(`/api/v1/admin/vendor-settlements/${id}/payout-reservations`,f.maker,{commandKey:`reserve-${randomUUID()}`}).expect(201);expect(reserved.body.amountMinor).toBe('850');expect(reserved.body.status).toBe('RESERVED');expect(reserved.body.liveEnabled).toBe(false);
+        const payoutId=reserved.body.id;
+        const unknown=await post(`/api/v1/admin/sandbox-transfers/payouts/${payoutId}/submit`,f.maker,{commandKey:`unknown-${randomUUID()}`,simulateUnknown:true}).expect(201);expect(unknown.body.status).toBe('RESERVED');
+        const submit={commandKey:`submit-${randomUUID()}`};const submitted=await post(`/api/v1/admin/sandbox-transfers/payouts/${payoutId}/submit`,f.maker,submit).expect(201);expect(submitted.body.status).toBe('SUBMITTED');
+        expect((await post(`/api/v1/admin/sandbox-transfers/payouts/${payoutId}/submit`,f.maker,submit).expect(201)).body.duplicate).toBe(true);
+        const statement={status:'SUCCEEDED',statementReference:`stmt-${randomUUID()}`,evidenceHash:evidence,commandKey:`reconcile-${randomUUID()}`};
+        const done=await post(`/api/v1/admin/sandbox-transfers/payouts/${payoutId}/reconcile`,f.maker,statement).expect(201);expect(done.body.transfer.status).toBe('SUCCEEDED');expect(done.body.transfer.moneyMoved).toBe(false);
+        expect((await post(`/api/v1/admin/sandbox-transfers/payouts/${payoutId}/reconcile`,f.maker,statement).expect(201)).body.duplicate).toBe(true);
+        const detail=await get(`/api/v1/sandbox-transfers/payouts/${payoutId}`,owner).expect(200);expect(detail.body.attempts.map((a:any)=>a.outcome)).toEqual(['UNKNOWN','SUBMITTED']);
+        await post(`/api/v1/admin/vendor-settlements/${id}/adjustments`,f.maker,{amountMinor:'1',reason:'late adjustment must fail',evidenceHash:evidence,commandKey:`late-${randomUUID()}`}).expect(409);
+      } finally {opsClock.mockRestore();}
     } finally {clock.mockRestore();}
   });
   it('enforces the configured hold and allows terminal rejection without a journal',async()=>{

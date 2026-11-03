@@ -18,3 +18,5 @@ export * from './cancellation.js';
 export * from './rider-finance.js';
 export * from './payout-destination.js';
 export * from './vendor-settlement.js';
+
+export * from "./finance-operations.js";

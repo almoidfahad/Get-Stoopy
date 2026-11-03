@@ -2,7 +2,7 @@
 
 **Shop Smart. Live Better.**
 
-Status: **Architecture approved for development 2026-11-01; Phase 2 in progress.** The original review package remains below. Executable foundation slices now include API/BFF/RLS, local Keycloak OIDC, worker/outbox/inbox, privileged TOTP/session controls and private local encrypted storage. Current local verification on **Node 26.13.0 / npm 10.8.2**: **150 unit tests / 30 files PASS** and **120 integration tests / 22 files PASS** against isolated PostgreSQL/PostGIS + Redis. The runtime engine is `26.x`; CI generates Prisma Client before typechecking and builds workspace packages before integration tests. This is still not a running marketplace; no paid resource, live payment collection or production deployment exists. See `docs/17-phase2-foundation.md` through `docs/42-vendor-settlement-review.md`.
+Status: **Architecture approved for development 2026-11-01; Phase 2 in progress.** The original review package remains below. Executable foundation slices now include API/BFF/RLS, local Keycloak OIDC, worker/outbox/inbox, privileged TOTP/session controls and private local encrypted storage. Current local verification on **Node 26.13.0 / npm 10.8.2**: **155 unit tests / 32 files PASS** and **121 integration tests / 22 files PASS** against isolated PostgreSQL/PostGIS + Redis. The runtime engine is `26.x`; CI generates Prisma Client before typechecking and builds workspace packages before integration tests. This is still not a running marketplace; no paid resource, live payment collection or production deployment exists. See `docs/17-phase2-foundation.md` through `docs/43-sandbox-finance-operations.md`.
 
 ## Source control
 

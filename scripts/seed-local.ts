@@ -29,7 +29,7 @@ async function main() {
       { key: 'finance:payout-destination:review', resource: 'finance', action: 'payout-destination:review', sensitivity: 'critical' },
       { key: 'finance:commission:manage', resource: 'finance', action: 'commission:manage', sensitivity: 'critical' },
       { key: 'finance:settlement:prepare', resource: 'finance', action: 'settlement:prepare', sensitivity: 'critical' },
-      { key: 'finance:settlement:review', resource: 'finance', action: 'settlement:review', sensitivity: 'critical' }
+      { key: 'finance:settlement:review', 'finance:adjustment:prepare', 'finance:adjustment:review', 'finance:payout:prepare', 'finance:payout:execute', 'finance:refund:execute', 'finance:reconciliation:import', resource: 'finance', action: 'settlement:review', sensitivity: 'critical' }
     ];
     const partyPerms = [
       { key: 'vendor:profile:activate', resource: 'vendor', action: 'profile:activate', sensitivity: 'critical' },

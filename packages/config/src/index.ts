@@ -17,6 +17,7 @@ export const envSchema = z.object({
   PAYMENT_SANDBOX_WEBHOOK_SECRET: z.string().min(32).optional(),
   BANGLA_QR_ENABLED: bool.default('false'),
   PAYOUTS_LIVE_ENABLED: bool.default('false'),
+  PAYOUTS_SANDBOX_ENABLED: bool.default('false'),
   CROSS_BORDER_ENABLED: bool.default('false'),
   AI_ENABLED: bool.default('false'),
   ROAD_ROUTING_ENABLED: bool.default('false'),
@@ -55,6 +56,8 @@ export function loadApiEnv(input: NodeJS.ProcessEnv): ApiEnv {
   }
   if (env.CROSS_BORDER_ENABLED) throw new Error('CROSS_BORDER_NOT_AUTHORIZED');
   if (env.PAYMENTS_LIVE_ENABLED) throw new Error('PAYMENTS_LIVE_NOT_AUTHORIZED');
+  if (env.PAYOUTS_LIVE_ENABLED) throw new Error('PAYOUTS_LIVE_NOT_AUTHORIZED');
+  if (env.NODE_ENV === 'production' && env.PAYOUTS_SANDBOX_ENABLED) throw new Error('PAYOUT_SANDBOX_FORBIDDEN_IN_PRODUCTION');
   if (env.PAYMENTS_SANDBOX_ENABLED && !env.PAYMENT_SANDBOX_WEBHOOK_SECRET) throw new Error('PAYMENT_SANDBOX_WEBHOOK_SECRET_REQUIRED');
   if (env.NODE_ENV === 'production' && env.PAYMENTS_SANDBOX_ENABLED) throw new Error('PAYMENT_SANDBOX_FORBIDDEN_IN_PRODUCTION');
   if (env.ROAD_ROUTING_ENABLED) {
@@ -81,6 +84,8 @@ export function loadEnv(input: NodeJS.ProcessEnv): Env {
   }
   if (env.CROSS_BORDER_ENABLED) throw new Error('CROSS_BORDER_NOT_AUTHORIZED');
   if (env.PAYMENTS_LIVE_ENABLED) throw new Error('PAYMENTS_LIVE_NOT_AUTHORIZED');
+  if (env.PAYOUTS_LIVE_ENABLED) throw new Error('PAYOUTS_LIVE_NOT_AUTHORIZED');
+  if (env.NODE_ENV === 'production' && env.PAYOUTS_SANDBOX_ENABLED) throw new Error('PAYOUT_SANDBOX_FORBIDDEN_IN_PRODUCTION');
   if (env.PAYMENTS_SANDBOX_ENABLED && !env.PAYMENT_SANDBOX_WEBHOOK_SECRET) throw new Error('PAYMENT_SANDBOX_WEBHOOK_SECRET_REQUIRED');
   if (env.NODE_ENV === 'production' && env.PAYMENTS_SANDBOX_ENABLED) throw new Error('PAYMENT_SANDBOX_FORBIDDEN_IN_PRODUCTION');
   return env;

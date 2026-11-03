@@ -6,5 +6,8 @@ import { PayoutDestinationsService } from './payout-destinations.service.js';
 import { PayoutDestinationsController } from './payout-destinations.controller.js';
 import { VendorSettlementsService } from './vendor-settlements.service.js';
 import { VendorSettlementsController } from './vendor-settlements.controller.js';
-@Module({ imports: [AuthModule], controllers: [FinanceController, PayoutDestinationsController, VendorSettlementsController], providers: [FinanceService, PayoutDestinationsService, VendorSettlementsService], exports: [FinanceService, PayoutDestinationsService, VendorSettlementsService] })
+import { FinanceOperationsService } from './finance-operations.service.js';
+import { SandboxPayoutAdapter } from './sandbox-payout.adapter.js';
+import { FinanceOperationsController } from './finance-operations.controller.js';
+@Module({ imports: [AuthModule], controllers: [FinanceController, PayoutDestinationsController, VendorSettlementsController, FinanceOperationsController], providers: [FinanceService, PayoutDestinationsService, VendorSettlementsService, FinanceOperationsService, SandboxPayoutAdapter], exports: [FinanceService, PayoutDestinationsService, VendorSettlementsService, FinanceOperationsService, SandboxPayoutAdapter] })
 export class FinanceModule {}

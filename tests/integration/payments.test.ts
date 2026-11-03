@@ -46,7 +46,7 @@ function get(path: string, user: { token: string }) { return request(app.getHttp
 async function setStepUp(user: { sessionId: string }) {
   await asSuper(u.privileged, async c => { await c.query(`UPDATE "Session" SET "assuranceLevel"='STEP_UP', "stepUpExpiresAt"=now()+interval '10 minutes' WHERE id=$1`, [user.sessionId]); });
 }
-async function grantKeys(user: { userId: string; sessionId: string }, keys: string[]) {
+async function grantKeys(user: { userId: string; sessionId: string; authVersion?: number }, keys: string[]) {
   await asSuper(u.privileged, async c => {
     const role = await c.query(`INSERT INTO "Role"(id,key,name) VALUES ($1,$2,$3) RETURNING id`, [randomUUID(), `payments-role-${randomUUID()}`, 'Payments Role']);
     for (const key of keys) {
@@ -55,6 +55,8 @@ async function grantKeys(user: { userId: string; sessionId: string }, keys: stri
       await c.query(`INSERT INTO "RolePermission"("roleId","permissionId") VALUES ($1,$2)`, [role.rows[0].id, perm.rows[0].id]);
     }
     await c.query(`INSERT INTO "UserRole"(id,"userId","roleId","grantedBy") VALUES ($1,$2,$3,$4)`, [randomUUID(), user.userId, role.rows[0].id, user.userId]);
+    await c.query(`UPDATE "User" SET "authorizationVersion"="authorizationVersion"+1 WHERE id=$1`,[user.userId]);
+    await c.query(`UPDATE "Session" SET "authVersion"=(SELECT "authorizationVersion" FROM "User" WHERE id=$1) WHERE id=$2`,[user.userId,user.sessionId]);
     await c.query(`INSERT INTO "AdminScope"(id,"userId","geographyType","countryId","grantedBy") VALUES ($1,$2,$3,$4,$5)`, [randomUUID(), user.userId, 'COUNTRY', countryId, user.userId]);
   });
   await setStepUp(user);
@@ -95,7 +97,7 @@ beforeAll(async () => {
   process.env['REDIS_URL'] = process.env['TEST_REDIS_URL'] ?? 'redis://localhost:6379/15'; process.env['KEYCLOAK_ISSUER'] = 'http://localhost:8080/realms/get-stoopy'; process.env['KEYCLOAK_CLIENT_ID'] = 'get-stoopy-web'; process.env['KEYCLOAK_CLIENT_SECRET'] = 'test-secret';
   process.env['BFF_API_SHARED_SECRET'] = 'test-bff-secret-000000000000000000000000'; process.env['SESSION_TOKEN_ENCRYPTION_KEY'] = 'c'.repeat(64); process.env['SESSION_COOKIE_NAME'] = 'gs_session_dev';
   process.env['STORAGE_ENCRYPTION_KEY'] = 'e'.repeat(64); process.env['STORAGE_LOCAL_DIR'] = `.local/test-storage-${randomUUID()}`;
-  process.env['PAYMENTS_SANDBOX_ENABLED'] = 'true'; process.env['PAYMENT_SANDBOX_WEBHOOK_SECRET'] = webhookSecret; process.env['PAYMENTS_LIVE_ENABLED'] = 'false';
+  process.env['PAYMENTS_SANDBOX_ENABLED'] = 'true'; process.env['PAYOUTS_SANDBOX_ENABLED'] = 'true'; process.env['PAYMENT_SANDBOX_WEBHOOK_SECRET'] = webhookSecret; process.env['PAYMENTS_LIVE_ENABLED'] = 'false';
   const { createApp } = await import('../../apps/api/src/main'); app = await createApp(); await app.init();
   countryId = await asSuper(u.privileged, async c => (await c.query(`INSERT INTO "Country"(id,iso2,name,"currencyCode","callingCode",timezone,status) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (iso2) DO UPDATE SET status='ACTIVE' RETURNING id`, [randomUUID(), 'BD', 'Bangladesh', 'BDT', '+880', 'Asia/Dhaka', 'ACTIVE'])).rows[0].id as string);
   cityId = await asSuper(u.privileged, async c => {
@@ -296,7 +298,7 @@ describe('cancellation, restock and refund review boundary', () => {
     await setStepUp(reviewer);
     const approved = await post(`/api/v1/admin/refunds/${id}/review`, reviewer, body).expect(201);
     expect(approved.body.status).toBe('APPROVED');
-    expect(approved.body.execution).toBe('DISABLED');
+    expect(approved.body.execution).toBe('SANDBOX_RESERVED');
     expect(approved.body.moneyMoved).toBe(false);
     const replay = await post(`/api/v1/admin/refunds/${id}/review`, reviewer, body).expect(201);
     expect(replay.body.duplicate).toBe(true);
@@ -304,9 +306,31 @@ describe('cancellation, restock and refund review boundary', () => {
     expect(changed.body.code).toBe('REFUND_IDEMPOTENCY_CONFLICT');
     const again = await post(`/api/v1/admin/refunds/${id}/review`, reviewer, { ...body, commandKey: `review-${randomUUID()}` }).expect(409);
     expect(again.body.code).toBe('REFUND_ALREADY_REVIEWED');
-    const journals = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "LedgerJournal" WHERE "businessEventKey"=$1`, [body.commandKey]));
-    expect(journals.rows[0].n).toBe(0);
+    const execution = await asSuper(u.privileged, c => c.query(`SELECT id, status, "reservationJournalId" FROM "RefundExecution" WHERE "refundRequestId"=$1`, [id]));
+    expect(execution.rows[0].status).toBe('RESERVED');
+    const journals = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "LedgerJournal" WHERE id=$1`, [execution.rows[0].reservationJournalId]));
+    expect(journals.rows[0].n).toBe(1);
     await expect(asSuper(u.privileged, c => c.query(`UPDATE "RefundReview" SET reason='tampered' WHERE "refundRequestId"=$1`, [id]))).rejects.toThrow(/permission denied|append_only/);
+  });
+
+  it('executes an approved refund only in sandbox, retries unknown submission and reconciles exactly once', async () => {
+    process.env['PAYOUTS_SANDBOX_ENABLED']='true';
+    const order=await paidOrder(1); const cancelled=(await post(`/api/v1/orders/${order.orderId}/cancellation`,customer,cancelBody(order.version)).expect(201)).body; const refundId=cancelled.refund.refundRequestId;
+    const reviewer=await makeUser('sandbox-refund-reviewer');await grantKeys(reviewer,['finance:refund:review']);
+    await post(`/api/v1/admin/refunds/${refundId}/review`,reviewer,{expectedVersion:1,decision:'APPROVE',commandKey:`approve-${randomUUID()}`,reason:'verified sandbox payment cancellation'}).expect(201);
+    const execution=await asSuper(u.privileged,c=>c.query(`SELECT id FROM "RefundExecution" WHERE "refundRequestId"=$1`,[refundId]));const id=execution.rows[0].id;
+    const executor=await makeUser('sandbox-refund-executor');await grantKeys(executor,['finance:refund:execute','finance:reconciliation:import']);
+    await post(`/api/v1/admin/sandbox-transfers/refunds/${id}/submit`,stranger,{commandKey:`submit-${randomUUID()}`}).expect(403);
+    const unknown=await post(`/api/v1/admin/sandbox-transfers/refunds/${id}/submit`,executor,{commandKey:`unknown-${randomUUID()}`,simulateUnknown:true}).expect(201);expect(unknown.body.status).toBe('RESERVED');
+    const body={commandKey:`submit-${randomUUID()}`};const submitted=await post(`/api/v1/admin/sandbox-transfers/refunds/${id}/submit`,executor,body).expect(201);expect(submitted.body.status).toBe('SUBMITTED');expect(submitted.body.moneyMoved).toBe(false);
+    expect((await post(`/api/v1/admin/sandbox-transfers/refunds/${id}/submit`,executor,body).expect(201)).body.duplicate).toBe(true);
+    const statement={status:'SUCCEEDED',statementReference:`stmt-${randomUUID()}`,evidenceHash:createHash('sha256').update(randomUUID()).digest('hex'),commandKey:`reconcile-${randomUUID()}`};
+    const done=await post(`/api/v1/admin/sandbox-transfers/refunds/${id}/reconcile`,executor,statement).expect(201);expect(done.body.transfer.status).toBe('SUCCEEDED');expect(done.body.transfer.mode).toBe('TEST_ONLY');
+    expect((await post(`/api/v1/admin/sandbox-transfers/refunds/${id}/reconcile`,executor,statement).expect(201)).body.duplicate).toBe(true);
+    const detail=await get(`/api/v1/sandbox-transfers/refunds/${id}`,customer).expect(200);expect(detail.body.attempts.map((a:any)=>a.outcome)).toEqual(['UNKNOWN','SUBMITTED']);
+    await get(`/api/v1/sandbox-transfers/refunds/${id}`,stranger).expect(404);
+    const balanced=await asSuper(u.privileged,c=>c.query(`SELECT SUM(CASE WHEN side='DEBIT' THEN "amountMinor" ELSE -"amountMinor" END)::bigint AS net FROM "LedgerLine" WHERE "journalId"=$1`,[done.body.journalId]));expect(balanced.rows[0].net).toBe('0');
+    await expect(asSuper(u.privileged,c=>c.query(`UPDATE "ProviderStatementEntry" SET status='FAILED' WHERE id=$1`,[done.body.statementId]))).rejects.toThrow(/permission denied|append_only/);
   });
 
   it('rejects a refund with an audited terminal decision and no financial execution', async () => {

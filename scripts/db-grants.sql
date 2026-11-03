@@ -350,3 +350,10 @@ REVOKE UPDATE, DELETE ON TABLE "VendorCommissionPolicy" FROM gs_privileged;
 REVOKE DELETE ON TABLE "VendorSettlement" FROM gs_privileged;
 REVOKE UPDATE, DELETE ON TABLE "VendorSettlementItem" FROM gs_privileged;
 REVOKE UPDATE, DELETE ON TABLE "VendorSettlementReview" FROM gs_privileged;
+
+-- Sandbox finance operations: append-only attempts/statements, no runtime writes.
+GRANT SELECT,INSERT,UPDATE ON "RefundExecution","FinanceAdjustment","VendorPayout" TO gs_privileged;
+GRANT SELECT,INSERT ON "TransferAttempt","ProviderStatementEntry" TO gs_privileged;
+GRANT SELECT ON "RefundExecution","FinanceAdjustment","VendorPayout" TO gs_runtime;
+REVOKE DELETE ON "RefundExecution","FinanceAdjustment","VendorPayout","TransferAttempt","ProviderStatementEntry" FROM gs_runtime,gs_privileged;
+REVOKE UPDATE ON "TransferAttempt","ProviderStatementEntry" FROM gs_runtime,gs_privileged;

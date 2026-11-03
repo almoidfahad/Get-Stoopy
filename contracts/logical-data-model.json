@@ -3538,7 +3538,8 @@
         "createdAt timestamptz",
         "updatedAt timestamptz (omitted on immutable records)"
       ],
-      "x-implementation-reference": "Implemented calculation/maker-checker payable-reservation subset: VendorSettlement/VendorSettlementItem, docs/42-vendor-settlement-review.md. Proposed period/provider-execution fields are not implemented; approval never moves money."
+      "x-implementation-reference": "Implemented calculation/maker-checker payable-reservation subset: VendorSettlement/VendorSettlementItem, docs/42-vendor-settlement-review.md. Proposed period/provider-execution fields are not implemented; approval never moves money.",
+      "x-sandbox-operations-reference": "docs/43-sandbox-finance-operations.md: TEST_ONLY refund/adjustment journals, statement reconciliation and payout reservation/submission/completion; no live transfer."
     },
     "SettlementItem": {
       "domain": "Finance",

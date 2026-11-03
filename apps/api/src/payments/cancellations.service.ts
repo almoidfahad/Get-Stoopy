@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { PrivilegedPrismaService, setRls } from '../common/prisma.js';
+import { FinanceOperationsService } from '../finance/finance-operations.service.js';
 import { assertCancellationWindow, fullRefundAmount, hasPermission, inGeographicScope, restockDeltas, type AccessContext } from '@getstoopy/core';
 
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -14,7 +15,7 @@ function conflict(code: string): ConflictException { return new ConflictExceptio
 
 @Injectable()
 export class CancellationsService {
-  constructor(@Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService) {}
+  constructor(@Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService, @Inject(FinanceOperationsService) private readonly financeOperations: FinanceOperationsService) {}
   private async audit(tx: any, actor: string, action: string, type: string, id: string, countryId: string, reason?: string) {
     await tx.$executeRaw`INSERT INTO "AuditLog"(id,"actorId","actorType",action,"resourceType","resourceId","scopeSnapshot",reason,"requestId") VALUES (gen_random_uuid(),${actor}::uuid,'USER'::"ActorType",${action},${type},${id}::uuid,${JSON.stringify({ countryId })}::jsonb,${reason ?? null},${randomUUID()}::uuid)`;
   }
@@ -23,7 +24,7 @@ export class CancellationsService {
     await tx.outboxEvent.create({ data: { aggregateType: type, aggregateId: id, eventKey, eventType, occurredAt, payload: { schemaVersion: 1, eventKey, eventType, occurredAt: occurredAt.toISOString(), aggregateType: type, aggregateId: id, countryId, data } } });
   }
   private refundJson(r: any, duplicate = false) {
-    return { refundRequestId: r.id, cancellationId: r.cancellationId, orderId: r.orderId, paymentIntentId: r.paymentIntentId, countryId: r.countryId, amountMinor: r.amountMinor.toString(), currency: r.currency, status: r.status, version: r.version, execution: 'DISABLED', moneyMoved: false, duplicate };
+    return { refundRequestId: r.id, cancellationId: r.cancellationId, orderId: r.orderId, paymentIntentId: r.paymentIntentId, countryId: r.countryId, amountMinor: r.amountMinor.toString(), currency: r.currency, status: r.status, version: r.version, execution: r.status === 'APPROVED' ? 'SANDBOX_RESERVED' : 'DISABLED', moneyMoved: false, duplicate };
   }
   async cancellationJson(tx: any, orderId: string) {
     const c = await tx.orderCancellation.findUnique({ where: { orderId } });
@@ -132,9 +133,10 @@ export class CancellationsService {
       if (r.version !== input.expectedVersion) throw new ConflictException({ code: 'REFUND_VERSION_CONFLICT', message: 'Refund version conflict' });
       const status = input.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
       const updated = await tx.refundRequest.update({ where: { id }, data: { status, version: { increment: 1 } } });
+      if (status === 'APPROVED') await this.financeOperations.reserveRefundTx(tx, ctx, updated);
       await tx.refundReview.create({ data: { refundRequestId: id, reviewerUserId: ctx.userId, decision: input.decision, refundVersion: updated.version, commandKey: input.commandKey, payloadHash, reason } });
       await this.audit(tx, ctx.userId, `finance.refund.${status.toLowerCase()}`, 'RefundRequest', id, r.countryId, reason);
-      await this.outbox(tx, 'RefundRequest', id, `finance.refund.${status.toLowerCase()}`, r.countryId, { orderId: r.orderId, status, execution: 'DISABLED', moneyMoved: false });
+      await this.outbox(tx, 'RefundRequest', id, `finance.refund.${status.toLowerCase()}`, r.countryId, { orderId: r.orderId, status, execution: status === 'APPROVED' ? 'SANDBOX_RESERVED' : 'DISABLED', moneyMoved: false });
       return this.refundJson(updated);
     });
   }
