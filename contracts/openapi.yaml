@@ -6062,6 +6062,167 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ApprovalInput'
+  /admin/activations:
+    post:
+      operationId: inviteAdminActivation
+      x-authorization: session+csrf+permission+country-scope+step-up
+      x-required-permission: admin:activation:invite
+      tags: [admin]
+      summary: Invite an existing user for scoped admin activation (independent review required)
+      x-contract-status: PROPOSED_NOT_IMPLEMENTED
+      x-implementation-reference: POST /api/v1/admin/activations; docs/44-admin-activation-kyc-retention.md
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      responses:
+        '201': {description: Invitation created}
+        '403': {description: Permission/step-up/self-invite denied}
+  /admin/activations/{id}/review:
+    post:
+      operationId: reviewAdminActivation
+      x-authorization: session+csrf+permission+country-scope+step-up
+      x-required-permission: admin:activation:review
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema: *id002
+      tags: [admin]
+      summary: Activate or reject an admin invitation after ADMIN KYC and active TOTP
+      x-contract-status: PROPOSED_NOT_IMPLEMENTED
+      x-implementation-reference: POST /api/v1/admin/activations/{id}/review; docs/44-admin-activation-kyc-retention.md
+      responses:
+        '201': {description: Review recorded}
+        '409': {description: State/version/KYC/MFA conflict}
+  /kyc/admin/retention-policies:
+    post:
+      operationId: createKycRetentionPolicy
+      x-authorization: session+csrf+permission+country-scope+step-up
+      x-required-permission: kyc:retention:manage
+      tags: [kyc]
+      summary: Create an owner-approved versioned KYC retention policy
+      x-contract-status: PROPOSED_NOT_IMPLEMENTED
+      x-implementation-reference: POST /api/v1/kyc/admin/retention-policies; docs/44-admin-activation-kyc-retention.md
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      responses:
+        '201': {description: Policy version created}
+  /kyc/admin/cases/{id}/legal-holds:
+    post:
+      operationId: placeKycLegalHold
+      x-authorization: session+csrf+permission+country-scope+step-up
+      x-required-permission: kyc:legal-hold:manage
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema: *id002
+      tags: [kyc]
+      summary: Place a legal hold blocking deletion
+      x-contract-status: PROPOSED_NOT_IMPLEMENTED
+      x-implementation-reference: POST /api/v1/kyc/admin/cases/{id}/legal-holds; docs/44-admin-activation-kyc-retention.md
+      responses:
+        '201': {description: Hold placed}
+  /kyc/admin/legal-holds/{id}/release:
+    post:
+      operationId: releaseKycLegalHold
+      x-authorization: session+csrf+permission+country-scope+step-up
+      x-required-permission: kyc:legal-hold:manage
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema: *id002
+      tags: [kyc]
+      summary: Release a legal hold with reason
+      x-contract-status: PROPOSED_NOT_IMPLEMENTED
+      x-implementation-reference: POST /api/v1/kyc/admin/legal-holds/{id}/release; docs/44-admin-activation-kyc-retention.md
+      responses:
+        '201': {description: Hold released}
+  /kyc/admin/cases/{id}/deletion-requests:
+    post:
+      operationId: requestKycDeletion
+      x-authorization: session+csrf+permission+country-scope+step-up
+      x-required-permission: kyc:deletion:prepare
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema: *id002
+      tags: [kyc]
+      summary: Request deletion after retention due date (maker)
+      x-contract-status: PROPOSED_NOT_IMPLEMENTED
+      x-implementation-reference: POST /api/v1/kyc/admin/cases/{id}/deletion-requests; docs/44-admin-activation-kyc-retention.md
+      responses:
+        '201': {description: Deletion request created}
+        '409': {description: Retention not due or legal hold active}
+  /kyc/admin/deletion-requests/{id}/review:
+    post:
+      operationId: reviewKycDeletion
+      x-authorization: session+csrf+permission+country-scope+step-up
+      x-required-permission: kyc:deletion:review
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema: *id002
+      tags: [kyc]
+      summary: Independent checker approves or rejects deletion
+      x-contract-status: PROPOSED_NOT_IMPLEMENTED
+      x-implementation-reference: POST /api/v1/kyc/admin/deletion-requests/{id}/review; docs/44-admin-activation-kyc-retention.md
+      responses:
+        '201': {description: Review recorded}
+        '409': {description: Self-review/version/hold conflict}
+  /kyc/admin/retention-tick:
+    post:
+      operationId: runKycRetentionTick
+      x-authorization: session+csrf+permission+country-scope+step-up
+      x-required-permission: kyc:retention:manage
+      tags: [kyc]
+      summary: Run bounded country-scoped expiry/restriction automation
+      x-contract-status: PROPOSED_NOT_IMPLEMENTED
+      x-implementation-reference: POST /api/v1/kyc/admin/retention-tick; docs/44-admin-activation-kyc-retention.md
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      responses:
+        '201': {description: Expiry batch processed}
+
 components:
   securitySchemes:
     sessionCookie:

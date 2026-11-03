@@ -1,8 +1,8 @@
 /** Explicit KYC case state machine for the foundation slice.
- * Expiry is evaluated from expiresAt; a scheduled EXPIRED transition is not implemented yet.
+ * Expiry is evaluated from expiresAt; scheduled EXPIRED transition is implemented by retention automation.
  */
 export type KycSubjectType = 'VENDOR' | 'RIDER' | 'ADMIN';
-export type KycCaseStatus = 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'MORE_INFORMATION' | 'APPROVED' | 'REJECTED' | 'REVOKED';
+export type KycCaseStatus = 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'MORE_INFORMATION' | 'APPROVED' | 'REJECTED' | 'REVOKED' | 'EXPIRED';
 export type KycDecision = 'START_REVIEW' | 'APPROVE' | 'REJECT' | 'REQUEST_MORE_INFORMATION' | 'REVOKE';
 
 export const kycCaseTransitions: Record<KycCaseStatus, KycCaseStatus[]> = {
@@ -10,7 +10,8 @@ export const kycCaseTransitions: Record<KycCaseStatus, KycCaseStatus[]> = {
   SUBMITTED: ['UNDER_REVIEW'],
   UNDER_REVIEW: ['APPROVED', 'REJECTED', 'MORE_INFORMATION'],
   MORE_INFORMATION: ['SUBMITTED'],
-  APPROVED: ['REVOKED'],
+  APPROVED: ['REVOKED','EXPIRED'],
+  EXPIRED: [],
   REJECTED: [],
   REVOKED: []
 };

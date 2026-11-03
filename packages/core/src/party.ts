@@ -1,13 +1,14 @@
 import { isKycEligible, type KycEligibilityRecord } from './kyc.js';
 
-export type PartyStatus = 'DRAFT' | 'ACTIVE' | 'SUSPENDED';
+export type PartyStatus = 'DRAFT' | 'ACTIVE' | 'SUSPENDED' | 'RESTRICTED';
 export type VendorMembershipRole = 'OWNER' | 'MANAGER' | 'STAFF';
 export type RiderVehicleType = 'BICYCLE' | 'MOTORBIKE' | 'CAR' | 'OTHER';
 
 export const partyTransitions: Record<PartyStatus, PartyStatus[]> = {
   DRAFT: ['ACTIVE'],
-  ACTIVE: ['SUSPENDED'],
-  SUSPENDED: ['ACTIVE']
+  ACTIVE: ['SUSPENDED','RESTRICTED'],
+  SUSPENDED: ['ACTIVE'],
+  RESTRICTED: ['ACTIVE']
 };
 
 export function assertPartyTransition(from: PartyStatus, to: PartyStatus): void {

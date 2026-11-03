@@ -17,7 +17,7 @@
     {
       "check": "OpenAPI contract",
       "status": "PASS",
-      "detail": "OpenAPI 3.1 valid; 87 paths / 90 operations / 36 schemas; YAML=JSON; no live server"
+      "detail": "OpenAPI 3.1 valid; 95 paths / 98 operations / 36 schemas; YAML=JSON; no live server"
     },
     {
       "check": "Requirement traceability",

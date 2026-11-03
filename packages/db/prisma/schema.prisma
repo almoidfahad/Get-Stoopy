@@ -87,6 +87,7 @@ enum KycCaseStatus {
   APPROVED
   REJECTED
   REVOKED
+  EXPIRED
 }
 
 enum KycDecision {
@@ -101,6 +102,7 @@ enum PartyStatus {
   DRAFT
   ACTIVE
   SUSPENDED
+  RESTRICTED
 }
 
 enum VendorMembershipRole {
@@ -295,6 +297,14 @@ model User {
   adjustmentsCreated          FinanceAdjustment[]         @relation("AdjustmentCreator")
   adjustmentsReviewed         FinanceAdjustment[]         @relation("AdjustmentReviewer")
   statementImports            ProviderStatementEntry[]    @relation("StatementImporter")
+  adminActivations            AdminActivation[]           @relation("AdminActivationUser")
+  adminInvitations            AdminActivation[]           @relation("AdminActivationInviter")
+  adminActivated              AdminActivation[]           @relation("AdminActivationActivator")
+  retentionPolicies           KycRetentionPolicy[]        @relation("RetentionPolicyCreator")
+  legalHoldsPlaced            KycLegalHold[]              @relation("LegalHoldPlacedBy")
+  legalHoldsReleased          KycLegalHold[]              @relation("LegalHoldReleasedBy")
+  deletionsRequested          KycDeletionRequest[]        @relation("DeletionRequestedBy")
+  deletionsReviewed           KycDeletionRequest[]        @relation("DeletionReviewedBy")
 }
 
 model UserIdentity {
@@ -313,12 +323,13 @@ model UserIdentity {
 }
 
 model Role {
-  id          String           @id @default(uuid()) @db.Uuid
-  key         String           @unique
-  name        String
-  description String?
-  permissions RolePermission[]
-  users       UserRole[]
+  id               String            @id @default(uuid()) @db.Uuid
+  key              String            @unique
+  name             String
+  description      String?
+  permissions      RolePermission[]
+  users            UserRole[]
+  adminActivations AdminActivation[]
 }
 
 model Permission {
@@ -432,6 +443,11 @@ model Country {
   vendorPayouts        VendorPayout[]             @relation("VendorPayoutCountry")
   financeAdjustments   FinanceAdjustment[]        @relation("FinanceAdjustmentCountry")
   statementEntries     ProviderStatementEntry[]   @relation("StatementCountry")
+  adminActivations     AdminActivation[]          @relation("AdminActivationCountry")
+  retentionPolicies    KycRetentionPolicy[]       @relation("RetentionPolicyCountry")
+  legalHolds           KycLegalHold[]             @relation("LegalHoldCountry")
+  deletionRequests     KycDeletionRequest[]       @relation("DeletionCountry")
+  retentionEvents      KycRetentionEvent[]        @relation("RetentionEventCountry")
 }
 
 model Region {
@@ -1114,26 +1130,34 @@ model LedgerLine {
 }
 
 model KycCase {
-  id             String         @id @default(uuid()) @db.Uuid
-  subjectUserId  String         @db.Uuid
-  subjectType    KycSubjectType
-  countryId      String         @db.Uuid
-  status         KycCaseStatus  @default(DRAFT)
-  policyVersion  String         @db.VarChar(64)
-  consentVersion String         @db.VarChar(64)
-  consentedAt    DateTime
-  version        Int            @default(1)
-  submittedAt    DateTime?
-  reviewedAt     DateTime?
-  expiresAt      DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  subject        User           @relation("KycCaseSubject", fields: [subjectUserId], references: [id])
-  country        Country        @relation(fields: [countryId], references: [id])
-  documents      KycDocument[]
-  reviews        KycReview[]
-  vendor         Vendor?        @relation("VendorKycCase")
-  riderProfile   RiderProfile?  @relation("RiderKycCase")
+  id                String              @id @default(uuid()) @db.Uuid
+  subjectUserId     String              @db.Uuid
+  subjectType       KycSubjectType
+  countryId         String              @db.Uuid
+  status            KycCaseStatus       @default(DRAFT)
+  policyVersion     String              @db.VarChar(64)
+  consentVersion    String              @db.VarChar(64)
+  consentedAt       DateTime
+  version           Int                 @default(1)
+  submittedAt       DateTime?
+  reviewedAt        DateTime?
+  expiresAt         DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  retentionPolicyId String?             @db.Uuid
+  restrictedAt      DateTime?
+  retentionDueAt    DateTime?
+  retentionPolicy   KycRetentionPolicy? @relation(fields: [retentionPolicyId], references: [id])
+  legalHolds        KycLegalHold[]
+  deletionRequest   KycDeletionRequest?
+  retentionEvents   KycRetentionEvent[]
+  adminActivation   AdminActivation?
+  subject           User                @relation("KycCaseSubject", fields: [subjectUserId], references: [id])
+  country           Country             @relation(fields: [countryId], references: [id])
+  documents         KycDocument[]
+  reviews           KycReview[]
+  vendor            Vendor?             @relation("VendorKycCase")
+  riderProfile      RiderProfile?       @relation("RiderKycCase")
 
   @@index([subjectUserId, subjectType, status])
   @@index([countryId, status, createdAt])
@@ -2426,4 +2450,129 @@ model ProviderStatementEntry {
 
   @@unique([provider, providerReference])
   @@unique([countryId, commandKey])
+}
+
+enum AdminActivationStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  EXPIRED
+}
+
+enum KycRetentionEventType {
+  EXPIRED
+  RESTRICTION_RECORDED
+  DELETION_DUE
+  PURGED
+}
+
+enum KycDeletionStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  PURGED
+}
+
+model AdminActivation {
+  id                String                @id @default(uuid()) @db.Uuid
+  userId            String                @db.Uuid
+  countryId         String                @db.Uuid
+  roleId            String                @db.Uuid
+  kycCaseId         String?               @unique @db.Uuid
+  status            AdminActivationStatus @default(PENDING)
+  version           Int                   @default(1)
+  invitedByUserId   String                @db.Uuid
+  activatedByUserId String?               @db.Uuid
+  commandKey        String                @db.VarChar(128)
+  payloadHash       String                @db.VarChar(64)
+  reason            String                @db.VarChar(512)
+  reviewCommandKey  String?               @db.VarChar(128)
+  reviewPayloadHash String?               @db.VarChar(64)
+  reviewReason      String?               @db.VarChar(512)
+  expiresAt         DateTime
+  createdAt         DateTime              @default(now())
+  reviewedAt        DateTime?
+  user              User                  @relation("AdminActivationUser", fields: [userId], references: [id])
+  country           Country               @relation("AdminActivationCountry", fields: [countryId], references: [id])
+  role              Role                  @relation(fields: [roleId], references: [id])
+  kycCase           KycCase?              @relation(fields: [kycCaseId], references: [id])
+  invitedBy         User                  @relation("AdminActivationInviter", fields: [invitedByUserId], references: [id])
+  activatedBy       User?                 @relation("AdminActivationActivator", fields: [activatedByUserId], references: [id])
+
+  @@unique([userId, countryId, roleId, commandKey])
+  @@index([countryId, status, createdAt])
+}
+
+model KycRetentionPolicy {
+  id                    String         @id @default(uuid()) @db.Uuid
+  countryId             String         @db.Uuid
+  subjectType           KycSubjectType
+  approvedRetentionDays Int
+  rejectedRetentionDays Int
+  revokedRetentionDays  Int
+  reminderDays          Int
+  legalBasis            String         @db.VarChar(512)
+  policyVersion         String         @db.VarChar(64)
+  active                Boolean        @default(true)
+  createdByUserId       String         @db.Uuid
+  createdAt             DateTime       @default(now())
+  country               Country        @relation("RetentionPolicyCountry", fields: [countryId], references: [id])
+  createdBy             User           @relation("RetentionPolicyCreator", fields: [createdByUserId], references: [id])
+  cases                 KycCase[]
+
+  @@unique([countryId, subjectType, policyVersion])
+}
+
+model KycLegalHold {
+  id               String    @id @default(uuid()) @db.Uuid
+  caseId           String    @db.Uuid
+  countryId        String    @db.Uuid
+  reason           String    @db.VarChar(512)
+  evidenceHash     String    @db.VarChar(64)
+  placedByUserId   String    @db.Uuid
+  releasedByUserId String?   @db.Uuid
+  releaseReason    String?   @db.VarChar(512)
+  releasedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  case             KycCase   @relation(fields: [caseId], references: [id])
+  country          Country   @relation("LegalHoldCountry", fields: [countryId], references: [id])
+  placedBy         User      @relation("LegalHoldPlacedBy", fields: [placedByUserId], references: [id])
+  releasedBy       User?     @relation("LegalHoldReleasedBy", fields: [releasedByUserId], references: [id])
+}
+
+model KycDeletionRequest {
+  id                String            @id @default(uuid()) @db.Uuid
+  caseId            String            @unique @db.Uuid
+  countryId         String            @db.Uuid
+  status            KycDeletionStatus @default(PENDING_REVIEW)
+  version           Int               @default(1)
+  dueAt             DateTime
+  reason            String            @db.VarChar(512)
+  commandKey        String            @unique @db.VarChar(128)
+  payloadHash       String            @db.VarChar(64)
+  requestedByUserId String            @db.Uuid
+  reviewedByUserId  String?           @db.Uuid
+  reviewCommandKey  String?           @db.VarChar(128)
+  reviewPayloadHash String?           @db.VarChar(64)
+  reviewReason      String?           @db.VarChar(512)
+  reviewedAt        DateTime?
+  purgedAt          DateTime?
+  createdAt         DateTime          @default(now())
+  case              KycCase           @relation(fields: [caseId], references: [id])
+  country           Country           @relation("DeletionCountry", fields: [countryId], references: [id])
+  requestedBy       User              @relation("DeletionRequestedBy", fields: [requestedByUserId], references: [id])
+  reviewedBy        User?             @relation("DeletionReviewedBy", fields: [reviewedByUserId], references: [id])
+}
+
+model KycRetentionEvent {
+  id          String                @id @default(uuid()) @db.Uuid
+  caseId      String                @db.Uuid
+  countryId   String                @db.Uuid
+  kind        KycRetentionEventType
+  caseVersion Int
+  occurredAt  DateTime              @default(now())
+  case        KycCase               @relation(fields: [caseId], references: [id])
+  country     Country               @relation("RetentionEventCountry", fields: [countryId], references: [id])
+
+  @@unique([caseId, kind, caseVersion])
 }

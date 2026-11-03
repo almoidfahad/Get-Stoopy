@@ -121,7 +121,7 @@ describe('KYC case foundation API and database guards', () => {
     await grantReviewer(applicant, bdCountryId);
     const self = await post(`/api/v1/kyc/admin/cases/${caseId}/decision`, applicant, { version, commandKey: 'self-review-key', decision: 'START_REVIEW', reason: 'self approval attempt' }).expect(403);
     expect(self.body.code).toBe('SELF_REVIEW_DENIED');
-    await post('/api/v1/kyc/cases', applicant, { subjectType: 'ADMIN', countryId: bdCountryId, policyVersion: 'kyc-v1', consentVersion: 'consent-v1', consent: true }).expect(400);
+    const adminDenied = await post('/api/v1/kyc/cases', applicant, { subjectType: 'ADMIN', countryId: bdCountryId, policyVersion: 'kyc-v1', consentVersion: 'consent-v1', consent: true }).expect(403); expect(adminDenied.body.code).toBe('ADMIN_INVITATION_REQUIRED');
     await post('/api/v1/kyc/cases', applicant, { subjectType: 'RIDER', countryId: bdCountryId, policyVersion: 'kyc-v1', consentVersion: 'consent-v1', consent: false }).expect(400);
   });
 

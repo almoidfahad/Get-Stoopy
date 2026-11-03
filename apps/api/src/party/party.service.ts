@@ -96,7 +96,7 @@ export class PartyService {
       this.requireAdmin(ctx, 'vendor:profile:activate', vendor.countryId);
       if (vendor.ownerUserId === ctx.userId) throw new ForbiddenException({ code: 'SELF_ACTIVATION_DENIED', message: 'Owner cannot activate their own vendor profile' });
       if (vendor.version !== input.version) throw new ConflictException({ code: 'PARTY_VERSION_CONFLICT', message: 'Party version conflict' });
-      if (!['DRAFT', 'SUSPENDED'].includes(vendor.status)) throw new ConflictException({ code: 'PARTY_INVALID_TRANSITION', message: 'Vendor cannot be activated from this state' });
+      if (!['DRAFT', 'SUSPENDED', 'RESTRICTED'].includes(vendor.status)) throw new ConflictException({ code: 'PARTY_INVALID_TRANSITION', message: 'Vendor cannot be activated from this state' });
       await this.assertKycCase(tx, input.kycCaseId, vendor.ownerUserId, 'VENDOR', vendor.countryId);
       const updated = await tx.vendor.update({ where: { id: vendorId }, data: { status: 'ACTIVE', kycCaseId: input.kycCaseId, activatedAt: new Date(), activatedByUserId: ctx.userId, suspendedAt: null, version: { increment: 1 } } });
       await this.audit(tx, ctx, 'party.vendor.activated', 'Vendor', vendorId, vendor.countryId, reason);
@@ -132,7 +132,7 @@ export class PartyService {
       this.requireAdmin(ctx, 'rider:profile:activate', rider.countryId);
       if (rider.userId === ctx.userId) throw new ForbiddenException({ code: 'SELF_ACTIVATION_DENIED', message: 'Rider cannot activate their own profile' });
       if (rider.version !== input.version) throw new ConflictException({ code: 'PARTY_VERSION_CONFLICT', message: 'Party version conflict' });
-      if (!['DRAFT', 'SUSPENDED'].includes(rider.status)) throw new ConflictException({ code: 'PARTY_INVALID_TRANSITION', message: 'Rider cannot be activated from this state' });
+      if (!['DRAFT', 'SUSPENDED', 'RESTRICTED'].includes(rider.status)) throw new ConflictException({ code: 'PARTY_INVALID_TRANSITION', message: 'Rider cannot be activated from this state' });
       await this.assertKycCase(tx, input.kycCaseId, rider.userId, 'RIDER', rider.countryId);
       const updated = await tx.riderProfile.update({ where: { id: riderId }, data: { status: 'ACTIVE', kycCaseId: input.kycCaseId, activatedAt: new Date(), activatedByUserId: ctx.userId, suspendedAt: null, version: { increment: 1 } } });
       await this.audit(tx, ctx, 'party.rider.activated', 'RiderProfile', riderId, rider.countryId, reason);

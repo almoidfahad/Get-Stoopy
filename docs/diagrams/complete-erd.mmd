@@ -1457,3 +1457,48 @@ erDiagram
   Customer |o--o{ Referral : "referredCustomerId"
   Order |o--o{ Referral : "qualifiedOrderId"
   LoyaltyEvent |o--o{ Referral : "rewardEventId"
+  AdminActivation {
+    uuid id PK
+    uuid userId FK
+    uuid countryId FK
+    uuid roleId FK
+    uuid kycCaseId FK
+    string status
+    int version
+    timestamp expiresAt
+  }
+  KycRetentionPolicy {
+    uuid id PK
+    uuid countryId FK
+    string subjectType
+    int approvedRetentionDays
+    int rejectedRetentionDays
+    int revokedRetentionDays
+    int reminderDays
+    string policyVersion
+    boolean active
+  }
+  KycLegalHold {
+    uuid id PK
+    uuid caseId FK
+    string evidenceHash
+    timestamp releasedAt
+  }
+  KycDeletionRequest {
+    uuid id PK
+    uuid caseId FK
+    string status
+    timestamp dueAt
+    timestamp purgedAt
+  }
+  KycRetentionEvent {
+    uuid id PK
+    uuid caseId FK
+    string kind
+    int caseVersion
+  }
+  KycCase ||--o{ KycLegalHold : holds
+  KycCase ||--o| KycDeletionRequest : deletion
+  KycCase ||--o{ KycRetentionEvent : events
+  KycRetentionPolicy ||--o{ KycCase : snapshots
+  KycCase ||--o| AdminActivation : activates

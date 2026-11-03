@@ -8,6 +8,8 @@ import { StructuredLogger } from '@getstoopy/observability';
 import { attachInboxDeadLetter, createInboxProcessor, type InboxHandlers } from './inbox-processing.js';
 import { runInventoryExpiryTick } from './inventory-expiry.js';
 import { runDispatchExpiryTick } from './dispatch-expiry.js';
+import { runKycRetentionTick } from './kyc-retention.js';
+import { LocalEncryptedObjectStorage } from '@getstoopy/storage';
 
 const envSchema = z.object({
   DATABASE_URL: z.string().startsWith('postgresql://'),
@@ -24,8 +26,13 @@ const envSchema = z.object({
   INVENTORY_EXPIRY_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(100),
   DISPATCH_EXPIRY_ENABLED: z.enum(['true','false']).default('false'),
   DISPATCH_EXPIRY_POLL_MS: z.coerce.number().int().min(50).max(60000).default(1000),
-  DISPATCH_EXPIRY_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(100)
-}).refine(env => env.INVENTORY_EXPIRY_ENABLED !== 'true' || !!env.DATABASE_PRIVILEGED_URL, { message: 'DATABASE_PRIVILEGED_URL is required when inventory expiry is enabled' }).refine(env => env.DISPATCH_EXPIRY_ENABLED !== 'true' || !!env.DATABASE_PRIVILEGED_URL, { message: 'DATABASE_PRIVILEGED_URL is required when dispatch expiry is enabled' });
+  DISPATCH_EXPIRY_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(100),
+  KYC_RETENTION_ENABLED: z.enum(['true','false']).default('false'),
+  KYC_RETENTION_POLL_MS: z.coerce.number().int().min(1000).max(3600000).default(60000),
+  KYC_RETENTION_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(100),
+  STORAGE_LOCAL_DIR: z.string().default('.local/private-storage'),
+  STORAGE_ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i).optional()
+}).refine(env => env.INVENTORY_EXPIRY_ENABLED !== 'true' || !!env.DATABASE_PRIVILEGED_URL, { message: 'DATABASE_PRIVILEGED_URL is required when inventory expiry is enabled' }).refine(env => env.DISPATCH_EXPIRY_ENABLED !== 'true' || !!env.DATABASE_PRIVILEGED_URL, { message: 'DATABASE_PRIVILEGED_URL is required when dispatch expiry is enabled' }).refine(env => env.KYC_RETENTION_ENABLED !== 'true' || (!!env.DATABASE_PRIVILEGED_URL && !!env.STORAGE_ENCRYPTION_KEY), { message: 'KYC retention requires privileged DB and storage key' });
 const env = envSchema.parse(process.env);
 const log = new StructuredLogger();
 const pool = new Pool({ connectionString: env.DATABASE_URL, max: 8 });
@@ -34,6 +41,8 @@ const workerConnection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null }
 const queue = new Queue(env.WORKER_QUEUE, { connection: queueConnection });
 const inventoryPool = env.INVENTORY_EXPIRY_ENABLED === 'true' && env.DATABASE_PRIVILEGED_URL ? new Pool({ connectionString: env.DATABASE_PRIVILEGED_URL, max: 2 }) : null;
 const dispatchPool = env.DISPATCH_EXPIRY_ENABLED === 'true' && env.DATABASE_PRIVILEGED_URL ? new Pool({ connectionString: env.DATABASE_PRIVILEGED_URL, max: 2 }) : null;
+const kycPool = env.KYC_RETENTION_ENABLED === 'true' && env.DATABASE_PRIVILEGED_URL && env.STORAGE_ENCRYPTION_KEY ? new Pool({ connectionString: env.DATABASE_PRIVILEGED_URL, max: 2 }) : null;
+const kycStorage = env.STORAGE_ENCRYPTION_KEY ? new LocalEncryptedObjectStorage(env.STORAGE_LOCAL_DIR, env.STORAGE_ENCRYPTION_KEY) : null;
 const handlers: InboxHandlers = new Map<string, (e: EventEnvelope, tx: PoolClient) => Promise<void>>();
 export function registerHandler(eventType: string, fn: (e: EventEnvelope, tx: PoolClient) => Promise<void>) { handlers.set(eventType, fn); }
 registerHandler('test.created', async () => undefined);
@@ -64,9 +73,11 @@ async function dispatchExpiryLoop() {
     await new Promise(r => setTimeout(r, env.DISPATCH_EXPIRY_POLL_MS));
   }
 }
-async function shutdown() { stopping = true; await worker.close(); await queue.close(); await queueConnection.quit(); await workerConnection.quit(); await pool.end(); if (inventoryPool) await inventoryPool.end(); if (dispatchPool) await dispatchPool.end(); process.exit(0); }
+async function kycRetentionLoop() { while (!stopping && kycPool && kycStorage) { await runKycRetentionTick(kycPool, kycStorage, log, env.KYC_RETENTION_BATCH_SIZE); await new Promise(r => setTimeout(r, env.KYC_RETENTION_POLL_MS)); } }
+async function shutdown() { stopping = true; await worker.close(); await queue.close(); await queueConnection.quit(); await workerConnection.quit(); await pool.end(); if (inventoryPool) await inventoryPool.end(); if (dispatchPool) await dispatchPool.end(); if (kycPool) await kycPool.end(); process.exit(0); }
 process.on('SIGTERM', shutdown); process.on('SIGINT', shutdown);
 log.info('worker_started', { queue: env.WORKER_QUEUE });
 poll();
 if (inventoryPool) void inventoryExpiryLoop();
 if (dispatchPool) void dispatchExpiryLoop();
+if (kycPool) void kycRetentionLoop();

@@ -50,19 +50,21 @@ export class KycService {
   }
 
   async createCase(ctx: AccessContext, input: CreateKycCaseInput) {
-    if (!SELF_SERVICE_SUBJECTS.includes(input.subjectType)) throw new BadRequestException({ code: 'KYC_SUBJECT_NOT_SELF_SERVICE', message: 'Admin KYC requires an authorized invitation flow' });
+    if (!SELF_SERVICE_SUBJECTS.includes(input.subjectType) && input.subjectType !== 'ADMIN') throw new BadRequestException({ code: 'KYC_SUBJECT_NOT_SELF_SERVICE', message: 'Unsupported KYC subject' });
     if (input.consent !== true) throw new BadRequestException({ code: 'KYC_CONSENT_REQUIRED', message: 'Explicit KYC consent is required' });
     if (!input.policyVersion?.trim() || !input.consentVersion?.trim()) throw new BadRequestException({ code: 'KYC_POLICY_VERSION_REQUIRED', message: 'Policy and consent versions are required' });
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
       const country = await tx.country.findFirst({ where: { id: input.countryId, status: 'ACTIVE' } });
       if (!country) throw new BadRequestException({ code: 'COUNTRY_NOT_AVAILABLE', message: 'Country is not available' });
+      if (input.subjectType === 'ADMIN' && !await tx.adminActivation.findFirst({ where: { userId: ctx.userId, countryId: input.countryId, status: 'PENDING', expiresAt: { gt: new Date() } } })) throw new ForbiddenException({ code: 'ADMIN_INVITATION_REQUIRED', message: 'Pending admin invitation is required' });
+      const retentionPolicy = await tx.kycRetentionPolicy.findFirst({ where: { countryId: input.countryId, subjectType: input.subjectType, active: true } });
       const existing = await tx.kycCase.findFirst({ where: { subjectUserId: ctx.userId, subjectType: input.subjectType, countryId: input.countryId, status: { in: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'MORE_INFORMATION'] } } });
       if (existing) {
         if (existing.policyVersion === input.policyVersion.trim() && existing.consentVersion === input.consentVersion.trim()) return { caseId: existing.id, status: existing.status, version: existing.version, duplicate: true };
         throw new ConflictException({ code: 'KYC_OPEN_CASE_EXISTS', message: 'An open KYC case already exists' });
       }
-      const created = await tx.kycCase.create({ data: { subjectUserId: ctx.userId, subjectType: input.subjectType, countryId: input.countryId, policyVersion: input.policyVersion.trim(), consentVersion: input.consentVersion.trim(), consentedAt: new Date() } });
+      const created = await tx.kycCase.create({ data: { subjectUserId: ctx.userId, subjectType: input.subjectType, countryId: input.countryId, policyVersion: input.policyVersion.trim(), consentVersion: input.consentVersion.trim(), consentedAt: new Date(), ...(retentionPolicy ? { retentionPolicyId: retentionPolicy.id } : {}) } });
       await this.audit(tx, ctx, 'kyc.case.created', created.id, input.countryId);
       await this.outbox(tx, created.id, 'kyc.case.created', `kyc-created-${created.id}`, input.countryId, { subjectType: input.subjectType, version: created.version });
       return { caseId: created.id, status: created.status, version: created.version, duplicate: false };
@@ -171,7 +173,9 @@ export class KycService {
         }
       }
       const review = await tx.kycReview.create({ data: { caseId, reviewerUserId: ctx.userId, commandKey: input.commandKey, payloadHash, decision: input.decision, fromStatus: kycCase.status, toStatus: target, reason: input.reason.trim(), verificationMethod: method } });
-      const updated = await tx.kycCase.update({ where: { id: caseId }, data: { status: target, version: { increment: 1 }, reviewedAt: new Date(), ...(input.decision === 'APPROVE' ? { expiresAt: approvalExpiry } : {}), ...(input.decision === 'REVOKE' ? { expiresAt: null } : {}) } });
+      let retentionDueAt: Date | null = null; let retentionPolicyId: string | null = null;
+      if (['REJECTED','REVOKED'].includes(target)) { const full = await tx.kycCase.findUniqueOrThrow({ where: { id: caseId } }); const policy = full.retentionPolicyId ? await tx.kycRetentionPolicy.findUnique({ where: { id: full.retentionPolicyId } }) : await tx.kycRetentionPolicy.findFirst({ where: { countryId: full.countryId, subjectType: full.subjectType, active: true } }); if (policy) { retentionPolicyId = policy.id; const days = target === 'REJECTED' ? policy.rejectedRetentionDays : policy.revokedRetentionDays; retentionDueAt = new Date(Date.now() + days * 86400_000); } }
+      const updated = await tx.kycCase.update({ where: { id: caseId }, data: { status: target, version: { increment: 1 }, reviewedAt: new Date(), ...(retentionPolicyId ? { retentionPolicyId, retentionDueAt } : {}), ...(input.decision === 'APPROVE' ? { expiresAt: approvalExpiry } : {}), ...(input.decision === 'REVOKE' ? { expiresAt: null } : {}) } });
       await this.audit(tx, ctx, `kyc.case.${input.decision.toLowerCase()}`, caseId, kycCase.countryId, input.reason.trim());
       await this.outbox(tx, caseId, 'kyc.case.reviewed', `kyc-review-${review.id}`, kycCase.countryId, { decision: input.decision, fromStatus: kycCase.status, toStatus: target, version: updated.version });
       return { caseId, reviewId: review.id, status: updated.status, version: updated.version, duplicate: false };

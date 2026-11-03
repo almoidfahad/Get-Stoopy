@@ -357,3 +357,12 @@ GRANT SELECT,INSERT ON "TransferAttempt","ProviderStatementEntry" TO gs_privileg
 GRANT SELECT ON "RefundExecution","FinanceAdjustment","VendorPayout" TO gs_runtime;
 REVOKE DELETE ON "RefundExecution","FinanceAdjustment","VendorPayout","TransferAttempt","ProviderStatementEntry" FROM gs_runtime,gs_privileged;
 REVOKE UPDATE ON "TransferAttempt","ProviderStatementEntry" FROM gs_runtime,gs_privileged;
+
+-- Admin activation and KYC retention automation
+GRANT SELECT,INSERT,UPDATE ON "AdminActivation","KycLegalHold","KycDeletionRequest" TO gs_privileged;
+GRANT SELECT,INSERT ON "KycRetentionPolicy","KycRetentionEvent" TO gs_privileged;
+GRANT SELECT ON "AdminActivation" TO gs_runtime;
+REVOKE DELETE ON "AdminActivation","KycRetentionPolicy","KycLegalHold","KycDeletionRequest","KycRetentionEvent" FROM gs_runtime,gs_privileged;
+REVOKE UPDATE ON "KycRetentionEvent" FROM gs_runtime,gs_privileged;
+REVOKE ALL ON FUNCTION gs_kyc_retention_tick(INTEGER,UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION gs_kyc_retention_tick(INTEGER,UUID) TO gs_privileged;
