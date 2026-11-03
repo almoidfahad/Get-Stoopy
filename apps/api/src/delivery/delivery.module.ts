@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
+import { FinanceModule } from '../finance/finance.module.js';
 import { ENV } from '../common/env.js';
 import type { ApiEnv } from '@getstoopy/config';
 import { DeliveryController } from './delivery.controller.js';
@@ -7,7 +8,7 @@ import { DeliveryService } from './delivery.service.js';
 import { DELIVERY_OTP_CHANNEL, TEST_DELIVERY_OTP_SINK, DisabledDeliveryOtpChannel, TestDeliveryOtpChannel, TestDeliveryOtpSink } from './delivery-otp.channel.js';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, FinanceModule],
   controllers: [DeliveryController],
   providers: [
     DeliveryService,

@@ -6,13 +6,14 @@ import type { ApiEnv } from '@getstoopy/config';
 import { decryptJson, encryptJson } from '@getstoopy/bff';
 import { assertDeliveryCommandKey, deliveryCompletionGate, deliveryOtpHash, generateDeliveryOtp, maskPhone, normalizeRecipientPhone, recipientPhoneHash, verifyDeliveryOtp, type AccessContext } from '@getstoopy/core';
 import { DELIVERY_OTP_CHANNEL, type DeliveryOtpChannel } from './delivery-otp.channel.js';
+import { FinanceService } from '../finance/finance.service.js';
 
 function hashPayload(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 function commandKey(key: string): void { try { assertDeliveryCommandKey(key); } catch (e: any) { throw new BadRequestException({ code: e.message ?? 'DELIVERY_COMMAND_KEY_INVALID', message: 'Invalid delivery command key' }); } }
 
 @Injectable()
 export class DeliveryService {
-  constructor(@Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService, @Inject(ENV) private readonly env: ApiEnv, @Inject(DELIVERY_OTP_CHANNEL) private readonly otpChannel: DeliveryOtpChannel) {}
+  constructor(@Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService, @Inject(ENV) private readonly env: ApiEnv, @Inject(DELIVERY_OTP_CHANNEL) private readonly otpChannel: DeliveryOtpChannel, @Inject(FinanceService) private readonly finance: FinanceService) {}
 
   private keys(): { pepper: string; encryptionKey: string } {
     if (!this.env.DELIVERY_OTP_PEPPER || !this.env.DELIVERY_RECIPIENT_ENCRYPTION_KEY) throw new ServiceUnavailableException({ code: 'DELIVERY_OTP_KEYS_REQUIRED', message: 'Delivery OTP keys are not configured' });
@@ -207,12 +208,13 @@ export class DeliveryService {
       const proof = await tx.deliveryProof.findUnique({ where: { deliveryId } });
       const assignment = await tx.riderAssignment.findUniqueOrThrow({ where: { id: delivery.assignmentId } });
       const suborder = await tx.vendorSuborder.findUniqueOrThrow({ where: { id: delivery.suborderId }, include: { order: true } });
-      const gate = deliveryCompletionGate({ deliveryStatus: delivery.status, proofVerified: !!proof, paymentMethod: suborder.order.paymentMethod, paymentStatus: suborder.order.paymentStatus, codAccountingVerified: false });
+      const gate = deliveryCompletionGate({ deliveryStatus: delivery.status, proofVerified: !!proof, paymentMethod: suborder.order.paymentMethod, paymentStatus: suborder.order.paymentStatus, codAccountingVerified: suborder.order.paymentMethod === 'COD' });
       if (gate) throw new ConflictException({ code: gate, message: 'Delivery completion gate is not satisfied' });
       const now = new Date();
       const updated = await tx.delivery.update({ where: { id: deliveryId }, data: { status: 'COMPLETED', completedAt: now, completionCommandKey: input.commandKey, completionPayloadHash: payloadHash, version: { increment: 1 } } });
       await tx.riderAssignment.update({ where: { id: assignment.id }, data: { status: 'COMPLETED' } });
       await this.suborderTransition(tx, ctx, delivery.suborderId, 'DELIVERED', 'COMPLETED', suborder.version, `d-${hashPayload({ action: 'complete', key: input.commandKey }).slice(0, 48)}`, { deliveryId });
+      await this.finance.recordCompletionTx(tx, { id: deliveryId, assignmentId: assignment.id, riderId: delivery.riderId, countryId: delivery.countryId }, ctx.userId);
       await this.event(tx, deliveryId, 'delivery.completed', ctx, input.commandKey, { assignmentId: assignment.id });
       await this.audit(tx, ctx, 'delivery.completed', deliveryId, delivery.countryId);
       await this.outbox(tx, deliveryId, 'delivery.completed', `delivery-completed-${deliveryId}`, delivery.countryId, { assignmentId: assignment.id, suborderId: delivery.suborderId });

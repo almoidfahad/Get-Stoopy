@@ -279,6 +279,9 @@ model User {
   orderCancellations        OrderCancellation[]         @relation("OrderCancellationBuyer")
   refundRequests            RefundRequest[]             @relation("RefundRequestBuyer")
   refundReviews             RefundReview[]              @relation("RefundReviewer")
+  riderRateRules            RiderRateRule[]             @relation("RiderRateRuleCreatedBy")
+  codDepositsSubmitted      CodDeposit[]                @relation("CodDepositSubmittedBy")
+  codDepositsReviewed       CodDeposit[]                @relation("CodDepositReviewedBy")
 }
 
 model UserIdentity {
@@ -405,6 +408,11 @@ model Country {
   Delivery             Delivery[]
   orderCancellations   OrderCancellation[]        @relation("OrderCancellationCountry")
   refundRequests       RefundRequest[]            @relation("RefundRequestCountry")
+  riderRateRules       RiderRateRule[]            @relation("RiderRateRuleCountry")
+  riderRateSnapshots   RiderRateSnapshot[]        @relation("RiderRateSnapshotCountry")
+  riderEarnings        RiderEarning[]             @relation("RiderEarningCountry")
+  codCollections       CodCollection[]            @relation("CodCollectionCountry")
+  codDeposits          CodDeposit[]               @relation("CodDepositCountry")
 }
 
 model Region {
@@ -733,6 +741,7 @@ model RiderAssignment {
   locationSample       RiderLocationSample   @relation(fields: [locationSampleId], references: [id])
   events               DispatchEvent[]
   delivery             Delivery?
+  rateSnapshot         RiderRateSnapshot?
 
   @@index([riderId, status])
   @@index([suborderId])
@@ -803,6 +812,8 @@ model Delivery {
   otpChallenges         DeliveryOtpChallenge[]
   proof                 DeliveryProof?
   events                DeliveryEvent[]
+  earning               RiderEarning?
+  codCollection         CodCollection?
 
   @@index([riderId, status])
   @@index([countryId, status])
@@ -1053,6 +1064,9 @@ model LedgerJournal {
   reversalOf          LedgerJournal?  @relation("LedgerJournalReversal", fields: [reversalOfJournalId], references: [id])
   reversals           LedgerJournal[] @relation("LedgerJournalReversal")
   lines               LedgerLine[]
+  riderEarning        RiderEarning?
+  codCollection       CodCollection?
+  codDeposit          CodDeposit?
 
   @@index([createdAt])
 }
@@ -1204,6 +1218,10 @@ model RiderProfile {
   assignments       RiderAssignment[]
   deliveries        Delivery[]
   dispatchPriority  Int                   @default(0)
+  rateSnapshots     RiderRateSnapshot[]
+  earnings          RiderEarning[]
+  codCollections    CodCollection[]
+  codDeposits       CodDeposit[]
 
   @@index([countryId, status])
 }
@@ -1653,6 +1671,7 @@ model Order {
   deliveryRecipient   DeliveryRecipient?
   cancellation        OrderCancellation?
   refundRequest       RefundRequest?
+  codCollections      CodCollection[]
 
   @@unique([buyerId, commandKey])
   @@index([buyerId, createdAt])
@@ -1877,4 +1896,159 @@ model RefundReview {
 
   @@unique([refundRequestId, commandKey])
   @@index([reviewerUserId, occurredAt])
+}
+
+enum RiderRateRuleStatus {
+  ACTIVE
+  RETIRED
+}
+
+model RiderRateRule {
+  id              String              @id @default(uuid()) @db.Uuid
+  countryId       String              @db.Uuid
+  currency        String              @db.VarChar(3)
+  status          RiderRateRuleStatus @default(ACTIVE)
+  effectiveFrom   DateTime
+  commandKey      String              @db.VarChar(128)
+  payloadHash     String              @db.VarChar(64)
+  createdByUserId String              @db.Uuid
+  createdAt       DateTime            @default(now())
+  country         Country             @relation("RiderRateRuleCountry", fields: [countryId], references: [id])
+  createdBy       User                @relation("RiderRateRuleCreatedBy", fields: [createdByUserId], references: [id])
+  slabs           RiderRateSlab[]
+  snapshots       RiderRateSnapshot[]
+
+  @@unique([countryId, commandKey])
+  @@index([countryId, status, effectiveFrom])
+}
+
+model RiderRateSlab {
+  id                String              @id @default(uuid()) @db.Uuid
+  ruleId            String              @db.Uuid
+  lowerMeters       Int
+  upperMeters       Int?
+  amountMinor       BigInt
+  rule              RiderRateRule       @relation(fields: [ruleId], references: [id])
+  RiderRateSnapshot RiderRateSnapshot[]
+
+  @@unique([ruleId, lowerMeters])
+  @@index([ruleId])
+}
+
+model RiderRateSnapshot {
+  id                 String          @id @default(uuid()) @db.Uuid
+  assignmentId       String          @unique @db.Uuid
+  ruleId             String          @db.Uuid
+  slabId             String          @db.Uuid
+  countryId          String          @db.Uuid
+  riderId            String          @db.Uuid
+  roadDistanceMeters Int
+  amountMinor        BigInt
+  currency           String          @db.VarChar(3)
+  routeEvidenceHash  String          @db.VarChar(64)
+  createdAt          DateTime        @default(now())
+  assignment         RiderAssignment @relation(fields: [assignmentId], references: [id])
+  rule               RiderRateRule   @relation(fields: [ruleId], references: [id])
+  slab               RiderRateSlab   @relation(fields: [slabId], references: [id])
+  country            Country         @relation("RiderRateSnapshotCountry", fields: [countryId], references: [id])
+  rider              RiderProfile    @relation(fields: [riderId], references: [id])
+
+  @@index([riderId, createdAt])
+}
+
+model RiderEarning {
+  id          String        @id @default(uuid()) @db.Uuid
+  deliveryId  String        @unique @db.Uuid
+  riderId     String        @db.Uuid
+  countryId   String        @db.Uuid
+  amountMinor BigInt
+  currency    String        @db.VarChar(3)
+  journalId   String        @unique @db.Uuid
+  createdAt   DateTime      @default(now())
+  delivery    Delivery      @relation(fields: [deliveryId], references: [id])
+  rider       RiderProfile  @relation(fields: [riderId], references: [id])
+  country     Country       @relation("RiderEarningCountry", fields: [countryId], references: [id])
+  journal     LedgerJournal @relation(fields: [journalId], references: [id])
+
+  @@index([riderId, createdAt])
+  @@index([countryId, createdAt])
+}
+
+enum CodDepositStatus {
+  PENDING_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum CodDepositMethod {
+  COMPANY_OFFICE
+  BANK
+  MERCHANT_MFS
+}
+
+model CodCollection {
+  id          String          @id @default(uuid()) @db.Uuid
+  deliveryId  String          @unique @db.Uuid
+  orderId     String          @db.Uuid
+  riderId     String          @db.Uuid
+  countryId   String          @db.Uuid
+  amountMinor BigInt
+  currency    String          @db.VarChar(3)
+  journalId   String          @unique @db.Uuid
+  collectedAt DateTime        @default(now())
+  delivery    Delivery        @relation(fields: [deliveryId], references: [id])
+  order       Order           @relation(fields: [orderId], references: [id])
+  rider       RiderProfile    @relation(fields: [riderId], references: [id])
+  country     Country         @relation("CodCollectionCountry", fields: [countryId], references: [id])
+  journal     LedgerJournal   @relation(fields: [journalId], references: [id])
+  allocations CodAllocation[]
+
+  @@index([riderId, collectedAt])
+  @@index([countryId, collectedAt])
+}
+
+model CodDeposit {
+  id                String           @id @default(uuid()) @db.Uuid
+  riderId           String           @db.Uuid
+  countryId         String           @db.Uuid
+  amountMinor       BigInt
+  currency          String           @db.VarChar(3)
+  method            CodDepositMethod
+  externalReference String           @db.VarChar(128)
+  evidenceHash      String           @db.VarChar(64)
+  status            CodDepositStatus @default(PENDING_REVIEW)
+  commandKey        String           @db.VarChar(128)
+  payloadHash       String           @db.VarChar(64)
+  submittedByUserId String           @db.Uuid
+  reviewedByUserId  String?          @db.Uuid
+  reviewCommandKey  String?          @db.VarChar(128)
+  reviewPayloadHash String?          @db.VarChar(64)
+  reviewReason      String?          @db.VarChar(512)
+  journalId         String?          @unique @db.Uuid
+  version           Int              @default(1)
+  createdAt         DateTime         @default(now())
+  reviewedAt        DateTime?
+  rider             RiderProfile     @relation(fields: [riderId], references: [id])
+  country           Country          @relation("CodDepositCountry", fields: [countryId], references: [id])
+  submittedBy       User             @relation("CodDepositSubmittedBy", fields: [submittedByUserId], references: [id])
+  reviewedBy        User?            @relation("CodDepositReviewedBy", fields: [reviewedByUserId], references: [id])
+  journal           LedgerJournal?   @relation(fields: [journalId], references: [id])
+  allocations       CodAllocation[]
+
+  @@unique([riderId, commandKey])
+  @@unique([riderId, method, externalReference])
+  @@index([countryId, status, createdAt])
+}
+
+model CodAllocation {
+  id           String        @id @default(uuid()) @db.Uuid
+  depositId    String        @db.Uuid
+  collectionId String        @db.Uuid
+  amountMinor  BigInt
+  createdAt    DateTime      @default(now())
+  deposit      CodDeposit    @relation(fields: [depositId], references: [id])
+  collection   CodCollection @relation(fields: [collectionId], references: [id])
+
+  @@unique([depositId, collectionId])
+  @@index([collectionId])
 }

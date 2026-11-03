@@ -5,6 +5,7 @@ import { ENV } from '../common/env.js';
 import type { ApiEnv } from '@getstoopy/config';
 import { assertDispatchCommandKey, assertLatitudeLongitude, dispatchOfferToken, dispatchOfferTokenHash, hasPermission, inGeographicScope, rankDispatchCandidates, roadRouteEvidenceHash, verifyDispatchOfferToken, DISPATCH_MAX_CANDIDATES, type AccessContext, type DispatchCandidate, type RoadRoutePoint } from '@getstoopy/core';
 import { DisabledRoadRouteMatrix, GoogleRoutesRoadRouteMatrix, type RoadRouteMatrixPort, type RoadTravelMode } from './road-route.adapter.js';
+import { FinanceService } from '../finance/finance.service.js';
 
 function hashPayload(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 function assertVersion(version: number): void { if (!Number.isInteger(version) || version < 1) throw new BadRequestException({ code: 'VERSION_INVALID', message: 'Invalid version' }); }
@@ -14,7 +15,7 @@ function travelMode(vehicle: string): RoadTravelMode { return vehicle === 'BICYC
 @Injectable()
 export class DispatchService {
   private readonly roadMatrix: RoadRouteMatrixPort;
-  constructor(@Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService, @Inject(ENV) private readonly env: ApiEnv) {
+  constructor(@Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService, @Inject(ENV) private readonly env: ApiEnv, @Inject(FinanceService) private readonly finance: FinanceService) {
     this.roadMatrix = env.ROAD_ROUTING_ENABLED && env.ROAD_ROUTING_PROVIDER === 'google_routes' && env.GOOGLE_ROUTES_API_KEY
       ? new GoogleRoutesRoadRouteMatrix({ apiKey: env.GOOGLE_ROUTES_API_KEY, baseUrl: env.GOOGLE_ROUTES_BASE_URL, testMode: env.NODE_ENV === 'test' })
       : new DisabledRoadRouteMatrix();
@@ -231,6 +232,8 @@ export class DispatchService {
         await tx.$executeRaw`UPDATE "DispatchOffer" SET "status"='ACCEPTED', "respondedAt"=gs_dispatch_now(), "responseCommandKey"=${input.commandKey}, "responsePayloadHash"=${payloadHash} WHERE "id"=${offerId}::uuid`;
         const assignmentId = randomUUID();
         await tx.$executeRaw`INSERT INTO "RiderAssignment"("id","runId","offerId","riderId","suborderId","countryId","shiftId","locationSampleId","pickupDistanceMeters","roadDistanceMeters","durationSeconds","routingProvider","routingMode","routeEvidenceHash") VALUES (${assignmentId}::uuid, ${run.id}::uuid, ${offerId}::uuid, ${ctx.riderId}::uuid, ${run.suborderId}::uuid, ${run.countryId}::uuid, ${offer.shiftId}::uuid, ${offer.locationSampleId}::uuid, ${offer.pickupDistanceMeters}, ${offer.roadDistanceMeters}, ${offer.durationSeconds}, ${offer.routingProvider}, ${offer.routingMode}::"RoadRoutingMode", ${offer.routeEvidenceHash})`;
+        const suborder = await tx.vendorSuborder.findUniqueOrThrow({ where: { id: run.suborderId } });
+        await this.finance.snapshotRateTx(tx, { id: assignmentId, riderId: ctx.riderId!, countryId: run.countryId, roadDistanceMeters: offer.roadDistanceMeters, routeEvidenceHash: offer.routeEvidenceHash }, suborder.currency);
         await this.event(tx, run.id, 'dispatch.offer.accepted', input.commandKey, { offerId, assignmentId }, { actorUserId: ctx.userId, offerId, assignmentId });
         await this.audit(tx, ctx, 'dispatch.offer.accepted', run.id, run.countryId);
         await this.outbox(tx, run.id, 'dispatch.offer.accepted', `dispatch-offer-accepted-${offerId}`, run.countryId, { offerId, assignmentId, riderId: ctx.riderId, suborderId: run.suborderId });

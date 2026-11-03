@@ -311,3 +311,22 @@ REVOKE DELETE ON TABLE "OrderCancellation" FROM gs_privileged;
 REVOKE UPDATE, DELETE ON TABLE "OrderCancellation" FROM gs_privileged;
 REVOKE DELETE ON TABLE "RefundRequest" FROM gs_privileged;
 REVOKE UPDATE, DELETE ON TABLE "RefundReview" FROM gs_privileged;
+
+-- Rider finance / COD ledger slice (0041).
+GRANT EXECUTE ON FUNCTION gs_rider_rate_slabs_consistent() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_rider_rate_snapshot_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_rider_earning_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_cod_collection_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_cod_deposit_insert_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_cod_deposit_update_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_cod_allocation_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_cod_allocation_consistent() TO gs_privileged;
+REVOKE DELETE ON TABLE "RiderRateRule" FROM gs_privileged;
+REVOKE UPDATE, DELETE ON TABLE "RiderRateSlab" FROM gs_privileged;
+REVOKE UPDATE, DELETE ON TABLE "RiderRateSnapshot" FROM gs_privileged;
+REVOKE UPDATE, DELETE ON TABLE "RiderEarning" FROM gs_privileged;
+REVOKE UPDATE, DELETE ON TABLE "CodCollection" FROM gs_privileged;
+REVOKE DELETE ON TABLE "CodDeposit" FROM gs_privileged;
+REVOKE UPDATE, DELETE ON TABLE "CodAllocation" FROM gs_privileged;
+
+GRANT EXECUTE ON FUNCTION gs_delivery_finance_consistent() TO gs_privileged;

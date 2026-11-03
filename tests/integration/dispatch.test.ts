@@ -126,6 +126,13 @@ beforeAll(async () => {
   const { createApp } = await import('../../apps/api/src/main'); app = await createApp(); await app.init();
   otpSink = app.get(TEST_DELIVERY_OTP_SINK) as TestDeliveryOtpSink;
   countryId = await asSuper(u.privileged, async c => (await c.query(`INSERT INTO "Country"(id,iso2,name,"currencyCode","callingCode",timezone,status) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (iso2) DO UPDATE SET status='ACTIVE' RETURNING id`, [randomUUID(), 'BD', 'Bangladesh', 'BDT', '+880', 'Asia/Dhaka', 'ACTIVE'])).rows[0].id as string);
+  await asSuper(u.privileged, async c => {
+    const adminId = randomUUID();
+    await c.query(`INSERT INTO "User"(id,"displayName","updatedAt") VALUES ($1,'Rate Seed',now())`, [adminId]);
+    const ruleId = randomUUID();
+    await c.query(`INSERT INTO "RiderRateRule"(id,"countryId",currency,status,"effectiveFrom","commandKey","payloadHash","createdByUserId") VALUES ($1,$2,'BDT','ACTIVE',now()-interval '1 hour',$3,$4,$5)`, [ruleId, countryId, `rate-seed-${randomUUID()}`, 'a'.repeat(64), adminId]);
+    await c.query(`INSERT INTO "RiderRateSlab"(id,"ruleId","lowerMeters","upperMeters","amountMinor") VALUES ($1,$2,0,2000,6000),($3,$2,2000,NULL,9000)`, [randomUUID(), ruleId, randomUUID()]);
+  });
   cityId = await asSuper(u.privileged, async c => { const region = await c.query(`INSERT INTO "Region"(id,"countryId",code,name,status) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [randomUUID(), countryId, `dsp-reg-${randomUUID().slice(0, 8)}`, 'Dispatch', 'ACTIVE']); const district = await c.query(`INSERT INTO "District"(id,"regionId",code,name,status) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [randomUUID(), region.rows[0].id, `dsp-dist-${randomUUID().slice(0, 8)}`, 'Dispatch', 'ACTIVE']); return (await c.query(`INSERT INTO "City"(id,"districtId",code,name,kind,status) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, [randomUUID(), district.rows[0].id, `dsp-city-${randomUUID().slice(0, 8)}`, 'Dispatch', 'CITY', 'ACTIVE'])).rows[0].id as string; });
   zoneId = await asSuper(u.privileged, async c => (await c.query(`INSERT INTO "ServiceZone"(id,"cityId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`, [randomUUID(), cityId, `dsp-zone-${randomUUID().slice(0, 8)}`, 'Pilot Zone'])).rows[0].id as string);
   pool = new pg.Pool({ connectionString: u.runtime, max: 4 }); const parsed = new URL(process.env['TEST_REDIS_URL'] ?? 'redis://localhost:6379/15'); redis = new Redis({ host: parsed.hostname, port: Number(parsed.port || 6379), db: Number(parsed.pathname.slice(1) || 0), maxRetriesPerRequest: null }); queue = new Queue(queueName, { connection: redis }); await drainOutbox();
@@ -285,17 +292,22 @@ describe('pickup/OTP delivery proof and completion gating', () => {
     expect(verified.body.outcome).toBe('VALID');
     const verifiedReplay = await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges/${challengeId}/verify`, rider, { code, commandKey: verifyKey }).expect(201);
     expect(verifiedReplay.body.duplicate).toBe(true);
-    const blocked = await post(`/api/v1/riders/me/deliveries/${deliveryId}/complete`, rider, { expectedVersion: 2, commandKey: `complete-${randomUUID().slice(0, 8)}` }).expect(409);
-    expect(blocked.body.code).toBe('COD_ACCOUNTING_REQUIRED');
+    const completeKey = `complete-${randomUUID().slice(0, 8)}`;
+    const completed = await post(`/api/v1/riders/me/deliveries/${deliveryId}/complete`, rider, { expectedVersion: 2, commandKey: completeKey }).expect(201);
+    expect(completed.body.status).toBe('COMPLETED');
     const projection = await get(`/api/v1/riders/me/deliveries/${deliveryId}`, rider).expect(200);
-    expect(projection.body.status).toBe('DELIVERED'); expect(projection.body.proof.method).toBe('RECIPIENT_OTP');
+    expect(projection.body.status).toBe('COMPLETED'); expect(projection.body.proof.method).toBe('RECIPIENT_OTP');
     expect(JSON.stringify(projection.body)).not.toContain(code);
     const outbox = await asSuper(u.privileged, async c => c.query(`SELECT payload::text AS payload FROM "OutboxEvent" WHERE "aggregateId"=$1`, [deliveryId]));
     expect(outbox.rows.map((r: any) => r.payload).join(' ')).not.toContain(code);
     await expect(asSuper(u.privileged, c => c.query(`UPDATE "DeliveryProof" SET "evidenceHash"=repeat('0',64) WHERE "deliveryId"=$1`, [deliveryId]))).rejects.toThrow(/permission denied|append_only/);
     await expect(asUser(u.runtime, stranger.userId, c => c.query(`SELECT id FROM "DeliveryOtpChallenge" WHERE "deliveryId"=$1`, [deliveryId]))).resolves.toMatchObject({ rowCount: 0 });
     const sub = await asSuper(u.privileged, async c => c.query(`SELECT status FROM "VendorSuborder" WHERE id=$1`, [suborderId]));
-    expect(sub.rows[0].status).toBe('DELIVERED');
+    expect(sub.rows[0].status).toBe('COMPLETED');
+    const cod = await asSuper(u.privileged, async c => c.query(`SELECT cc."amountMinor", cc.currency FROM "CodCollection" cc WHERE cc."deliveryId"=$1`, [deliveryId]));
+    expect(cod.rows[0]).toMatchObject({ amountMinor: '1000', currency: 'BDT' });
+    const earning = await asSuper(u.privileged, async c => c.query(`SELECT "amountMinor" FROM "RiderEarning" WHERE "deliveryId"=$1`, [deliveryId]));
+    expect(earning.rows[0].amountMinor).toBe('6000');
   });
 
   it('locks an OTP after max invalid attempts and completes a verified prepaid delivery atomically', async () => {
@@ -338,5 +350,113 @@ describe('pickup/OTP delivery proof and completion gating', () => {
     expect(locked.body.outcome).toBe('LOCKED');
     const resend = await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges`, rider, { commandKey: `otp-${randomUUID().slice(0, 8)}` }).expect(409);
     expect(resend.body.code).toBe('OTP_RESEND_COOLDOWN');
+  });
+});
+
+describe('rider earnings and COD deposit ledger', () => {
+  async function assignedDelivery(rider: any, paymentMethod: 'COD' | 'SANDBOX_MANUAL') {
+    await asSuper(u.privileged, async c => c.query(`UPDATE "RiderShift" SET "status"='ENDED', "endedAt"=now(), "updatedAt"=now() WHERE "status"='ACTIVE' AND "riderId" IN (SELECT id FROM "RiderProfile" WHERE "userId" <> $1)`, [rider.userId]));
+    const { orderId, suborderId } = await readySuborder(paymentMethod);
+    await setDestination(orderId);
+    await post(`/api/v1/orders/${orderId}/delivery-recipient`, customer, { name: 'Test Recipient', phone: '+8801712345678', commandKey: `recipient-${randomUUID().slice(0, 8)}` }).expect(201);
+    const run = await post(`/api/v1/admin/dispatch/suborders/${suborderId}/runs`, dispatchAdmin, { commandKey: `run-${randomUUID().slice(0, 8)}` }).expect(201);
+    const offer = await post(`/api/v1/admin/dispatch/runs/${run.body.runId}/next-offer`, dispatchAdmin, { expectedVersion: 1, commandKey: `offer-${randomUUID().slice(0, 8)}` }).expect(201);
+    const offers = await get('/api/v1/riders/me/dispatch-offers', rider).expect(200);
+    const token = offers.body.items.find((o: any) => o.offerId === offer.body.offerId).offerToken;
+    const accepted = await post(`/api/v1/riders/me/dispatch-offers/${offer.body.offerId}/accept`, rider, { offerToken: token, commandKey: `accept-${randomUUID().slice(0, 8)}` }).expect(201);
+    return { orderId, suborderId, assignmentId: accepted.body.assignmentId as string };
+  }
+  async function completedCodDelivery(rider: any) {
+    const { assignmentId, suborderId } = await assignedDelivery(rider, 'COD');
+    const pickup = await post(`/api/v1/riders/me/assignments/${assignmentId}/pickup`, rider, { commandKey: `pickup-${randomUUID().slice(0, 8)}` }).expect(201);
+    const deliveryId = pickup.body.deliveryId as string;
+    const issued = await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges`, rider, { commandKey: `otp-${randomUUID().slice(0, 8)}` }).expect(201);
+    const code = otpSink.consume(issued.body.challengeId);
+    await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges/${issued.body.challengeId}/verify`, rider, { code, commandKey: `verify-${randomUUID().slice(0, 8)}` }).expect(201);
+    await post(`/api/v1/riders/me/deliveries/${deliveryId}/complete`, rider, { expectedVersion: 2, commandKey: `complete-${randomUUID().slice(0, 8)}` }).expect(201);
+    return { deliveryId, suborderId };
+  }
+  it('posts immutable earning and COD custody journals once, and exposes separate wallet balances', async () => {
+    const rider = await makeUser('rider-finance-wallet'); const riderId = await prepareRider(rider, 'finance-wallet');
+    const { deliveryId } = await completedCodDelivery(rider);
+    const wallet = await get('/api/v1/riders/me/wallet', rider).expect(200);
+    const bdt = wallet.body.balances.find((b: any) => b.currency === 'BDT');
+    expect(bdt.earningsPostedMinor).toBe('6000');
+    expect(bdt.codCollectedMinor).toBe('1000');
+    expect(bdt.codDueMinor).toBe('1000');
+    expect(wallet.body.payoutEnabled).toBe(false);
+    const rows = await asSuper(u.privileged, async c => c.query(`SELECT e."journalId" AS earning_journal, cc."journalId" AS cod_journal FROM "RiderEarning" e JOIN "CodCollection" cc ON cc."deliveryId"=e."deliveryId" WHERE e."deliveryId"=$1`, [deliveryId]));
+    expect(rows.rowCount).toBe(1);
+    expect(rows.rows[0].earning_journal).not.toBe(rows.rows[0].cod_journal);
+    const balanced = await asSuper(u.privileged, async c => c.query(`SELECT j.id, SUM(CASE WHEN l.side='DEBIT' THEN l."amountMinor" ELSE -l."amountMinor" END)::bigint AS net FROM "LedgerJournal" j JOIN "LedgerLine" l ON l."journalId"=j.id WHERE j.id=ANY($1::uuid[]) GROUP BY j.id`, [[rows.rows[0].earning_journal, rows.rows[0].cod_journal]]));
+    expect(balanced.rows.every((r: any) => r.net === '0')).toBe(true);
+    await expect(asSuper(u.privileged, c => c.query(`UPDATE "RiderEarning" SET "amountMinor"=1 WHERE "deliveryId"=$1`, [deliveryId]))).rejects.toThrow(/permission denied|append_only/);
+    await expect(asUser(u.runtime, stranger.userId, c => c.query(`SELECT id FROM "CodCollection" WHERE "deliveryId"=$1`, [deliveryId]))).resolves.toMatchObject({ rowCount: 0 });
+  });
+  it('pending deposit evidence does not reduce COD due; scoped step-up verification allocates once and overpayment fails', async () => {
+    const rider = await makeUser('rider-finance-deposit'); await prepareRider(rider, 'finance-deposit');
+    await completedCodDelivery(rider);
+    const reviewer = await makeUser('cod-deposit-reviewer'); await grantKeys(reviewer, ['finance:cod:review']);
+    const evidenceHash = createHash('sha256').update(`deposit-evidence-${randomUUID()}`).digest('hex');
+    const body = { amountMinor: '1000', currency: 'BDT', method: 'BANK', externalReference: `bank-${randomUUID()}`, evidenceHash, commandKey: `deposit-${randomUUID()}` };
+    const submitted = await post('/api/v1/riders/me/cod-deposits', rider, body).expect(201);
+    expect(submitted.body.status).toBe('PENDING_REVIEW');
+    const before = (await get('/api/v1/riders/me/wallet', rider).expect(200)).body.balances.find((b: any) => b.currency === 'BDT');
+    expect(before.codDueMinor).toBe('1000');
+    await get(`/api/v1/admin/cod-deposits?countryId=${countryId}`, stranger).expect(403);
+    const reviewBody = { expectedVersion: 1, decision: 'VERIFY', commandKey: `verify-dep-${randomUUID()}`, reason: 'trusted bank statement matched merchant account' };
+    await asSuper(u.privileged, async c => { await c.query(`UPDATE "Session" SET "assuranceLevel"='MFA', "stepUpExpiresAt"=NULL WHERE id=$1`, [reviewer.sessionId]); });
+    await post(`/api/v1/admin/cod-deposits/${submitted.body.depositId}/review`, reviewer, reviewBody).expect(403);
+    await setStepUp(reviewer);
+    const verified = await post(`/api/v1/admin/cod-deposits/${submitted.body.depositId}/review`, reviewer, reviewBody).expect(201);
+    expect(verified.body.status).toBe('VERIFIED');
+    expect(verified.body.journalId).toBeTruthy();
+    const replay = await post(`/api/v1/admin/cod-deposits/${submitted.body.depositId}/review`, reviewer, reviewBody).expect(201);
+    expect(replay.body.duplicate).toBe(true);
+    const after = (await get('/api/v1/riders/me/wallet', rider).expect(200)).body.balances.find((b: any) => b.currency === 'BDT');
+    expect(after.codDueMinor).toBe('0');
+    expect(after.codVerifiedDepositsMinor).toBe('1000');
+    const over = await post('/api/v1/riders/me/cod-deposits', rider, { ...body, externalReference: `bank-${randomUUID()}`, commandKey: `deposit-${randomUUID()}` }).expect(201);
+    const overReview = await post(`/api/v1/admin/cod-deposits/${over.body.depositId}/review`, reviewer, { expectedVersion: 1, decision: 'VERIFY', commandKey: `verify-dep-${randomUUID()}`, reason: 'attempted overpayment verification' }).expect(409);
+    expect(overReview.body.code).toBe('COD_DEPOSIT_EXCEEDS_DUE');
+    const allocs = await asSuper(u.privileged, async c => c.query(`SELECT COUNT(*)::int AS n FROM "CodAllocation" WHERE "depositId"=$1`, [submitted.body.depositId]));
+    expect(allocs.rows[0].n).toBe(1);
+  });
+  it('rejects deposit evidence without a journal and denies self-review', async () => {
+    const rider = await makeUser('rider-finance-reject'); await prepareRider(rider, 'finance-reject');
+    await completedCodDelivery(rider);
+    const reviewer = await makeUser('cod-deposit-rejector'); await grantKeys(reviewer, ['finance:cod:review']);
+    const dep = await post('/api/v1/riders/me/cod-deposits', rider, { amountMinor: '500', currency: 'BDT', method: 'COMPANY_OFFICE', externalReference: `office-${randomUUID()}`, evidenceHash: createHash('sha256').update(randomUUID()).digest('hex'), commandKey: `deposit-${randomUUID()}` }).expect(201);
+    await grantKeys(rider, ['finance:cod:review']);
+    const self = await post(`/api/v1/admin/cod-deposits/${dep.body.depositId}/review`, rider, { expectedVersion: 1, decision: 'VERIFY', commandKey: `self-${randomUUID()}`, reason: 'self review attempt must fail' }).expect(403);
+    expect(self.body.code).toBe('SELF_REVIEW_DENIED');
+    const rejected = await post(`/api/v1/admin/cod-deposits/${dep.body.depositId}/review`, reviewer, { expectedVersion: 1, decision: 'REJECT', commandKey: `reject-${randomUUID()}`, reason: 'evidence does not match company records' }).expect(201);
+    expect(rejected.body.status).toBe('REJECTED');
+    expect(rejected.body.journalId).toBeNull();
+    const wallet = (await get('/api/v1/riders/me/wallet', rider).expect(200)).body.balances.find((b: any) => b.currency === 'BDT');
+    expect(wallet.codDueMinor).toBe('1000');
+  });
+});
+
+describe('rider rate rule management', () => {
+  it('requires permission + step-up + scope, validates contiguous slabs, and replays idempotently', async () => {
+    const manager = await makeUser('rate-manager'); await grantKeys(manager, ['finance:rider-rate:manage']);
+    const effectiveFrom = new Date(Date.now() + 24 * 3600_000).toISOString();
+    const body = { countryId, currency: 'BDT', effectiveFrom, commandKey: `rate-${randomUUID().slice(0, 8)}`, slabs: [{ lowerMeters: 0, upperMeters: 1500, amountMinor: '5000' }, { lowerMeters: 1500, upperMeters: null, amountMinor: '8000' }] };
+    await post('/api/v1/admin/rider-rate-rules', stranger, body).expect(403);
+    const gap = { ...body, commandKey: `rate-${randomUUID().slice(0, 8)}`, slabs: [{ lowerMeters: 0, upperMeters: 1000, amountMinor: '5000' }, { lowerMeters: 2000, upperMeters: null, amountMinor: '8000' }] };
+    const gapRes = await post('/api/v1/admin/rider-rate-rules', manager, gap).expect(400);
+    expect(gapRes.body.code).toBe('RATE_SLABS_GAP');
+    await asSuper(u.privileged, async c => { await c.query(`UPDATE "Session" SET "assuranceLevel"='MFA', "stepUpExpiresAt"=NULL WHERE id=$1`, [manager.sessionId]); });
+    const step = await post('/api/v1/admin/rider-rate-rules', manager, body).expect(403);
+    expect(step.body.code).toBe('STEP_UP_REQUIRED');
+    await setStepUp(manager);
+    const created = await post('/api/v1/admin/rider-rate-rules', manager, body).expect(201);
+    expect(created.body.ruleId).toBeTruthy(); expect(created.body.duplicate).toBe(false);
+    const replay = await post('/api/v1/admin/rider-rate-rules', manager, body).expect(201);
+    expect(replay.body.ruleId).toBe(created.body.ruleId); expect(replay.body.duplicate).toBe(true);
+    const conflict = await post('/api/v1/admin/rider-rate-rules', manager, { ...body, currency: 'USD' }).expect(409);
+    expect(conflict.body.code).toBe('RATE_IDEMPOTENCY_CONFLICT');
+    await expect(asSuper(u.privileged, c => c.query(`UPDATE "RiderRateSlab" SET "amountMinor"=1 WHERE "ruleId"=$1`, [created.body.ruleId]))).rejects.toThrow(/permission denied|append_only/);
   });
 });
