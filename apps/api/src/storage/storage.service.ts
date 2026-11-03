@@ -9,6 +9,7 @@ import { hasPermission, inGeographicScope, type AccessContext } from '@getstoopy
 
 const ALLOWED_TYPES = new Map<string, string[]>([
   ['kyc-document', ['image/png', 'image/jpeg', 'application/pdf']],
+  ['payout-destination-proof', ['image/png', 'image/jpeg', 'application/pdf']],
   ['profile-avatar', ['image/png', 'image/jpeg', 'image/webp']],
   ['product-image', ['image/png', 'image/jpeg', 'image/webp']]
 ]);
@@ -63,7 +64,7 @@ export class StorageService {
       try { assertMagicContentType(data, obj.contentType); }
       catch { throw new BadRequestException({ code: 'CONTENT_TYPE_MISMATCH', message: 'Object content does not match the declared type' }); }
       const meta = await this.storage.put(obj.objectKey, data, obj.contentType);
-      const state = obj.purpose === 'kyc-document' || obj.purpose === 'product-image' ? 'QUARANTINED' : 'UPLOADED';
+      const state = ['kyc-document', 'payout-destination-proof', 'product-image'].includes(obj.purpose) ? 'QUARANTINED' : 'UPLOADED';
       await tx.storageObject.update({ where: { id: objectId }, data: { state, magicValid: true, sha256: meta.sha256, sizeBytes: BigInt(meta.sizeBytes), encryptionKeyId: meta.encryptionKeyId, ...(obj.purpose === 'product-image' ? { expiresAt: null } : {}) } });
       await this.audit(tx, ctx, 'storage.upload.completed', objectId);
       return { objectId, state };
@@ -87,7 +88,7 @@ export class StorageService {
     const obj = await this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
       const found = await tx.storageObject.findUnique({ where: { id: objectId } });
-      if (!found || found.purpose !== 'kyc-document') throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
+      if (!found || !['kyc-document', 'payout-destination-proof'].includes(found.purpose)) throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
       if (found.state !== 'QUARANTINED') throw new BadRequestException({ code: 'OBJECT_NOT_QUARANTINED', message: 'Object is not quarantined' });
       await this.audit(tx, ctx, 'storage.review.download.issued', objectId);
       return found;
@@ -102,7 +103,7 @@ export class StorageService {
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
       const obj = await tx.storageObject.findUnique({ where: { id: objectId } });
-      if (!obj || obj.purpose !== 'kyc-document') throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
+      if (!obj || !['kyc-document', 'payout-destination-proof'].includes(obj.purpose)) throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
       if (obj.ownerUserId === ctx.userId) throw new ForbiddenException({ code: 'SELF_REVIEW_DENIED', message: 'Reviewer cannot review their own object' });
       if (obj.state !== 'QUARANTINED') throw new BadRequestException({ code: 'OBJECT_NOT_QUARANTINED', message: 'Object is not quarantined' });
       const state = input.decision === 'approve' ? 'UPLOADED' : 'DELETED';
@@ -122,7 +123,7 @@ export class StorageService {
     });
     if (!row) throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
     if (payload.action === 'download' && row.state !== 'UPLOADED') throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
-    if (payload.action === 'review-download' && (row.state !== 'QUARANTINED' || !['kyc-document', 'product-image'].includes(row.purpose))) throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
+    if (payload.action === 'review-download' && (row.state !== 'QUARANTINED' || !['kyc-document', 'payout-destination-proof', 'product-image'].includes(row.purpose))) throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
     const data = await this.storage.get(row.objectKey);
     return { data, contentType: row.contentType };
   }

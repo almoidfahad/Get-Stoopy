@@ -42,7 +42,8 @@ export const apiEnvSchema = envSchema.extend({
   DATABASE_PRIVILEGED_URL: z.string().startsWith('postgresql://'),
   API_INTERNAL_URL: z.string().url().default('http://localhost:4000'),
   STORAGE_LOCAL_DIR: z.string().default('.local/private-storage'),
-  STORAGE_ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i)
+  STORAGE_ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i),
+  PAYOUT_DESTINATION_ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i).optional()
 });
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 export function loadApiEnv(input: NodeJS.ProcessEnv): ApiEnv {

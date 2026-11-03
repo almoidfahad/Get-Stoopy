@@ -330,3 +330,11 @@ REVOKE DELETE ON TABLE "CodDeposit" FROM gs_privileged;
 REVOKE UPDATE, DELETE ON TABLE "CodAllocation" FROM gs_privileged;
 
 GRANT EXECUTE ON FUNCTION gs_delivery_finance_consistent() TO gs_privileged;
+
+-- Vendor payout destination slice (0045). No live transfer capability is granted.
+GRANT EXECUTE ON FUNCTION gs_payout_destination_insert_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_payout_destination_update_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_payout_destination_review_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_payout_destination_review_required() TO gs_privileged;
+REVOKE DELETE ON TABLE "PayoutDestination" FROM gs_privileged;
+REVOKE UPDATE, DELETE ON TABLE "PayoutDestinationReview" FROM gs_privileged;

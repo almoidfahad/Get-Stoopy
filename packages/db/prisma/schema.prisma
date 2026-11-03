@@ -215,73 +215,76 @@ enum IdempotencyState {
 }
 
 model User {
-  id                        String                      @id @default(uuid()) @db.Uuid
-  emailNormalized           String?                     @unique
-  emailVerifiedAt           DateTime?
-  phoneE164                 String?
-  phoneVerifiedAt           DateTime?
-  displayName               String
-  status                    UserStatus                  @default(ACTIVE)
-  authorizationVersion      Int                         @default(1)
-  createdAt                 DateTime                    @default(now())
-  updatedAt                 DateTime                    @updatedAt
-  identities                UserIdentity[]
-  sessions                  Session[]
-  roles                     UserRole[]
-  scopes                    AdminScope[]
-  auditLogs                 AuditLog[]
-  mfa                       UserMfa?
-  recoveryCodes             RecoveryCode[]
-  storageObjects            StorageObject[]
-  reviewedStorageObjects    StorageObject[]             @relation("StorageObjectReviewedBy")
-  ledgerAccounts            LedgerAccount[]
-  ledgerJournals            LedgerJournal[]
-  kycCases                  KycCase[]                   @relation("KycCaseSubject")
-  kycReviews                KycReview[]                 @relation("KycReviewReviewer")
-  kycDocumentsLinked        KycDocument[]               @relation("KycDocumentLinkedBy")
-  ownedVendors              Vendor[]                    @relation("VendorOwner")
-  activatedVendors          Vendor[]                    @relation("VendorActivatedBy")
-  vendorMemberships         VendorMembership[]
-  riderProfile              RiderProfile?               @relation("RiderProfileUser")
-  activatedRiderProfiles    RiderProfile[]              @relation("RiderActivatedBy")
-  activatedStores           Store[]                     @relation("StoreActivatedBy")
-  createdProducts           Product[]                   @relation("ProductCreatedBy")
-  reviewedProducts          Product[]                   @relation("ProductReviewedBy")
-  publishedProducts         Product[]                   @relation("ProductPublishedBy")
-  createdCategories         Category[]                  @relation("CategoryCreatedBy")
-  activatedCategories       Category[]                  @relation("CategoryActivatedBy")
-  createdProductImages      ProductImage[]              @relation("ProductImageCreatedBy")
-  reviewedProductImages     ProductImage[]              @relation("ProductImageReviewedBy")
-  inventoryMovements        InventoryMovement[]
-  inventoryReservations     InventoryReservation[]
-  carts                     Cart[]
-  checkoutQuotes            CheckoutQuote[]
-  orders                    Order[]
-  paymentIntents            PaymentIntent[]
-  codPoliciesCreated        CodPolicy[]                 @relation("CodPolicyCreatedBy")
-  codPoliciesUpdated        CodPolicy[]                 @relation("CodPolicyUpdatedBy")
-  subordersAccepted         VendorSuborder[]            @relation("SuborderAcceptedBy")
-  subordersReady            VendorSuborder[]            @relation("SuborderReadyConfirmedBy")
-  subordersRejected         VendorSuborder[]            @relation("SuborderRejectedBy")
-  suborderStatusEvents      VendorSuborderStatusEvent[] @relation("SuborderStatusActor")
-  storePickupsProposed      StorePickupPoint[]          @relation("StorePickupProposedBy")
-  storePickupsReviewed      StorePickupPoint[]          @relation("StorePickupReviewedBy")
-  storeServiceAreasProposed StoreServiceArea[]          @relation("StoreServiceAreaProposedBy")
-  storeServiceAreasReviewed StoreServiceArea[]          @relation("StoreServiceAreaReviewedBy")
-  riderZoneGrantsGranted    RiderZoneGrant[]            @relation("RiderZoneGrantGrantedBy")
-  deliveryDestinationsSet   OrderDeliveryDestination[]  @relation("DeliveryDestinationSetBy")
-  dispatchRunsCreated       DispatchRun[]               @relation("DispatchRunCreatedBy")
-  dispatchEvents            DispatchEvent[]             @relation("DispatchEventActor")
-  deliveryRecipientsSet     DeliveryRecipient[]         @relation("DeliveryRecipientSetBy")
-  deliveryProofsVerified    DeliveryProof[]             @relation("DeliveryProofVerifiedBy")
-  deliveryEvents            DeliveryEvent[]             @relation("DeliveryEventActor")
-  deliveryOtpAttempts       DeliveryOtpAttempt[]        @relation("DeliveryOtpAttemptActor")
-  orderCancellations        OrderCancellation[]         @relation("OrderCancellationBuyer")
-  refundRequests            RefundRequest[]             @relation("RefundRequestBuyer")
-  refundReviews             RefundReview[]              @relation("RefundReviewer")
-  riderRateRules            RiderRateRule[]             @relation("RiderRateRuleCreatedBy")
-  codDepositsSubmitted      CodDeposit[]                @relation("CodDepositSubmittedBy")
-  codDepositsReviewed       CodDeposit[]                @relation("CodDepositReviewedBy")
+  id                          String                      @id @default(uuid()) @db.Uuid
+  emailNormalized             String?                     @unique
+  emailVerifiedAt             DateTime?
+  phoneE164                   String?
+  phoneVerifiedAt             DateTime?
+  displayName                 String
+  status                      UserStatus                  @default(ACTIVE)
+  authorizationVersion        Int                         @default(1)
+  createdAt                   DateTime                    @default(now())
+  updatedAt                   DateTime                    @updatedAt
+  identities                  UserIdentity[]
+  sessions                    Session[]
+  roles                       UserRole[]
+  scopes                      AdminScope[]
+  auditLogs                   AuditLog[]
+  mfa                         UserMfa?
+  recoveryCodes               RecoveryCode[]
+  storageObjects              StorageObject[]
+  reviewedStorageObjects      StorageObject[]             @relation("StorageObjectReviewedBy")
+  submittedPayoutDestinations PayoutDestination[]         @relation("PayoutDestinationSubmitter")
+  reviewedPayoutDestinations  PayoutDestination[]         @relation("PayoutDestinationReviewer")
+  payoutDestinationReviews    PayoutDestinationReview[]   @relation("PayoutDestinationReviewActor")
+  ledgerAccounts              LedgerAccount[]
+  ledgerJournals              LedgerJournal[]
+  kycCases                    KycCase[]                   @relation("KycCaseSubject")
+  kycReviews                  KycReview[]                 @relation("KycReviewReviewer")
+  kycDocumentsLinked          KycDocument[]               @relation("KycDocumentLinkedBy")
+  ownedVendors                Vendor[]                    @relation("VendorOwner")
+  activatedVendors            Vendor[]                    @relation("VendorActivatedBy")
+  vendorMemberships           VendorMembership[]
+  riderProfile                RiderProfile?               @relation("RiderProfileUser")
+  activatedRiderProfiles      RiderProfile[]              @relation("RiderActivatedBy")
+  activatedStores             Store[]                     @relation("StoreActivatedBy")
+  createdProducts             Product[]                   @relation("ProductCreatedBy")
+  reviewedProducts            Product[]                   @relation("ProductReviewedBy")
+  publishedProducts           Product[]                   @relation("ProductPublishedBy")
+  createdCategories           Category[]                  @relation("CategoryCreatedBy")
+  activatedCategories         Category[]                  @relation("CategoryActivatedBy")
+  createdProductImages        ProductImage[]              @relation("ProductImageCreatedBy")
+  reviewedProductImages       ProductImage[]              @relation("ProductImageReviewedBy")
+  inventoryMovements          InventoryMovement[]
+  inventoryReservations       InventoryReservation[]
+  carts                       Cart[]
+  checkoutQuotes              CheckoutQuote[]
+  orders                      Order[]
+  paymentIntents              PaymentIntent[]
+  codPoliciesCreated          CodPolicy[]                 @relation("CodPolicyCreatedBy")
+  codPoliciesUpdated          CodPolicy[]                 @relation("CodPolicyUpdatedBy")
+  subordersAccepted           VendorSuborder[]            @relation("SuborderAcceptedBy")
+  subordersReady              VendorSuborder[]            @relation("SuborderReadyConfirmedBy")
+  subordersRejected           VendorSuborder[]            @relation("SuborderRejectedBy")
+  suborderStatusEvents        VendorSuborderStatusEvent[] @relation("SuborderStatusActor")
+  storePickupsProposed        StorePickupPoint[]          @relation("StorePickupProposedBy")
+  storePickupsReviewed        StorePickupPoint[]          @relation("StorePickupReviewedBy")
+  storeServiceAreasProposed   StoreServiceArea[]          @relation("StoreServiceAreaProposedBy")
+  storeServiceAreasReviewed   StoreServiceArea[]          @relation("StoreServiceAreaReviewedBy")
+  riderZoneGrantsGranted      RiderZoneGrant[]            @relation("RiderZoneGrantGrantedBy")
+  deliveryDestinationsSet     OrderDeliveryDestination[]  @relation("DeliveryDestinationSetBy")
+  dispatchRunsCreated         DispatchRun[]               @relation("DispatchRunCreatedBy")
+  dispatchEvents              DispatchEvent[]             @relation("DispatchEventActor")
+  deliveryRecipientsSet       DeliveryRecipient[]         @relation("DeliveryRecipientSetBy")
+  deliveryProofsVerified      DeliveryProof[]             @relation("DeliveryProofVerifiedBy")
+  deliveryEvents              DeliveryEvent[]             @relation("DeliveryEventActor")
+  deliveryOtpAttempts         DeliveryOtpAttempt[]        @relation("DeliveryOtpAttemptActor")
+  orderCancellations          OrderCancellation[]         @relation("OrderCancellationBuyer")
+  refundRequests              RefundRequest[]             @relation("RefundRequestBuyer")
+  refundReviews               RefundReview[]              @relation("RefundReviewer")
+  riderRateRules              RiderRateRule[]             @relation("RiderRateRuleCreatedBy")
+  codDepositsSubmitted        CodDeposit[]                @relation("CodDepositSubmittedBy")
+  codDepositsReviewed         CodDeposit[]                @relation("CodDepositReviewedBy")
 }
 
 model UserIdentity {
@@ -413,6 +416,7 @@ model Country {
   riderEarnings        RiderEarning[]             @relation("RiderEarningCountry")
   codCollections       CodCollection[]            @relation("CodCollectionCountry")
   codDeposits          CodDeposit[]               @relation("CodDepositCountry")
+  payoutDestinations   PayoutDestination[]        @relation("PayoutDestinationCountry")
 }
 
 model Region {
@@ -1012,27 +1016,28 @@ model RecoveryCode {
 }
 
 model StorageObject {
-  id               String             @id @default(uuid()) @db.Uuid
-  ownerUserId      String             @db.Uuid
-  purpose          String             @db.VarChar(64)
-  objectKey        String             @unique @db.VarChar(512)
-  contentType      String             @db.VarChar(120)
-  sizeBytes        BigInt?
-  sha256           String?            @db.VarChar(64)
-  state            StorageObjectState @default(PENDING_UPLOAD)
-  magicValid       Boolean            @default(false)
-  encryptionKeyId  String             @db.VarChar(120)
-  expiresAt        DateTime?
-  deletedAt        DateTime?
-  reviewedByUserId String?            @db.Uuid
-  reviewedAt       DateTime?
-  reviewReason     String?            @db.VarChar(512)
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  owner            User               @relation(fields: [ownerUserId], references: [id])
-  reviewedBy       User?              @relation("StorageObjectReviewedBy", fields: [reviewedByUserId], references: [id])
-  kycDocument      KycDocument?
-  productImage     ProductImage?
+  id                String             @id @default(uuid()) @db.Uuid
+  ownerUserId       String             @db.Uuid
+  purpose           String             @db.VarChar(64)
+  objectKey         String             @unique @db.VarChar(512)
+  contentType       String             @db.VarChar(120)
+  sizeBytes         BigInt?
+  sha256            String?            @db.VarChar(64)
+  state             StorageObjectState @default(PENDING_UPLOAD)
+  magicValid        Boolean            @default(false)
+  encryptionKeyId   String             @db.VarChar(120)
+  expiresAt         DateTime?
+  deletedAt         DateTime?
+  reviewedByUserId  String?            @db.Uuid
+  reviewedAt        DateTime?
+  reviewReason      String?            @db.VarChar(512)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  owner             User               @relation(fields: [ownerUserId], references: [id])
+  reviewedBy        User?              @relation("StorageObjectReviewedBy", fields: [reviewedByUserId], references: [id])
+  kycDocument       KycDocument?
+  productImage      ProductImage?
+  payoutDestination PayoutDestination?
 
   @@index([ownerUserId, purpose, state])
   @@index([state, createdAt])
@@ -1148,27 +1153,28 @@ model KycReview {
 }
 
 model Vendor {
-  id                String             @id @default(uuid()) @db.Uuid
-  ownerUserId       String             @db.Uuid
-  countryId         String             @db.Uuid
-  displayName       String             @db.VarChar(120)
-  legalName         String?            @db.VarChar(200)
-  status            PartyStatus        @default(DRAFT)
-  kycCaseId         String?            @unique @db.Uuid
-  activatedAt       DateTime?
-  activatedByUserId String?            @db.Uuid
-  suspendedAt       DateTime?
-  version           Int                @default(1)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  owner             User               @relation("VendorOwner", fields: [ownerUserId], references: [id])
-  country           Country            @relation(fields: [countryId], references: [id])
-  kycCase           KycCase?           @relation("VendorKycCase", fields: [kycCaseId], references: [id])
-  activatedBy       User?              @relation("VendorActivatedBy", fields: [activatedByUserId], references: [id])
-  memberships       VendorMembership[]
-  stores            Store[]
-  products          Product[]
-  Inventory         Inventory[]
+  id                 String              @id @default(uuid()) @db.Uuid
+  ownerUserId        String              @db.Uuid
+  countryId          String              @db.Uuid
+  displayName        String              @db.VarChar(120)
+  legalName          String?             @db.VarChar(200)
+  status             PartyStatus         @default(DRAFT)
+  kycCaseId          String?             @unique @db.Uuid
+  activatedAt        DateTime?
+  activatedByUserId  String?             @db.Uuid
+  suspendedAt        DateTime?
+  version            Int                 @default(1)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  owner              User                @relation("VendorOwner", fields: [ownerUserId], references: [id])
+  country            Country             @relation(fields: [countryId], references: [id])
+  kycCase            KycCase?            @relation("VendorKycCase", fields: [kycCaseId], references: [id])
+  activatedBy        User?               @relation("VendorActivatedBy", fields: [activatedByUserId], references: [id])
+  memberships        VendorMembership[]
+  stores             Store[]
+  products           Product[]
+  Inventory          Inventory[]
+  payoutDestinations PayoutDestination[]
 
   @@unique([ownerUserId, countryId])
   @@index([countryId, status])
@@ -2051,4 +2057,77 @@ model CodAllocation {
 
   @@unique([depositId, collectionId])
   @@index([collectionId])
+}
+
+enum PayoutRail {
+  BANK
+  MERCHANT_MFS
+}
+
+enum PayoutDestinationStatus {
+  PENDING_REVIEW
+  VERIFIED
+  REJECTED
+  RETIRED
+}
+
+enum PayoutDestinationDecision {
+  VERIFY
+  REJECT
+  RETIRE
+}
+
+model PayoutDestination {
+  id                    String                    @id @default(uuid()) @db.Uuid
+  vendorId              String                    @db.Uuid
+  countryId             String                    @db.Uuid
+  currency              String                    @db.VarChar(3)
+  rail                  PayoutRail
+  detailsEnvelope       Bytes
+  encryptionKeyId       String                    @db.VarChar(120)
+  fingerprint           String                    @db.VarChar(64)
+  displayMask           String                    @db.VarChar(20)
+  proofStorageObjectId  String                    @unique @db.Uuid
+  status                PayoutDestinationStatus   @default(PENDING_REVIEW)
+  version               Int                       @default(1)
+  commandKey            String                    @db.VarChar(128)
+  payloadHash           String                    @db.VarChar(64)
+  submittedByUserId     String                    @db.Uuid
+  reviewedByUserId      String?                   @db.Uuid
+  verificationReference String?                   @db.VarChar(128)
+  reviewReason          String?                   @db.VarChar(512)
+  verifiedAt            DateTime?
+  eligibleAt            DateTime?
+  reviewedAt            DateTime?
+  retiredAt             DateTime?
+  createdAt             DateTime                  @default(now())
+  vendor                Vendor                    @relation(fields: [vendorId], references: [id])
+  country               Country                   @relation("PayoutDestinationCountry", fields: [countryId], references: [id])
+  proofStorageObject    StorageObject             @relation(fields: [proofStorageObjectId], references: [id])
+  submittedBy           User                      @relation("PayoutDestinationSubmitter", fields: [submittedByUserId], references: [id])
+  reviewedBy            User?                     @relation("PayoutDestinationReviewer", fields: [reviewedByUserId], references: [id])
+  reviews               PayoutDestinationReview[]
+
+  @@unique([vendorId, commandKey])
+  @@index([countryId, status, createdAt])
+}
+
+model PayoutDestinationReview {
+  id                    String                    @id @default(uuid()) @db.Uuid
+  destinationId         String                    @db.Uuid
+  fromStatus            PayoutDestinationStatus
+  toStatus              PayoutDestinationStatus
+  destinationVersion    Int
+  decision              PayoutDestinationDecision
+  actorUserId           String                    @db.Uuid
+  commandKey            String                    @db.VarChar(128)
+  payloadHash           String                    @db.VarChar(64)
+  reason                String                    @db.VarChar(512)
+  verificationReference String?                   @db.VarChar(128)
+  occurredAt            DateTime                  @default(now())
+  destination           PayoutDestination         @relation(fields: [destinationId], references: [id])
+  actor                 User                      @relation("PayoutDestinationReviewActor", fields: [actorUserId], references: [id])
+
+  @@unique([destinationId, commandKey])
+  @@unique([destinationId, destinationVersion])
 }

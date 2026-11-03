@@ -49,7 +49,7 @@ If central collection is not permitted, present an owner-approved alternative: d
 
 Rider Sunday automatic payout is the requested business default, not proof of a supported bank rail. If no verified destination or disbursement contract exists, show `PAYOUT_BLOCKED` with reason; preserve earned balance, do not fabricate transfer success. Manual withdrawal and verified bank option use the same financial controls. Provider-specific batch cutoff, holidays, fees, beneficiary names and reversal handling must be documented before activation.
 
-Vendor settlement remains separately configurable and initially maker–checker approved. Reconcile gateway settlement, COD deposits, commission, refunds and bank statements daily. A provider's acceptance of a refund request is not completed refund; track until verified. Preserve chargeback evidence and immutable ledger adjustments.
+Vendor settlement remains separately configurable and initially maker–checker approved. The encrypted destination prerequisite now exists (`docs/41-vendor-payout-destinations.md`); manual verification is not provider beneficiary verification and does not enable a transfer. Reconcile gateway settlement, COD deposits, commission, refunds and bank statements daily. A provider's acceptance of a refund request is not completed refund; track until verified. Preserve chargeback evidence and immutable ledger adjustments.
 
 ## Sandbox and live acceptance gates
 

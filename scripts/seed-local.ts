@@ -25,7 +25,8 @@ async function main() {
       { key: 'finance:cod:manage', resource: 'finance', action: 'cod:manage', sensitivity: 'critical' },
       { key: 'finance:refund:review', resource: 'finance', action: 'refund:review', sensitivity: 'critical' },
       { key: 'finance:rider-rate:manage', resource: 'finance', action: 'rider-rate:manage', sensitivity: 'critical' },
-      { key: 'finance:cod:review', resource: 'finance', action: 'cod:review', sensitivity: 'critical' }
+      { key: 'finance:cod:review', resource: 'finance', action: 'cod:review', sensitivity: 'critical' },
+      { key: 'finance:payout-destination:review', resource: 'finance', action: 'payout-destination:review', sensitivity: 'critical' }
     ];
     const partyPerms = [
       { key: 'vendor:profile:activate', resource: 'vendor', action: 'profile:activate', sensitivity: 'critical' },

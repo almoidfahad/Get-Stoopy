@@ -406,7 +406,7 @@
 | MS-018-018 | 00-master-instructions.md:L627; section 18 | Pending Settlement | 4 / 7 | 06-finance-and-delivery-policy.md | Specified — not implemented |
 | MS-018-019 | 00-master-instructions.md:L628; section 18 | Completed Settlement | 4 / 7 | 06-finance-and-delivery-policy.md | Specified — not implemented |
 | MS-018-020 | 00-master-instructions.md:L629; section 18 | Settlement History | 4 / 7 | 06-finance-and-delivery-policy.md | Specified — not implemented |
-| MS-018-021 | 00-master-instructions.md:L631; section 18 | Vendor settlement must use verified payout destinations and authorized approval workflows. | 4 / 7 | 06-finance-and-delivery-policy.md | Specified — not implemented |
+| MS-018-021 | 00-master-instructions.md:L631; section 18 | Vendor settlement must use verified payout destinations and authorized approval workflows. | 4 / 7 | 06-finance-and-delivery-policy.md; 41-vendor-payout-destinations.md | Partially implemented — encrypted vendor destination proof/independent review, cooldown and retirement exist; settlement approval and verified live payout execution pending (docs/41-vendor-payout-destinations.md) |
 | MS-019-001 | 00-master-instructions.md:L635; section 19 | Create a privacy-respecting product recommendation engine. | 9 | 11-ai-and-personalization.md | Specified — not implemented |
 | MS-019-002 | 00-master-instructions.md:L637; section 19 | Use permitted first-party marketplace signals: | 9 | 11-ai-and-personalization.md | Specified — not implemented |
 | MS-019-003 | 00-master-instructions.md:L639; section 19 | Product Searches | 9 | 11-ai-and-personalization.md | Specified — not implemented |

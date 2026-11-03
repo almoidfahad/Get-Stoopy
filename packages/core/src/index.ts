@@ -16,3 +16,4 @@ export * from './dispatch.js';
 export * from './delivery-proof.js';
 export * from './cancellation.js';
 export * from './rider-finance.js';
+export * from './payout-destination.js';
