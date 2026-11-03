@@ -15,3 +15,6 @@ Both Vercel projects (`get-stoopy` and `getstoopy`) were importing the monorepo 
 
 ## Boundary
 This fixes deployment build checks only. `PAYMENTS_LIVE_ENABLED`, `PAYOUTS_LIVE_ENABLED`, `CROSS_BORDER_ENABLED` and AI execution remain disabled. Provider credentials, live reconciliation, refunds/adjustments and production promotion still require separate authorization.
+
+## Follow-up
+The successful build was unexpectedly auto-promoted to production by the existing `main`-branch integration. Both projects were paused with owner approval, and a fail-closed preview-only guard was added. See `47-vercel-preview-only-guard.md` before unpausing or creating any deployment.
