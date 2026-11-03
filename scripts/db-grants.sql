@@ -299,3 +299,15 @@ GRANT EXECUTE ON FUNCTION gs_order_consistent() TO gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_payment_intent_insert_guard() TO gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_payment_intent_update_guard() TO gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_cod_policy_guard() TO gs_privileged;
+
+-- Cancellation/restock/refund-review slice (0038). Review approval is not execution.
+GRANT EXECUTE ON FUNCTION gs_order_cancellation_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_order_cancellation_consistent() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_refund_request_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_refund_request_update_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_refund_review_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_refund_review_required() TO gs_privileged;
+REVOKE DELETE ON TABLE "OrderCancellation" FROM gs_privileged;
+REVOKE UPDATE, DELETE ON TABLE "OrderCancellation" FROM gs_privileged;
+REVOKE DELETE ON TABLE "RefundRequest" FROM gs_privileged;
+REVOKE UPDATE, DELETE ON TABLE "RefundReview" FROM gs_privileged;

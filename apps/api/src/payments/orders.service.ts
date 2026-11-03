@@ -23,8 +23,9 @@ export class OrdersService {
     return {
       orderId: order.id, publicReference: order.publicReference, quoteId: order.quoteId, countryId: order.countryId,
       destinationCityId: order.destinationCityId, currency: order.currency, amountMinor: order.amountMinor.toString(),
-      pricingScope: order.pricingScope, paymentMethod: order.paymentMethod, paymentStatus: order.paymentStatus,
+      pricingScope: order.pricingScope, paymentMethod: order.paymentMethod, paymentStatus: order.paymentStatus, lifecycleStatus: order.lifecycleStatus,
       codEligibility: order.codEligibility, version: order.version, duplicate,
+      cancellation: await (async () => { const c = await tx.orderCancellation.findUnique({ where: { orderId: order.id }, include: { refundRequest: true } }); return c ? { cancellationId: c.id, reason: c.reason, createdAt: c.createdAt, restock: 'COMPLETED', refund: c.refundRequest ? { refundRequestId: c.refundRequest.id, status: c.refundRequest.status, amountMinor: c.refundRequest.amountMinor.toString(), currency: c.refundRequest.currency, execution: 'DISABLED', moneyMoved: false } : null } : null; })(),
       deliveryFeeMinor: null, totalMinor: null,
       suborders: suborders.map((s: any) => ({
         suborderId: s.id, publicReference: s.publicReference, vendorId: s.vendorId, storeId: s.storeId,

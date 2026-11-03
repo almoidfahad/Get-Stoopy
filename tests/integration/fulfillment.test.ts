@@ -250,3 +250,47 @@ describe('vendor suborder fulfillment readiness', () => {
     expect(after.body.code).toBe('SUBORDER_INVALID_TRANSITION');
   });
 });
+
+describe('pre-dispatch cancellation across vendor/store suborders', () => {
+  it('atomically cancels every suborder and restocks every consumed reservation exactly once', async () => {
+    const order = await createOrder([{ variantId: variantA, quantity: 2 }, { variantId: variantB, quantity: 3 }], 'COD');
+    const beforeA = (await get(`/api/v1/inventory/variants/${variantA}`, owner).expect(200)).body;
+    const beforeB = (await get(`/api/v1/inventory/variants/${variantB}`, owner).expect(200)).body;
+    const body = { expectedVersion: order.version, commandKey: `cancel-${randomUUID()}`, reason: 'cancel both vendor store groups before dispatch' };
+    const cancelled = await post(`/api/v1/orders/${order.orderId}/cancellation`, customer, body).expect(201);
+    expect(cancelled.body.restock).toBe('COMPLETED');
+    expect(cancelled.body.refund).toBeNull();
+    const after = (await get(`/api/v1/orders/${order.orderId}`, customer).expect(200)).body;
+    expect(after.lifecycleStatus).toBe('CANCELLED');
+    expect(after.suborders.map((s: any) => s.status)).toEqual(['CANCELLED', 'CANCELLED']);
+    const a = (await get(`/api/v1/inventory/variants/${variantA}`, owner).expect(200)).body;
+    const b = (await get(`/api/v1/inventory/variants/${variantB}`, owner).expect(200)).body;
+    expect(a.onHand).toBe(beforeA.onHand + 2);
+    expect(b.onHand).toBe(beforeB.onHand + 3);
+    expect(a.reserved).toBe(beforeA.reserved);
+    expect(b.reserved).toBe(beforeB.reserved);
+    const replay = await post(`/api/v1/orders/${order.orderId}/cancellation`, customer, body).expect(201);
+    expect(replay.body.duplicate).toBe(true);
+    const movements = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "InventoryMovement" WHERE "cancellationId"=$1 AND kind='RESTOCK'`, [cancelled.body.cancellationId]));
+    expect(movements.rows[0].n).toBe(2);
+    const subA = order.suborders.find((s: any) => s.storeId === storeA);
+    const history = await get(`/api/v1/vendor/suborders/${subA.suborderId}/history`, managerA).expect(200);
+    expect(history.body.items[0].toStatus).toBe('CANCELLED');
+  });
+
+  it('allows buyer cancellation after vendor rejection but closes the window once preparation starts', async () => {
+    const rejectedOrder = await createOrder([{ variantId: variantA, quantity: 1 }], 'COD');
+    const sub = rejectedOrder.suborders[0];
+    await post(`/api/v1/vendor/suborders/${sub.suborderId}/reject`, managerA, { expectedVersion: 1, commandKey: `reject-${randomUUID()}`, reason: 'store cannot fulfill this order' }).expect(201);
+    const current = (await get(`/api/v1/orders/${rejectedOrder.orderId}`, customer).expect(200)).body;
+    const cancelled = await post(`/api/v1/orders/${rejectedOrder.orderId}/cancellation`, customer, { expectedVersion: current.version, commandKey: `cancel-${randomUUID()}`, reason: 'vendor rejected so buyer cancels order' }).expect(201);
+    expect(cancelled.body.restock).toBe('COMPLETED');
+
+    const activeOrder = await createOrder([{ variantId: variantA, quantity: 1 }], 'COD');
+    const activeSub = activeOrder.suborders[0];
+    await post(`/api/v1/vendor/suborders/${activeSub.suborderId}/accept`, managerA, { expectedVersion: 1, commandKey: `accept-${randomUUID()}`, preparationMinutes: 30 }).expect(201);
+    await post(`/api/v1/vendor/suborders/${activeSub.suborderId}/start-preparation`, managerA, { expectedVersion: 2, commandKey: `prep-${randomUUID()}` }).expect(201);
+    const denied = await post(`/api/v1/orders/${activeOrder.orderId}/cancellation`, customer, { expectedVersion: activeOrder.version, commandKey: `cancel-${randomUUID()}`, reason: 'too late to cancel preparation' }).expect(409);
+    expect(denied.body.code).toBe('CANCELLATION_WINDOW_CLOSED');
+  });
+});

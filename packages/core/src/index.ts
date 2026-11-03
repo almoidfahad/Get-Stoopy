@@ -14,3 +14,4 @@ export * from './serviceability.js';
 export * from './rider.js';
 export * from './dispatch.js';
 export * from './delivery-proof.js';
+export * from './cancellation.js';

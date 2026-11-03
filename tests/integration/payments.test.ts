@@ -233,3 +233,103 @@ describe('order/payment/COD sandbox foundation', () => {
     await expect(asSuper(u.privileged, c => c.query(`UPDATE "PaymentWebhookEvent" SET "rejectionReason"='tampered' WHERE id=$1`, [events.rows[0].id]))).rejects.toThrow(/permission denied/);
   });
 });
+
+describe('cancellation, restock and refund review boundary', () => {
+  async function paidOrder(quantity = 2) {
+    const quote = await createQuote(quantity);
+    const order = await post('/api/v1/orders', customer, { quoteId: quote.quoteId, expectedQuoteVersion: quote.version, commandKey: `order-${randomUUID().slice(0, 8)}`, paymentMethod: 'SANDBOX_MANUAL' }).expect(201);
+    const intent = await post(`/api/v1/orders/${order.body.orderId}/payment-intents`, customer, { commandKey: `intent-${randomUUID().slice(0, 8)}` }).expect(201);
+    await webhook({ eventId: `evt-${randomUUID()}`, merchantReference: intent.body.merchantReference, status: 'SUCCEEDED', amountMinor: order.body.amountMinor, currency: 'BDT' }).expect(200);
+    return (await get(`/api/v1/orders/${order.body.orderId}`, customer).expect(200)).body;
+  }
+  function cancelBody(version: number, key = `cancel-${randomUUID()}`) { return { expectedVersion: version, commandKey: key, reason: 'buyer requested pre-dispatch cancellation' }; }
+
+  it('blocks cancellation while online payment is unresolved and hides foreign orders', async () => {
+    const quote = await createQuote(1);
+    const order = await post('/api/v1/orders', customer, { quoteId: quote.quoteId, expectedQuoteVersion: quote.version, commandKey: `order-${randomUUID().slice(0, 8)}`, paymentMethod: 'SANDBOX_MANUAL' }).expect(201);
+    const denied = await post(`/api/v1/orders/${order.body.orderId}/cancellation`, customer, cancelBody(1)).expect(409);
+    expect(denied.body.code).toBe('PAYMENT_RESOLUTION_REQUIRED');
+    await post(`/api/v1/orders/${order.body.orderId}/cancellation`, stranger, cancelBody(1)).expect(404);
+    const still = await get(`/api/v1/orders/${order.body.orderId}`, customer).expect(200);
+    expect(still.body.lifecycleStatus).toBe('ACTIVE');
+  });
+
+  it('atomically cancels a verified order, restocks once and creates a pending refund without moving money', async () => {
+    const order = await paidOrder(2);
+    const before = (await get(`/api/v1/inventory/variants/${variantId}`, owner).expect(200)).body;
+    const body = cancelBody(order.version);
+    const results = await Promise.all([post(`/api/v1/orders/${order.orderId}/cancellation`, customer, body), post(`/api/v1/orders/${order.orderId}/cancellation`, customer, body)]);
+    expect(results.map(r => r.status)).toEqual([201, 201]);
+    expect(results.map(r => r.body.duplicate).sort()).toEqual([false, true]);
+    const cancelled = results[0].body;
+    expect(cancelled.restock).toBe('COMPLETED');
+    expect(cancelled.refund.status).toBe('PENDING_REVIEW');
+    expect(cancelled.refund.amountMinor).toBe(order.amountMinor);
+    expect(cancelled.refund.execution).toBe('DISABLED');
+    expect(cancelled.refund.moneyMoved).toBe(false);
+    const after = (await get(`/api/v1/inventory/variants/${variantId}`, owner).expect(200)).body;
+    expect(after.onHand).toBe(before.onHand + 2); // consumed by paidOrder, then returned exactly once
+    expect(after.reserved).toBe(before.reserved);
+    const detail = (await get(`/api/v1/orders/${order.orderId}`, customer).expect(200)).body;
+    expect(detail.lifecycleStatus).toBe('CANCELLED');
+    expect(detail.suborders[0].status).toBe('CANCELLED');
+    expect(detail.paymentStatus).toBe('PAYMENT_VERIFIED');
+    const conflict = await post(`/api/v1/orders/${order.orderId}/cancellation`, customer, { ...body, reason: 'different reason payload' }).expect(409);
+    expect(conflict.body.code).toBe('CANCELLATION_IDEMPOTENCY_CONFLICT');
+    const movements = await asSuper(u.privileged, c => c.query(`SELECT m.kind, m."onHandDelta", m."reservedDelta", r.state FROM "InventoryMovement" m JOIN "InventoryReservation" r ON r.id=m."reservationId" WHERE m."cancellationId"=$1`, [cancelled.cancellationId]));
+    expect(movements.rows).toEqual([{ kind: 'RESTOCK', onHandDelta: 2, reservedDelta: 0, state: 'CONSUMED' }]);
+    await get(`/api/v1/refunds/${cancelled.refund.refundRequestId}`, stranger).expect(404);
+    await expect(asUser(u.runtime, customer.userId, c => c.query(`SELECT id FROM "RefundRequest" WHERE id=$1`, [cancelled.refund.refundRequestId]))).resolves.toMatchObject({ rowCount: 1 });
+  });
+
+  it('requires scoped step-up finance review, separate reviewer, idempotency and terminal decision; approval never executes refund', async () => {
+    const order = await paidOrder(1);
+    const cancelled = (await post(`/api/v1/orders/${order.orderId}/cancellation`, customer, cancelBody(order.version)).expect(201)).body;
+    const id = cancelled.refund.refundRequestId;
+    const reviewer = await makeUser('refund-reviewer'); await grantKeys(reviewer, ['finance:refund:review']);
+    await get(`/api/v1/admin/refunds?countryId=${countryId}`, stranger).expect(403);
+    const list = await get(`/api/v1/admin/refunds?countryId=${countryId}`, reviewer).expect(200);
+    expect(list.body.items.some((r: any) => r.refundRequestId === id)).toBe(true);
+    await asSuper(u.privileged, async c => { await c.query(`UPDATE "Session" SET "assuranceLevel"='MFA', "stepUpExpiresAt"=NULL WHERE id=$1`, [reviewer.sessionId]); });
+    const body = { expectedVersion: 1, decision: 'APPROVE', commandKey: `review-${randomUUID()}`, reason: 'verified cancellation and payment evidence' };
+    await post(`/api/v1/admin/refunds/${id}/review`, reviewer, body).expect(403);
+    await setStepUp(reviewer);
+    const approved = await post(`/api/v1/admin/refunds/${id}/review`, reviewer, body).expect(201);
+    expect(approved.body.status).toBe('APPROVED');
+    expect(approved.body.execution).toBe('DISABLED');
+    expect(approved.body.moneyMoved).toBe(false);
+    const replay = await post(`/api/v1/admin/refunds/${id}/review`, reviewer, body).expect(201);
+    expect(replay.body.duplicate).toBe(true);
+    const changed = await post(`/api/v1/admin/refunds/${id}/review`, reviewer, { ...body, decision: 'REJECT' }).expect(409);
+    expect(changed.body.code).toBe('REFUND_IDEMPOTENCY_CONFLICT');
+    const again = await post(`/api/v1/admin/refunds/${id}/review`, reviewer, { ...body, commandKey: `review-${randomUUID()}` }).expect(409);
+    expect(again.body.code).toBe('REFUND_ALREADY_REVIEWED');
+    const journals = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "LedgerJournal" WHERE "businessEventKey"=$1`, [body.commandKey]));
+    expect(journals.rows[0].n).toBe(0);
+    await expect(asSuper(u.privileged, c => c.query(`UPDATE "RefundReview" SET reason='tampered' WHERE "refundRequestId"=$1`, [id]))).rejects.toThrow(/permission denied|append_only/);
+  });
+
+  it('rejects a refund with an audited terminal decision and no financial execution', async () => {
+    const order = await paidOrder(1);
+    const cancelled = (await post(`/api/v1/orders/${order.orderId}/cancellation`, customer, cancelBody(order.version)).expect(201)).body;
+    const reviewer = await makeUser('refund-rejector'); await grantKeys(reviewer, ['finance:refund:review']);
+    const rejected = await post(`/api/v1/admin/refunds/${cancelled.refund.refundRequestId}/review`, reviewer, { expectedVersion: 1, decision: 'REJECT', commandKey: `reject-${randomUUID()}`, reason: 'evidence requires manual investigation' }).expect(201);
+    expect(rejected.body.status).toBe('REJECTED');
+    expect(rejected.body.moneyMoved).toBe(false);
+  });
+
+  it('cancels COD without a refund request and enforces database restock/cancellation invariants', async () => {
+    const existing = await asSuper(u.privileged, async c => (await c.query(`SELECT version FROM "CodPolicy" WHERE "countryId"=$1`, [countryId])).rows[0]);
+    await put('/api/v1/admin/cod-policy', codAdmin, { countryId, enabled: true, maxOrderMinor: '100000', ...(existing ? { version: existing.version } : {}) }).expect(200);
+    const quote = await createQuote(1);
+    const order = await post('/api/v1/orders', customer, { quoteId: quote.quoteId, expectedQuoteVersion: quote.version, commandKey: `order-${randomUUID().slice(0, 8)}`, paymentMethod: 'COD' }).expect(201);
+    const cancelled = (await post(`/api/v1/orders/${order.body.orderId}/cancellation`, customer, cancelBody(1)).expect(201)).body;
+    expect(cancelled.refund).toBeNull();
+    await expect(asSuper(u.privileged, c => c.query(`UPDATE "OrderCancellation" SET reason='tampered' WHERE id=$1`, [cancelled.cancellationId]))).rejects.toThrow(/permission denied|append_only/);
+    await expect(asSuper(u.privileged, c => c.query(`UPDATE "InventoryMovement" SET "onHandDelta"=99 WHERE "cancellationId"=$1`, [cancelled.cancellationId]))).rejects.toThrow(/permission denied|append_only/);
+    // Direct lifecycle mutation without the complete cancellation/restock aggregate must fail at COMMIT.
+    const q2 = await createQuote(1);
+    const o2 = await post('/api/v1/orders', customer, { quoteId: q2.quoteId, expectedQuoteVersion: q2.version, commandKey: `order-${randomUUID().slice(0, 8)}`, paymentMethod: 'COD' }).expect(201);
+    await expect(asSuper(u.privileged, c => c.query(`UPDATE "Order" SET "lifecycleStatus"='CANCELLED', version=version+1 WHERE id=$1`, [o2.body.orderId]))).rejects.toThrow(/order_cancellation_record_required/);
+  });
+});

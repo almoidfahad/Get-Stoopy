@@ -22,7 +22,8 @@ async function main() {
     const financePerms = [
       { key: 'finance:ledger:post', resource: 'finance', action: 'ledger:post', sensitivity: 'critical' },
       { key: 'finance:ledger:read', resource: 'finance', action: 'ledger:read', sensitivity: 'high' },
-      { key: 'finance:cod:manage', resource: 'finance', action: 'cod:manage', sensitivity: 'critical' }
+      { key: 'finance:cod:manage', resource: 'finance', action: 'cod:manage', sensitivity: 'critical' },
+      { key: 'finance:refund:review', resource: 'finance', action: 'refund:review', sensitivity: 'critical' }
     ];
     const partyPerms = [
       { key: 'vendor:profile:activate', resource: 'vendor', action: 'profile:activate', sensitivity: 'critical' },

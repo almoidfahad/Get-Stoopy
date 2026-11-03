@@ -198,6 +198,7 @@ enum InventoryMovementKind {
   RELEASE
   CONSUME
   EXPIRE
+  RESTOCK
 }
 
 enum InventoryReservationState {
@@ -275,6 +276,9 @@ model User {
   deliveryProofsVerified    DeliveryProof[]             @relation("DeliveryProofVerifiedBy")
   deliveryEvents            DeliveryEvent[]             @relation("DeliveryEventActor")
   deliveryOtpAttempts       DeliveryOtpAttempt[]        @relation("DeliveryOtpAttemptActor")
+  orderCancellations        OrderCancellation[]         @relation("OrderCancellationBuyer")
+  refundRequests            RefundRequest[]             @relation("RefundRequestBuyer")
+  refundReviews             RefundReview[]              @relation("RefundReviewer")
 }
 
 model UserIdentity {
@@ -399,6 +403,8 @@ model Country {
   riderAssignments     RiderAssignment[]
   DeliveryRecipient    DeliveryRecipient[]
   Delivery             Delivery[]
+  orderCancellations   OrderCancellation[]        @relation("OrderCancellationCountry")
+  refundRequests       RefundRequest[]            @relation("RefundRequestCountry")
 }
 
 model Region {
@@ -1388,8 +1394,10 @@ model InventoryMovement {
   reservedAfter    Int
   reason           String                @db.VarChar(512)
   actorUserId      String?               @db.Uuid
+  cancellationId   String?               @db.Uuid
   createdAt        DateTime              @default(now())
   inventory        Inventory             @relation(fields: [inventoryId], references: [id])
+  cancellation     OrderCancellation?    @relation(fields: [cancellationId], references: [id])
   reservation      InventoryReservation? @relation(fields: [reservationId], references: [id])
   actor            User?                 @relation(fields: [actorUserId], references: [id])
 
@@ -1397,6 +1405,7 @@ model InventoryMovement {
   @@unique([inventoryId, inventoryVersion])
   @@index([inventoryId, createdAt])
   @@index([reservationId])
+  @@index([cancellationId])
 }
 
 model InventoryReservation {
@@ -1538,6 +1547,11 @@ model CheckoutQuoteItem {
   @@index([groupId])
 }
 
+enum OrderLifecycleStatus {
+  ACTIVE
+  CANCELLED
+}
+
 enum OrderPaymentStatus {
   AWAITING_PAYMENT
   PAYMENT_VERIFIED
@@ -1554,6 +1568,7 @@ enum VendorSuborderStatus {
   FULFILLING
   DELIVERED
   COMPLETED
+  CANCELLED
 }
 
 enum DeliveryStatus {
@@ -1623,6 +1638,7 @@ model Order {
   pricingScope        String                    @default("PRODUCT_SUBTOTAL_ONLY") @db.VarChar(40)
   paymentMethod       OrderPaymentMethod
   paymentStatus       OrderPaymentStatus
+  lifecycleStatus     OrderLifecycleStatus      @default(ACTIVE)
   codEligibility      Json?
   version             Int                       @default(1)
   createdAt           DateTime                  @default(now())
@@ -1635,6 +1651,8 @@ model Order {
   paymentIntents      PaymentIntent[]
   deliveryDestination OrderDeliveryDestination?
   deliveryRecipient   DeliveryRecipient?
+  cancellation        OrderCancellation?
+  refundRequest       RefundRequest?
 
   @@unique([buyerId, commandKey])
   @@index([buyerId, createdAt])
@@ -1742,6 +1760,7 @@ model PaymentIntent {
   order              Order                 @relation(fields: [orderId], references: [id])
   user               User                  @relation(fields: [userId], references: [id])
   webhookEvents      PaymentWebhookEvent[]
+  refundRequest      RefundRequest?
 
   @@unique([orderId, commandKey])
   @@index([orderId, status])
@@ -1782,4 +1801,80 @@ model CodPolicy {
   country         Country  @relation(fields: [countryId], references: [id])
   createdBy       User     @relation("CodPolicyCreatedBy", fields: [createdByUserId], references: [id])
   updatedBy       User     @relation("CodPolicyUpdatedBy", fields: [updatedByUserId], references: [id])
+}
+
+model OrderCancellation {
+  id                          String              @id @default(uuid()) @db.Uuid
+  orderId                     String              @unique @db.Uuid
+  buyerId                     String              @db.Uuid
+  countryId                   String              @db.Uuid
+  commandKey                  String              @db.VarChar(128)
+  payloadHash                 String              @db.VarChar(64)
+  reason                      String              @db.VarChar(512)
+  orderVersion                Int
+  paymentStatusAtCancellation OrderPaymentStatus
+  amountMinor                 BigInt
+  currency                    String              @db.VarChar(3)
+  createdAt                   DateTime            @default(now())
+  order                       Order               @relation(fields: [orderId], references: [id])
+  buyer                       User                @relation("OrderCancellationBuyer", fields: [buyerId], references: [id])
+  country                     Country             @relation("OrderCancellationCountry", fields: [countryId], references: [id])
+  movements                   InventoryMovement[]
+  refundRequest               RefundRequest?
+
+  @@unique([orderId, commandKey])
+  @@index([buyerId, createdAt])
+  @@index([countryId, createdAt])
+}
+
+enum RefundRequestStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum RefundReviewDecision {
+  APPROVE
+  REJECT
+}
+
+model RefundRequest {
+  id              String              @id @default(uuid()) @db.Uuid
+  cancellationId  String              @unique @db.Uuid
+  orderId         String              @unique @db.Uuid
+  paymentIntentId String              @unique @db.Uuid
+  buyerId         String              @db.Uuid
+  countryId       String              @db.Uuid
+  amountMinor     BigInt
+  currency        String              @db.VarChar(3)
+  status          RefundRequestStatus @default(PENDING_REVIEW)
+  version         Int                 @default(1)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  cancellation    OrderCancellation   @relation(fields: [cancellationId], references: [id])
+  order           Order               @relation(fields: [orderId], references: [id])
+  paymentIntent   PaymentIntent       @relation(fields: [paymentIntentId], references: [id])
+  buyer           User                @relation("RefundRequestBuyer", fields: [buyerId], references: [id])
+  country         Country             @relation("RefundRequestCountry", fields: [countryId], references: [id])
+  reviews         RefundReview[]
+
+  @@index([countryId, status, createdAt])
+  @@index([buyerId, createdAt])
+}
+
+model RefundReview {
+  id              String               @id @default(uuid()) @db.Uuid
+  refundRequestId String               @unique @db.Uuid
+  reviewerUserId  String               @db.Uuid
+  decision        RefundReviewDecision
+  refundVersion   Int
+  commandKey      String               @db.VarChar(128)
+  payloadHash     String               @db.VarChar(64)
+  reason          String               @db.VarChar(512)
+  occurredAt      DateTime             @default(now())
+  refundRequest   RefundRequest        @relation(fields: [refundRequestId], references: [id])
+  reviewer        User                 @relation("RefundReviewer", fields: [reviewerUserId], references: [id])
+
+  @@unique([refundRequestId, commandKey])
+  @@index([reviewerUserId, occurredAt])
 }

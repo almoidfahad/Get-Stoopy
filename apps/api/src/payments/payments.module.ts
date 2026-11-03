@@ -4,5 +4,6 @@ import { InventoryModule } from '../inventory/inventory.module.js';
 import { PaymentsController } from './payments.controller.js';
 import { OrdersService } from './orders.service.js';
 import { PaymentsService } from './payments.service.js';
-@Module({ imports: [AuthModule, InventoryModule], controllers: [PaymentsController], providers: [OrdersService, PaymentsService], exports: [OrdersService, PaymentsService] })
+import { CancellationsService } from './cancellations.service.js';
+@Module({ imports: [AuthModule, InventoryModule], controllers: [PaymentsController], providers: [OrdersService, PaymentsService, CancellationsService], exports: [OrdersService, PaymentsService, CancellationsService] })
 export class PaymentsModule {}
