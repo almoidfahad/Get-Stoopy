@@ -46,7 +46,7 @@ Local gates against the isolated test database passed before commit:
 - integration: **145/26** PASS, including the 9 ledger tests
 - design validator: **10/0** PASS
 
-CI evidence for the pushed commit is recorded in `docs/15-progress-and-decisions.md`.
+Implementation commit `761a43b` passed GitHub Actions run `41768397273` (validate 1m28s, integration 4m3s). The CI evidence is recorded in `docs/15-progress-and-decisions.md`.
 
 ## Boundary
 
