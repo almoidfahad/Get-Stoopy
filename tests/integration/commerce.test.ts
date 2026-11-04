@@ -336,4 +336,36 @@ describe('checkout destination must be serviceable before stock is reserved', ()
     expect(quote.body.destinationCityId).toBe(cityId);
     await post(`/api/v1/commerce/quotes/${quote.body.quoteId}/release`, customer, { version: 1, reason: 'test cleanup release' }).expect(201);
   });
+
+  it('names the existing quote on a duplicate reservation so a reloaded page can still release it', async () => {
+    const { cartId, version } = await freshCart();
+    const first = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, {
+      expectedVersion: version, destinationCityId: cityId, commandKey: `recover-first-${randomUUID().slice(0, 8)}`,
+    }).expect(201);
+
+    // A buyer who reloaded checkout has a new command key and no quote id in
+    // memory. Without the id in this error the reserved stock was unreachable
+    // until the quote expired.
+    const second = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, {
+      expectedVersion: version, destinationCityId: cityId, commandKey: `recover-second-${randomUUID().slice(0, 8)}`,
+    }).expect(409);
+    expect(second.body.code).toBe('CHECKOUT_QUOTE_ALREADY_RESERVED');
+    // The error filter emits only {code,message,requestId} by design, so the id
+    // is carried by the cart resource instead.
+    expect(Object.keys(second.body).sort()).toEqual(['code', 'message', 'requestId']);
+    const reloaded = await get(`/api/v1/commerce/carts/${cartId}`, customer).expect(200);
+    expect(reloaded.body.activeQuoteId).toBe(first.body.quoteId);
+
+    const recovered = await get(`/api/v1/commerce/quotes/${reloaded.body.activeQuoteId}`, customer).expect(200);
+    expect(recovered.body.state).toBe('RESERVED');
+    // Another user must not be able to read it just because the id is known.
+    await get(`/api/v1/commerce/quotes/${reloaded.body.activeQuoteId}`, stranger).expect(404);
+
+    const released = await post(`/api/v1/commerce/quotes/${reloaded.body.activeQuoteId}/release`, customer, {
+      version: recovered.body.version, reason: 'released after page reload',
+    }).expect(201);
+    expect(released.body.state).toBe('RELEASED');
+    const afterRelease = await get(`/api/v1/commerce/carts/${cartId}`, customer).expect(200);
+    expect(afterRelease.body.activeQuoteId).toBeNull();
+  });
 });

@@ -30,6 +30,8 @@ export interface Cart {
   countryId: string;
   currency: string;
   version: number;
+  /** Set when a RESERVED quote is still holding this cart's stock. */
+  activeQuoteId: string | null;
   items: CartItem[];
   duplicate?: boolean;
 }

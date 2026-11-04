@@ -112,17 +112,26 @@ export default async function CartPage() {
               </div>
             </dl>
             <p className="mt-4 text-sm text-neutral-700">
-              Checkout is not enabled in this environment. Delivery charges, taxes and payment are not
-              calculated, and no money is taken.
+              Checkout can reserve your items and quote a delivery city. Delivery charges, taxes and payment
+              are not implemented yet, so no grand total is shown and no money is taken.
             </p>
-            <button
-              type="button"
-              disabled
-              aria-disabled="true"
-              className="mt-5 w-full cursor-not-allowed rounded-lg bg-neutral-300 px-5 py-3 font-semibold text-neutral-600"
-            >
-              Checkout unavailable
-            </button>
+            {summary.readyForCheckout ? (
+              <Link
+                href="/checkout"
+                className="mt-5 block w-full rounded-lg bg-brand-red px-5 py-3 text-center font-semibold text-white"
+              >
+                Continue to checkout
+              </Link>
+            ) : (
+              <button
+                type="button"
+                disabled
+                aria-disabled="true"
+                className="mt-5 w-full cursor-not-allowed rounded-lg bg-neutral-300 px-5 py-3 font-semibold text-neutral-600"
+              >
+                Checkout unavailable
+              </button>
+            )}
             {summary.issues.length > 0 ? (
               <p className="mt-3 text-sm font-medium text-brand-red">
                 Resolve the items flagged above before checkout can be offered.

@@ -1,1 +1,21 @@
-{"name":"@getstoopy/core","version":"0.2.0","private":true,"type":"module","main":"dist/index.js","types":"dist/index.d.ts","scripts":{"build":"tsc -b"}}
+{
+  "name": "@getstoopy/core",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "default": "./dist/browser.js"
+    }
+  }
+}

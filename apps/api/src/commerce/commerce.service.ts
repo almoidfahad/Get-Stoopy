@@ -43,8 +43,18 @@ export class CommerceService {
       LEFT JOIN "Inventory" i ON i."variantId"=ci."variantId"
       WHERE ci."cartId"=${cart.id}::uuid
       ORDER BY ci."createdAt" ASC, ci."id" ASC`;
+    // A buyer who reloads checkout loses the quote id from memory, but the quote
+    // is still holding their stock. Surfacing it on the cart gives the UI a way to
+    // show and release it. The error filter deliberately emits only
+    // {code,message,requestId}, so this belongs on the resource, not in an error.
+    const activeQuote = await tx.checkoutQuote.findFirst({
+      where: { cartId: cart.id, state: 'RESERVED' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
     return {
       cartId: cart.id, countryId: cart.countryId, currency: cart.currency, version: cart.version,
+      activeQuoteId: activeQuote?.id ?? null,
       items: (items as any[]).map(r => ({
         id: r.id, variantId: r.variantId, storeId: r.storeId, vendorId: r.vendorId, productId: r.productId,
         title: r.title, storeName: r.storeName, quantity: r.quantity,

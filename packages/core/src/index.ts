@@ -31,3 +31,5 @@ export * from './payout-calendar.js';
 export * from './catalog-display.js';
 
 export * from './cart-summary.js';
+
+export * from './checkout-quote.js';
