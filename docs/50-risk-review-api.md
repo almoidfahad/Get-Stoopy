@@ -32,7 +32,8 @@ implemented status is tracked here and in docs 15 rather than by breaking the co
   and timestamp — no subject identifier. A test asserts the subject id appears nowhere in the
   list payload.
 - **Audited sensitive read.** Opening a single case exposes subject linkage, so the detail endpoint
-  writes a `risk.case.read` audit row in the same transaction.
+  writes a `risk.case.read` audit row in the same transaction. Signal rows may include the aggregate
+  producer `summary` added in docs 51; no raw OTP, phone or provider payload is exposed.
 - **Database owns the invariants.** Audit and outbox rows for a resolution are written by the
   `0066`/`0067`/`0068` trigger, not by the service, so a direct SQL path cannot bypass them. The
   service must insert the matching `RiskCaseReview` before the terminal transition is accepted.
@@ -64,6 +65,6 @@ Full gate results and CI evidence are in `docs/15-progress-and-decisions.md`.
 
 ## Still pending in this area
 
-Signal producers wired into checkout/payment/OTP, appeal workflow, case assignment and SLA,
+Appeal workflow, case assignment and SLA,
 cross-case velocity aggregation, and any enforcement design (which would need its own audited,
 reversible, owner-approved slice). AI remains uninvolved.

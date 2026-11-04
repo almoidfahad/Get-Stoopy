@@ -5,6 +5,7 @@ import { ENV } from '../common/env.js';
 import type { ApiEnv } from '@getstoopy/config';
 import { assertWebhookAmountCurrency, hasPermission, inGeographicScope, sandboxManualCapabilities, verifySandboxWebhookSignature, type AccessContext } from '@getstoopy/core';
 import { SandboxManualAdapter, DisabledLiveAdapter } from './adapters.js';
+import { RiskSignalProducerService } from '../risk/risk-signal-producer.service.js';
 
 function hashPayload(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 function merchantReference(): string { return `PI-${randomUUID().replace(/-/g, '').slice(0, 24).toUpperCase()}`; }
@@ -22,7 +23,7 @@ export interface SandboxWebhookPayload {
 export class PaymentsService {
   private readonly sandbox = new SandboxManualAdapter();
   private readonly liveAdapters = [new DisabledLiveAdapter('SSLCOMMERZ'), new DisabledLiveAdapter('AAMARPAY'), new DisabledLiveAdapter('SHURJOPAY')];
-  constructor(@Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService, @Inject(ENV) private readonly env: ApiEnv) {}
+  constructor(@Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService, @Inject(ENV) private readonly env: ApiEnv, @Inject(RiskSignalProducerService) private readonly riskSignals: RiskSignalProducerService) {}
 
   private async audit(tx: any, actorUserId: string | null, action: string, resourceType: string, resourceId: string, countryId: string, reason?: string) {
     await tx.$executeRaw`INSERT INTO "AuditLog"(id,"actorId","actorType",action,"resourceType","resourceId","scopeSnapshot",reason,"requestId") VALUES (gen_random_uuid(), ${actorUserId}::uuid, ${actorUserId ? 'USER' : 'SYSTEM'}::"ActorType", ${action}, ${resourceType}, ${resourceId}::uuid, ${JSON.stringify({ countryId })}::jsonb, ${reason ?? null}, ${randomUUID()}::uuid)`;
@@ -129,6 +130,7 @@ export class PaymentsService {
       await tx.paymentWebhookEvent.create({ data: { provider: 'SANDBOX_MANUAL', environment: 'SANDBOX', dedupeKey, providerEventId: payload.eventId, providerReference: payload.providerReference ?? null, merchantReference: payload.merchantReference, intentId: intent.id, payloadHash, status: 'APPLIED', redactedPayload } });
       await this.audit(tx, null, `payment.webhook.${nextStatus.toLowerCase()}`, 'PaymentIntent', intent.id, order.countryId);
       await this.outbox(tx, 'PaymentIntent', intent.id, `payment.intent.${nextStatus.toLowerCase()}`, `payment-intent-${nextStatus.toLowerCase()}-${intent.id}-${payload.eventId}`, order.countryId, { orderId: order.id, status: nextStatus, eventId: payload.eventId });
+      if (nextStatus === 'FAILED') await this.riskSignals.paymentFailed(tx, intent.id);
       return { accepted: true, duplicate: false, status: 'APPLIED', intentStatus: updated.status };
     });
   }

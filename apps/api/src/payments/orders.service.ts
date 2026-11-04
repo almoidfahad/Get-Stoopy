@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Inject, Injectable, NotFoundExc
 import { createHash, randomUUID } from 'node:crypto';
 import { PrivilegedPrismaService, setRls } from '../common/prisma.js';
 import { InventoryService } from '../inventory/inventory.service.js';
+import { RiskSignalProducerService } from '../risk/risk-signal-producer.service.js';
 import type { AccessContext } from '@getstoopy/core';
 
 function hashPayload(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
@@ -9,7 +10,7 @@ function reference(prefix: string): string { return `${prefix}-${randomUUID().re
 
 @Injectable()
 export class OrdersService {
-  constructor(@Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService, @Inject(InventoryService) private readonly inventory: InventoryService) {}
+  constructor(@Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService, @Inject(InventoryService) private readonly inventory: InventoryService, @Inject(RiskSignalProducerService) private readonly riskSignals: RiskSignalProducerService) {}
 
   private async audit(tx: any, userId: string, action: string, resourceId: string, countryId: string, reason?: string) {
     await tx.$executeRaw`INSERT INTO "AuditLog"(id,"actorId","actorType",action,"resourceType","resourceId","scopeSnapshot",reason,"requestId") VALUES (gen_random_uuid(), ${userId}::uuid, 'USER'::"ActorType", ${action}, 'Order', ${resourceId}::uuid, ${JSON.stringify({ countryId })}::jsonb, ${reason ?? null}, ${randomUUID()}::uuid)`;
@@ -75,6 +76,7 @@ export class OrdersService {
       for (const item of items) await this.inventory.closeReservationTx(tx, item.reservationId, 'CONSUMED', ctx.userId, 'order created from checkout quote');
       await this.audit(tx, ctx.userId, 'commerce.order.created', orderId, quote.countryId);
       await this.outbox(tx, orderId, 'commerce.order.created', `order-created-${orderId}`, quote.countryId, { quoteId: quote.id, paymentMethod: input.paymentMethod, amountMinor: order.amountMinor.toString(), suborderCount: groups.length });
+      await this.riskSignals.orderCreated(tx, orderId);
       return this.orderJson(tx, order, false);
     }, { timeout: 30000 });
   }

@@ -6,6 +6,7 @@ import type { ApiEnv } from '@getstoopy/config';
 import { decryptJson, encryptJson } from '@getstoopy/bff';
 import { assertDeliveryCommandKey, deliveryCompletionGate, deliveryOtpHash, generateDeliveryOtp, maskPhone, normalizeRecipientPhone, recipientPhoneHash, verifyDeliveryOtp, type AccessContext } from '@getstoopy/core';
 import { DELIVERY_OTP_CHANNEL, type DeliveryOtpChannel } from './delivery-otp.channel.js';
+import { RiskSignalProducerService } from '../risk/risk-signal-producer.service.js';
 import { FinanceService } from '../finance/finance.service.js';
 
 function hashPayload(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
@@ -13,7 +14,7 @@ function commandKey(key: string): void { try { assertDeliveryCommandKey(key); } 
 
 @Injectable()
 export class DeliveryService {
-  constructor(@Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService, @Inject(ENV) private readonly env: ApiEnv, @Inject(DELIVERY_OTP_CHANNEL) private readonly otpChannel: DeliveryOtpChannel, @Inject(FinanceService) private readonly finance: FinanceService) {}
+  constructor(@Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService, @Inject(ENV) private readonly env: ApiEnv, @Inject(DELIVERY_OTP_CHANNEL) private readonly otpChannel: DeliveryOtpChannel, @Inject(FinanceService) private readonly finance: FinanceService, @Inject(RiskSignalProducerService) private readonly riskSignals: RiskSignalProducerService) {}
 
   private keys(): { pepper: string; encryptionKey: string } {
     if (!this.env.DELIVERY_OTP_PEPPER || !this.env.DELIVERY_RECIPIENT_ENCRYPTION_KEY) throw new ServiceUnavailableException({ code: 'DELIVERY_OTP_KEYS_REQUIRED', message: 'Delivery OTP keys are not configured' });
@@ -176,7 +177,8 @@ export class DeliveryService {
       if (!valid) {
         const locked = attempts >= challenge.maxAttempts;
         await tx.deliveryOtpChallenge.update({ where: { id: challengeId }, data: { attempts, ...(locked ? { status: 'LOCKED', closedAt: now } : {}) } });
-        await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, outcome: locked ? 'LOCKED' : 'INVALID' } });
+        const attempt = await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, outcome: locked ? 'LOCKED' : 'INVALID' } });
+        await this.riskSignals.otpInvalidAttempt(tx, attempt.id);
         return { deliveryId, challengeId, outcome: locked ? 'LOCKED' : 'INVALID', attemptsRemaining: Math.max(0, challenge.maxAttempts - attempts), duplicate: false };
       }
       await tx.deliveryOtpChallenge.update({ where: { id: challengeId }, data: { status: 'VERIFIED', attempts, verifiedAt: now, closedAt: now } });

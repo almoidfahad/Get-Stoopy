@@ -20,6 +20,7 @@ export const envSchema = z.object({
   PAYOUTS_SANDBOX_ENABLED: bool.default('false'),
   CROSS_BORDER_ENABLED: bool.default('false'),
   AI_ENABLED: bool.default('false'),
+  RISK_SIGNAL_PRODUCERS_ENABLED: bool.default('false'),
   ROAD_ROUTING_ENABLED: bool.default('false'),
   ROAD_ROUTING_PROVIDER: z.enum(['disabled','google_routes']).default('disabled'),
   GOOGLE_ROUTES_API_KEY: z.string().min(20).optional(),
@@ -55,6 +56,7 @@ export function loadApiEnv(input: NodeJS.ProcessEnv): ApiEnv {
     if (!env.SESSION_COOKIE_NAME.startsWith('__Host-')) throw new Error('HOST_COOKIE_REQUIRED');
   }
   if (env.CROSS_BORDER_ENABLED) throw new Error('CROSS_BORDER_NOT_AUTHORIZED');
+  if (env.NODE_ENV === 'production' && env.RISK_SIGNAL_PRODUCERS_ENABLED) throw new Error('RISK_SIGNAL_PRODUCERS_NOT_AUTHORIZED');
   if (env.PAYMENTS_LIVE_ENABLED) throw new Error('PAYMENTS_LIVE_NOT_AUTHORIZED');
   if (env.PAYOUTS_LIVE_ENABLED) throw new Error('PAYOUTS_LIVE_NOT_AUTHORIZED');
   if (env.NODE_ENV === 'production' && env.PAYOUTS_SANDBOX_ENABLED) throw new Error('PAYOUT_SANDBOX_FORBIDDEN_IN_PRODUCTION');
@@ -83,6 +85,7 @@ export function loadEnv(input: NodeJS.ProcessEnv): Env {
     if (!env.SESSION_COOKIE_NAME.startsWith('__Host-')) throw new Error('HOST_COOKIE_REQUIRED');
   }
   if (env.CROSS_BORDER_ENABLED) throw new Error('CROSS_BORDER_NOT_AUTHORIZED');
+  if (env.NODE_ENV === 'production' && env.RISK_SIGNAL_PRODUCERS_ENABLED) throw new Error('RISK_SIGNAL_PRODUCERS_NOT_AUTHORIZED');
   if (env.PAYMENTS_LIVE_ENABLED) throw new Error('PAYMENTS_LIVE_NOT_AUTHORIZED');
   if (env.PAYOUTS_LIVE_ENABLED) throw new Error('PAYOUTS_LIVE_NOT_AUTHORIZED');
   if (env.NODE_ENV === 'production' && env.PAYOUTS_SANDBOX_ENABLED) throw new Error('PAYOUT_SANDBOX_FORBIDDEN_IN_PRODUCTION');

@@ -70,7 +70,8 @@ A clean database applying `0066` → `0067` → `0068` reaches exactly the state
 
 - No admin/vendor/customer HTTP endpoints and no OpenAPI operations yet. The next slice adds the
   scoped, step-up-gated review API and its contract.
-- No signal producers are wired into checkout, payment or OTP flows; nothing scores live traffic.
+- Signal producers were not wired in this foundation slice; docs 51 adds deterministic checkout,
+  sandbox payment and delivery-OTP evidence producers. Nothing scores live traffic.
 - No appeal workflow, no case assignment/SLA, no cross-case velocity aggregation.
 - No AI involvement. A risk score is not an AI decision and grants no authority; AI still cannot
   approve KYC, refunds, payouts, permission changes or ledger edits.

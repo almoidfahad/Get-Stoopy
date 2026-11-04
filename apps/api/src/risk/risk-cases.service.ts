@@ -59,7 +59,7 @@ export class RiskCasesService {
       const record = await tx.riskCase.findUnique({ where: { id } });
       if (!record) throw new NotFoundException(NOT_FOUND);
       this.authority(ctx, record.countryId);
-      const signals = await tx.riskSignal.findMany({ where: { caseId: id }, orderBy: { observedAt: 'asc' }, select: { code: true, weight: true, observedAt: true } });
+      const signals = await tx.riskSignal.findMany({ where: { caseId: id }, orderBy: { observedAt: 'asc' }, select: { code: true, weight: true, summary: true, observedAt: true } });
       const reviews = await tx.riskCaseReview.findMany({ where: { caseId: id }, orderBy: { occurredAt: 'asc' }, select: { decision: true, reason: true, caseVersion: true, occurredAt: true } });
       await this.audit(tx, ctx, 'risk.case.read', id, record.countryId);
       return {

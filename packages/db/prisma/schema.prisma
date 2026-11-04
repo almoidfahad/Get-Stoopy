@@ -901,6 +901,7 @@ model DeliveryOtpAttempt {
 
   @@unique([challengeId, commandKey])
   @@index([challengeId, occurredAt])
+  @@index([actorUserId, occurredAt])
 }
 
 model DeliveryProof {
@@ -1738,6 +1739,7 @@ model Order {
 
   @@unique([buyerId, commandKey])
   @@index([buyerId, createdAt])
+  @@index([buyerId, countryId, createdAt])
   @@index([countryId, paymentStatus, createdAt])
   riskCases           RiskCase[] @relation("RiskCaseOrder")
 }
@@ -1849,6 +1851,7 @@ model PaymentIntent {
   @@unique([orderId, commandKey])
   @@index([orderId, status])
   @@index([userId, createdAt])
+  @@index([userId, status, closedAt])
   @@index([status, expiresAt])
 }
 
@@ -2626,6 +2629,7 @@ model RiskCase {
   score            Int             @default(0)
   band             RiskBand        @default(LOW)
   policyVersion    String          @db.VarChar(32)
+  producerKey      String?         @unique @db.VarChar(160)
   openedByUserId   String?         @db.Uuid
   version          Int             @default(1)
   createdAt        DateTime        @default(now())
@@ -2651,6 +2655,7 @@ model RiskSignal {
   code         String   @db.VarChar(64)
   weight       Int
   evidenceHash String   @db.VarChar(64)
+  summary      Json?
   observedAt   DateTime @default(now())
   case         RiskCase @relation(fields: [caseId], references: [id])
 

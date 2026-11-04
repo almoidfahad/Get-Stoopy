@@ -32,6 +32,37 @@ export const RISK_REVIEW_THRESHOLD = 30;
 export const RISK_HIGH_THRESHOLD = 70;
 export const RISK_SCORE_CAP = 100;
 
+/** Conservative, deterministic producer windows. These never enforce anything. */
+export const RISK_PRODUCER_POLICY_VERSION = 'risk-producers-v1';
+export const RISK_ORDER_VELOCITY_WINDOW_MINUTES = 10;
+export const RISK_ORDER_VELOCITY_MIN_ORDERS = 6;
+export const RISK_PAYMENT_FAILED_WINDOW_MINUTES = 15;
+export const RISK_PAYMENT_FAILED_MIN_ORDERS = 3;
+export const RISK_OTP_INVALID_WINDOW_MINUTES = 15;
+export const RISK_OTP_MIN_INVALID_ATTEMPTS = 4;
+
+export interface RiskProducerCaseKeyInput {
+  kind: 'ORDER_ABUSE' | 'PAYMENT_ABUSE' | 'ACCOUNT_ABUSE';
+  countryId: string;
+  subjectUserId: string;
+  occurredAt: Date;
+}
+
+/** One system case per subject/country/kind/UTC day. Terminal cases are never reopened. */
+export function riskProducerCaseKey(input: RiskProducerCaseKeyInput): string {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuid.test(input.countryId) || !uuid.test(input.subjectUserId)) throw new Error('RISK_PRODUCER_SCOPE_INVALID');
+  if (!(input.occurredAt instanceof Date) || Number.isNaN(input.occurredAt.getTime())) throw new Error('RISK_PRODUCER_TIME_INVALID');
+  const day = input.occurredAt.toISOString().slice(0, 10);
+  return `${RISK_POLICY_VERSION}:${input.kind}:${input.countryId.toLowerCase()}:${input.subjectUserId.toLowerCase()}:${day}`;
+}
+
+export function riskProducerWindowStart(occurredAt: Date, windowMinutes: number): Date {
+  if (!(occurredAt instanceof Date) || Number.isNaN(occurredAt.getTime())) throw new Error('RISK_PRODUCER_TIME_INVALID');
+  if (!Number.isSafeInteger(windowMinutes) || windowMinutes < 1 || windowMinutes > 1440) throw new Error('RISK_PRODUCER_WINDOW_INVALID');
+  return new Date(occurredAt.getTime() - windowMinutes * 60_000);
+}
+
 export function isRiskSignalCode(code: string): code is RiskSignalCode {
   return Object.prototype.hasOwnProperty.call(RISK_SIGNAL_WEIGHTS, code);
 }

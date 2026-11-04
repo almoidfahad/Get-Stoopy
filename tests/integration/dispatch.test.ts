@@ -127,6 +127,7 @@ beforeAll(async () => {
   process.env['ROAD_ROUTING_ENABLED'] = 'true'; process.env['ROAD_ROUTING_PROVIDER'] = 'google_routes'; process.env['GOOGLE_ROUTES_API_KEY'] = 'test-google-routes-api-key-000000'; process.env['GOOGLE_ROUTES_BASE_URL'] = `http://127.0.0.1:${routePort}`;
   process.env['DISPATCH_OFFER_TOKEN_SECRET'] = 'dispatch-offer-token-secret-000000000000';
   process.env['PAYMENTS_SANDBOX_ENABLED'] = 'true'; process.env['PAYMENT_SANDBOX_WEBHOOK_SECRET'] = webhookSecret; process.env['PAYMENTS_LIVE_ENABLED'] = 'false';
+  process.env['RISK_SIGNAL_PRODUCERS_ENABLED'] = 'true';
   process.env['DELIVERY_OTP_ENABLED'] = 'true'; process.env['DELIVERY_OTP_CHANNEL'] = 'test'; process.env['DELIVERY_OTP_PEPPER'] = 'a'.repeat(64); process.env['DELIVERY_RECIPIENT_ENCRYPTION_KEY'] = 'b'.repeat(64); process.env['DELIVERY_OTP_TTL_SECONDS'] = '300'; process.env['DELIVERY_OTP_MAX_ATTEMPTS'] = '5'; process.env['DELIVERY_OTP_RESEND_COOLDOWN_SECONDS'] = '60'; process.env['DELIVERY_OTP_MAX_ISSUES'] = '3';
   const { createApp } = await import('../../apps/api/src/main'); app = await createApp(); await app.init();
   otpSink = app.get(TEST_DELIVERY_OTP_SINK) as TestDeliveryOtpSink;
@@ -173,7 +174,7 @@ beforeAll(async () => {
   await post(`/api/v1/catalog/admin/service-areas/${area.body.serviceAreaId}/review`, serviceabilityAdmin, { version: 1, decision: 'APPROVE', reason: 'zone coverage verified' }).expect(201);
   riderA = await makeUser('rider-a'); riderAId = await prepareRider(riderA, 'a');
 }, 120000);
-afterAll(async () => { await drainOutbox(); if (queue) { await queue.obliterate({ force: true }); await queue.close(); } if (redis) await redis.quit(); if (pool) await pool.end(); if (app) await app.close(); if (routeServer) await new Promise<void>(resolve => routeServer.close(() => resolve())); });
+afterAll(async () => { process.env['RISK_SIGNAL_PRODUCERS_ENABLED'] = 'false'; await drainOutbox(); if (queue) { await queue.obliterate({ force: true }); await queue.close(); } if (redis) await redis.quit(); if (pool) await pool.end(); if (app) await app.close(); if (routeServer) await new Promise<void>(resolve => routeServer.close(() => resolve())); });
 
 describe('atomic dispatch foundation', () => {
   it('requires buyer destination inside approved boundary and a ready serviceable suborder', async () => {
@@ -353,6 +354,20 @@ describe('pickup/OTP delivery proof and completion gating', () => {
     }
     const locked = await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges/${challengeId}/verify`, rider, { code, commandKey: `verify-${randomUUID().slice(0, 8)}` }).expect(201);
     expect(locked.body.outcome).toBe('LOCKED');
+    const riskRows = await asSuper(u.privileged, async c => c.query(
+      `SELECT c.id, c."subjectUserId", c.kind, c.status, s.code, s.summary
+       FROM "RiskCase" c JOIN "RiskSignal" s ON s."caseId"=c.id
+       WHERE c."subjectUserId"=$1 AND c.kind='ACCOUNT_ABUSE' AND c."producerKey" IS NOT NULL`, [rider.userId]));
+    expect(riskRows.rowCount).toBe(1);
+    expect(riskRows.rows[0].code).toBe('OTP_ABUSE_PATTERN');
+    expect(riskRows.rows[0].status).toBe('OPEN');
+    expect(riskRows.rows[0].summary.automatedEnforcement).toBe(false);
+    expect(JSON.stringify(riskRows.rows[0].summary)).not.toContain(code);
+    const buyerCases = await asSuper(u.privileged, async c => c.query(
+      `SELECT id FROM "RiskCase" WHERE "subjectUserId"=$1 AND kind='ACCOUNT_ABUSE' AND "producerKey" IS NOT NULL`, [customer.userId]));
+    expect(buyerCases.rowCount).toBe(0);
+    const deliveryAfter = await asSuper(u.privileged, async c => (await c.query(`SELECT status FROM "Delivery" WHERE id=$1`, [deliveryId])).rows[0]);
+    expect(deliveryAfter.status).toBe('PICKED_UP');
     const resend = await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges`, rider, { commandKey: `otp-${randomUUID().slice(0, 8)}` }).expect(409);
     expect(resend.body.code).toBe('OTP_RESEND_COOLDOWN');
   });
