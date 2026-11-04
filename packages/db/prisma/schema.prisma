@@ -305,6 +305,10 @@ model User {
   legalHoldsReleased          KycLegalHold[]              @relation("LegalHoldReleasedBy")
   deletionsRequested          KycDeletionRequest[]        @relation("DeletionRequestedBy")
   deletionsReviewed           KycDeletionRequest[]        @relation("DeletionReviewedBy")
+  riskCasesOpened     RiskCase[]       @relation("RiskCaseOpenedBy")
+  riskCasesResolved   RiskCase[]       @relation("RiskCaseResolvedBy")
+  riskCasesSubject    RiskCase[]       @relation("RiskCaseSubject")
+  riskCaseReviews     RiskCaseReview[] @relation("RiskCaseReviewer")
 }
 
 model UserIdentity {
@@ -450,6 +454,7 @@ model Country {
   legalHolds           KycLegalHold[]             @relation("LegalHoldCountry")
   deletionRequests     KycDeletionRequest[]       @relation("DeletionCountry")
   retentionEvents      KycRetentionEvent[]        @relation("RetentionEventCountry")
+  riskCases           RiskCase[] @relation("RiskCaseCountry")
 }
 
 model Region {
@@ -1734,6 +1739,7 @@ model Order {
   @@unique([buyerId, commandKey])
   @@index([buyerId, createdAt])
   @@index([countryId, paymentStatus, createdAt])
+  riskCases           RiskCase[] @relation("RiskCaseOrder")
 }
 
 model VendorSuborder {
@@ -2583,4 +2589,88 @@ model KycRetentionEvent {
   country     Country               @relation("RetentionEventCountry", fields: [countryId], references: [id])
 
   @@unique([caseId, kind, caseVersion])
+}
+
+enum RiskCaseKind {
+  ORDER_ABUSE
+  PAYMENT_ABUSE
+  COUPON_ABUSE
+  ACCOUNT_ABUSE
+}
+
+enum RiskBand {
+  LOW
+  REVIEW
+  HIGH
+}
+
+enum RiskCaseStatus {
+  OPEN
+  UNDER_REVIEW
+  CLEARED
+  CONFIRMED_FRAUD
+}
+
+enum RiskReviewDecision {
+  CLEAR
+  CONFIRM_FRAUD
+}
+
+model RiskCase {
+  id               String          @id @default(uuid()) @db.Uuid
+  countryId        String          @db.Uuid
+  subjectUserId    String          @db.Uuid
+  orderId          String?         @db.Uuid
+  kind             RiskCaseKind
+  status           RiskCaseStatus  @default(OPEN)
+  score            Int             @default(0)
+  band             RiskBand        @default(LOW)
+  policyVersion    String          @db.VarChar(32)
+  openedByUserId   String?         @db.Uuid
+  version          Int             @default(1)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  resolvedByUserId String?         @db.Uuid
+  resolvedAt       DateTime?
+  resolutionReason String?         @db.VarChar(512)
+  country          Country         @relation("RiskCaseCountry", fields: [countryId], references: [id])
+  subject          User            @relation("RiskCaseSubject", fields: [subjectUserId], references: [id])
+  order            Order?          @relation("RiskCaseOrder", fields: [orderId], references: [id])
+  openedBy         User?           @relation("RiskCaseOpenedBy", fields: [openedByUserId], references: [id])
+  resolvedBy       User?           @relation("RiskCaseResolvedBy", fields: [resolvedByUserId], references: [id])
+  signals          RiskSignal[]
+  reviews          RiskCaseReview[]
+
+  @@index([countryId, status, createdAt])
+  @@index([subjectUserId, createdAt])
+}
+
+model RiskSignal {
+  id           String   @id @default(uuid()) @db.Uuid
+  caseId       String   @db.Uuid
+  code         String   @db.VarChar(64)
+  weight       Int
+  evidenceHash String   @db.VarChar(64)
+  observedAt   DateTime @default(now())
+  case         RiskCase @relation(fields: [caseId], references: [id])
+
+  @@unique([caseId, code])
+  @@index([caseId])
+}
+
+model RiskCaseReview {
+  id             String             @id @default(uuid()) @db.Uuid
+  caseId         String             @db.Uuid
+  reviewerUserId String             @db.Uuid
+  decision       RiskReviewDecision
+  caseVersion    Int
+  commandKey     String             @db.VarChar(128)
+  payloadHash    String             @db.VarChar(64)
+  reason         String             @db.VarChar(512)
+  occurredAt     DateTime           @default(now())
+  case           RiskCase           @relation(fields: [caseId], references: [id])
+  reviewer       User               @relation("RiskCaseReviewer", fields: [reviewerUserId], references: [id])
+
+  @@unique([caseId, commandKey])
+  @@index([reviewerUserId, occurredAt])
 }

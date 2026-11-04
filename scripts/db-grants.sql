@@ -372,3 +372,9 @@ REVOKE ALL ON FUNCTION gs_close_admin_activation(UUID,VARCHAR) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION gs_close_admin_activation(UUID,VARCHAR) TO gs_privileged;
 REVOKE ALL ON FUNCTION gs_admin_activation_expiry_tick(INTEGER,UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION gs_admin_activation_expiry_tick(INTEGER,UUID) TO gs_privileged;
+
+-- Fraud-risk manual review (risk-v1): evidence and reviews are append-only.
+GRANT SELECT,INSERT,UPDATE ON "RiskCase" TO gs_privileged;
+GRANT SELECT,INSERT ON "RiskSignal","RiskCaseReview" TO gs_privileged;
+REVOKE DELETE ON "RiskCase","RiskSignal","RiskCaseReview" FROM gs_runtime,gs_privileged;
+REVOKE UPDATE ON "RiskSignal","RiskCaseReview" FROM gs_runtime,gs_privileged;

@@ -22,3 +22,5 @@ export * from './vendor-settlement.js';
 export * from "./finance-operations.js";
 
 export * from './kyc-retention.js';
+
+export * from './fraud-risk.js';
