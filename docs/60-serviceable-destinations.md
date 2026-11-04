@@ -128,3 +128,61 @@ cross-border remain disabled.
 The checkout UI can now be built honestly: a real city picker from this endpoint, quote creation
 with the existing idempotency key, reservation expiry display and release. Delivery fee, tax and
 total remain `null`/`NOT_IMPLEMENTED` in the quote response and must stay labelled as such.
+## Verification record
+
+Local gates (all required gates green before push):
+
+| Gate | Result |
+| --- | --- |
+| `db:validate` | pass |
+| `typecheck` | pass |
+| unit (`npm test`) | 248 tests / 42 files pass |
+| integration | 157 tests / 26 files pass |
+| design validator | 10 passed / 0 failed |
+| `build` (production) | pass |
+| `build:vercel` (production) | pass |
+
+The first CI attempt for `00da0bb` (run `41809021119`) failed on an unrelated
+intermittent outbox-lease assertion; that is documented in `docs/54` and hardened
+in `3e1fb0d`. CI run `41811099903` for `3e1fb0d` is **success**.
+
+### Live HTTP smoke of the new public route
+
+The API was booted against the disposable test database and the route was called
+over real HTTP (not only through the in-process test harness):
+
+| Request | Observed |
+| --- | --- |
+| valid `countryId`, no cookie | `200`, JSON `{countryId,currency,items,truncated}`, **no `Set-Cookie`** |
+| `q=Comm` (matching) | `200`, 9 cities, `truncated:false` |
+| `q=dha` (non-matching) | `200`, `items:[]` |
+| `q` = 61 characters | `400 QUERY_INVALID` (`q is too long`) |
+| `countryId` not a UUID | `400 BAD_REQUEST` |
+| `countryId` omitted | `400 BAD_REQUEST` |
+| unknown but well-formed `countryId` | `404 COUNTRY_NOT_AVAILABLE` |
+
+Response bodies were checked to contain **no** `storeId`, `vendorId` or
+`serviceAreaId`. Headers (`X-Content-Type-Options: nosniff`, JSON content type, no
+`Set-Cookie`, no `Cache-Control`) match the existing public catalog route, so the
+two public endpoints behave consistently. The malformed/omitted-UUID messages come
+from Nest's `ParseUUIDPipe` and are identical to the catalog route's; they were
+left consistent rather than special-cased.
+
+### Deployment posture
+
+Preview-only, as authorised. Production aliases
+`get-stoopy.vercel.app` and `getstoopy.vercel.app` were re-checked and both return
+**404**; no production target was requested. Preview URLs return `302` to Vercel
+SSO, which is expected for this team and is not a build failure — readiness was
+confirmed through the deployment API instead.
+
+Previews built from code commit `3e1fb0d`, both `ready_state: READY` and
+`target: null` (preview environment, never production):
+
+| Project | Deployment |
+| --- | --- |
+| `get-stoopy` | `dpl_EBvqqiCYC6toF5sFb6QUEumXEKb1` |
+| `getstoopy` | `dpl_4j9U4wjaJG75svWPtxCTa5s667ZY` |
+
+The commit carrying this verification record is documentation-only and changes no
+application source, so the previews above still describe the deployed bundle.
