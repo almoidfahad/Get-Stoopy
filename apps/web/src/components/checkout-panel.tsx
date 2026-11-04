@@ -50,6 +50,18 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
     return () => clearInterval(timer);
   }, []);
 
+  // A refresh can surface a quote this tab did not create (the ALREADY_RESERVED
+  // recovery path). Adopt it, but never let a null prop wipe a quote this tab is
+  // showing, and never move backwards to an older version of the same quote.
+  useEffect(() => {
+    if (!initialQuote) return;
+    setQuote(current =>
+      current && current.quoteId === initialQuote.quoteId && current.version >= initialQuote.version
+        ? current
+        : initialQuote,
+    );
+  }, [initialQuote]);
+
   async function readExisting(id: string): Promise<void> {
     const res = await fetch(`/api/checkout/quotes/${encodeURIComponent(id)}`, { cache: 'no-store' });
     if (res.ok) setQuote((await res.json()) as QuoteInput);

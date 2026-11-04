@@ -103,3 +103,25 @@ Order placement, payment, delivery fees, taxes, addresses beyond city, and the
 order-confirmation flow. The quote expires and can be released; it never becomes
 an order in this slice. No Playwright/E2E coverage exists yet for this screen —
 the checks above are unit, integration and HTTP smoke only.
+
+## Follow-up fix and deployment record
+
+A review of the panel found a state bug in the recovery path: `useState(initialQuote)`
+only reads its argument on first render, so when a refresh surfaced a quote the tab
+had not created, the panel ignored it — defeating the very recovery it was added
+for. An effect now adopts a non-null `initialQuote`, while refusing to wipe a quote
+the tab is already showing or to move back to an older version of the same quote.
+This is client-only logic and is **not** covered by an automated test; it is
+recorded here as a known coverage gap alongside the missing E2E suite.
+
+CI run `41830398692` for `5d2f3a0` is **success**. Preview-only deployments of that
+commit, both `ready_state: READY` with `target: null`:
+
+| Project | Deployment |
+| --- | --- |
+| `get-stoopy` | `dpl_CDqgNLS75UiA6FcBB7V8et4mrYEs` |
+| `getstoopy` | `dpl_HthUBPpfNfjWeXfTSTq2AGnEaX2x` |
+
+Production aliases `get-stoopy.vercel.app` and `getstoopy.vercel.app` were
+re-checked and both return **404**. Preview URLs return `302` to Vercel SSO, so
+readiness was confirmed through the deployment API rather than by HTTP status.
