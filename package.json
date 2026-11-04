@@ -18,6 +18,7 @@
     "test:watch": "vitest",
     "db:generate": "node scripts/prisma.mjs generate",
     "db:validate": "node scripts/prisma.mjs validate",
+    "db:preflight:supabase": "node scripts/supabase-preflight.mjs",
     "db:format": "node scripts/prisma.mjs format",
     "build:packages": "tsc -b packages/core packages/config packages/auth packages/observability packages/bff packages/events packages/storage packages/ledger",
     "dev:api": "npm run build:api && node --env-file=.env apps/api/dist/main.js",
