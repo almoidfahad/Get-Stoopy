@@ -91,6 +91,45 @@ describe('immutable double-entry ledger persistence', () => {
     await expect(pool.query('SELECT 1 FROM "LedgerJournal"')).rejects.toThrow(/permission denied/);
     await expect(pool.query('INSERT INTO "LedgerAccount"(id,code,name,type,currency,"createdByUserId") VALUES ($1,$2,$3,$4,$5,$6)', [randomUUID(), `runtime-${randomUUID()}`, 'Runtime', 'ASSET', 'BDT', actorId])).rejects.toThrow(/permission denied/);
   });
+  it('seals a committed journal against later line inserts, even balanced ones', async () => {
+    const key = `ledger-${randomUUID()}`;
+    const posted = await asSuperClient(c => postJournal(c, journal(key)));
+    await expect(asSuperClient(c => c.query(
+      'INSERT INTO "LedgerLine"(id,"journalId","accountId",side,"amountMinor","lineNo") VALUES ($1,$2,$3,$4,$5,$6)',
+      [randomUUID(), posted.journalId, cashId, 'DEBIT', '1050', 3]
+    ))).rejects.toThrow(/ledger_journal_sealed/);
+    await expect(asSuperClient(async c => {
+      await c.query('INSERT INTO "LedgerLine"(id,"journalId","accountId",side,"amountMinor","lineNo") VALUES ($1,$2,$3,$4,$5,$6)', [randomUUID(), posted.journalId, cashId, 'DEBIT', '1050', 3]);
+      await c.query('INSERT INTO "LedgerLine"(id,"journalId","accountId",side,"amountMinor","lineNo") VALUES ($1,$2,$3,$4,$5,$6)', [randomUUID(), posted.journalId, revenueId, 'CREDIT', '1050', 4]);
+    })).rejects.toThrow(/ledger_journal_sealed/);
+    const lines = await asSuperClient(c => c.query('SELECT COUNT(*)::int AS n FROM "LedgerLine" WHERE "journalId"=$1', [posted.journalId]));
+    expect(lines.rows[0].n).toBe(2);
+  });
+  it('rechecks balance at commit when extra lines are added during the posting transaction', async () => {
+    const key = `ledger-${randomUUID()}`;
+    await expect(asSuperClient(async c => {
+      const j = await c.query('INSERT INTO "LedgerJournal"(id,"businessEventKey","payloadHash",currency,description,"createdByUserId") VALUES ($1,$2,$3,$4,$5,$6) RETURNING id', [randomUUID(), key, 'x'.repeat(64), 'BDT', 'raw extra line', actorId]);
+      const id = j.rows[0].id;
+      await c.query('INSERT INTO "LedgerLine"(id,"journalId","accountId",side,"amountMinor","lineNo") VALUES ($1,$2,$3,$4,$5,$6)', [randomUUID(), id, cashId, 'DEBIT', '100', 1]);
+      await c.query('INSERT INTO "LedgerLine"(id,"journalId","accountId",side,"amountMinor","lineNo") VALUES ($1,$2,$3,$4,$5,$6)', [randomUUID(), id, revenueId, 'CREDIT', '100', 2]);
+      await c.query('INSERT INTO "LedgerLine"(id,"journalId","accountId",side,"amountMinor","lineNo") VALUES ($1,$2,$3,$4,$5,$6)', [randomUUID(), id, cashId, 'DEBIT', '1', 3]);
+    })).rejects.toThrow(/ledger_journal_unbalanced/);
+    const exists = await asSuperClient(c => c.query('SELECT 1 FROM "LedgerJournal" WHERE "businessEventKey"=$1', [key]));
+    expect(exists.rowCount).toBe(0);
+  });
+  it('ignores a client-supplied posting transaction id and binds the journal server-side', async () => {
+    const key = `ledger-${randomUUID()}`;
+    const forged = '999999999';
+    const posted = await asSuperClient(async c => {
+      const j = await c.query('INSERT INTO "LedgerJournal"(id,"businessEventKey","payloadHash",currency,description,"createdByUserId","postingTxid") VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id,"postingTxid"', [randomUUID(), key, 'x'.repeat(64), 'BDT', 'forged txid', actorId, forged]);
+      const id = j.rows[0].id;
+      await c.query('INSERT INTO "LedgerLine"(id,"journalId","accountId",side,"amountMinor","lineNo") VALUES ($1,$2,$3,$4,$5,$6)', [randomUUID(), id, cashId, 'DEBIT', '100', 1]);
+      await c.query('INSERT INTO "LedgerLine"(id,"journalId","accountId",side,"amountMinor","lineNo") VALUES ($1,$2,$3,$4,$5,$6)', [randomUUID(), id, revenueId, 'CREDIT', '100', 2]);
+      return { id, postingTxid: j.rows[0].postingTxid as string };
+    });
+    expect(posted.postingTxid).not.toBe(forged);
+    await expect(asSuperClient(c => c.query('INSERT INTO "LedgerLine"(id,"journalId","accountId",side,"amountMinor","lineNo") VALUES ($1,$2,$3,$4,$5,$6)', [randomUUID(), posted.id, cashId, 'DEBIT', '100', 3]))).rejects.toThrow(/ledger_journal_sealed/);
+  });
   it('rejects currency mismatch between account and journal', async () => {
     const usd = await asSuperClient(c => createLedgerAccount(c, { code: `test-usd-${randomUUID()}`, name: 'Test USD', type: 'ASSET', currency: 'USD', createdByUserId: actorId }));
     const key = `ledger-${randomUUID()}`;

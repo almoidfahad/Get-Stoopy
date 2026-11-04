@@ -1103,6 +1103,7 @@ model LedgerJournal {
   occurredAt          DateTime                @default(now())
   createdByUserId     String                  @db.Uuid
   createdAt           DateTime                @default(now())
+  postingTxid         String                  @default(dbgenerated("(pg_current_xact_id())::text")) @db.VarChar(64)
   reversalOfJournalId String?                 @db.Uuid
   createdBy           User                    @relation(fields: [createdByUserId], references: [id])
   reversalOf          LedgerJournal?          @relation("LedgerJournalReversal", fields: [reversalOfJournalId], references: [id])

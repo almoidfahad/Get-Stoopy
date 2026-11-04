@@ -19,7 +19,8 @@ Database invariants:
 1. Line amount must be positive; line number must be positive and unique per journal.
 2. Line currency must match journal and account currency.
 3. A deferred constraint trigger requires each journal to have at least two lines and net zero debit/credit at commit.
-4. Journal and line UPDATE/DELETE are blocked by append-only triggers.
+4. Journal and line UPDATE/DELETE are blocked by append-only triggers. Docs 52 / migration 0070
+   additionally seal committed journals against later line inserts and re-check balance on line insert.
 5. Runtime database role has no direct ledger grants. Privileged role has SELECT/INSERT only, subject to RLS requiring explicit super context.
 6. Unique `businessEventKey` prevents duplicate money effects. The helper returns the existing journal for an identical payload and rejects a different payload under the same key.
 

@@ -220,6 +220,9 @@ GRANT EXECUTE ON FUNCTION gs_guard_user_security_fields() TO gs_runtime, gs_priv
 GRANT EXECUTE ON FUNCTION gs_guard_storage_review() TO gs_runtime, gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_ledger_line_currency() TO gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_ledger_journal_balanced() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_ledger_journal_posting_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_ledger_line_insert_guard() TO gs_privileged;
+GRANT EXECUTE ON FUNCTION gs_ledger_line_journal_balanced() TO gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_kyc_case_guard() TO gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_kyc_document_guard() TO gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_kyc_review_guard() TO gs_privileged;
