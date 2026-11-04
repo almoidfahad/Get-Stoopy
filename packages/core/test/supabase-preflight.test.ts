@@ -62,6 +62,8 @@ describe('Supabase read-only preflight', () => {
       database: 'postgres',
       pooled: false,
       transactionPooler: false,
+      projectRef: null,
+      region: null,
       direct: true
     });
     expect(JSON.stringify(target)).not.toContain(SECRET);
@@ -86,6 +88,27 @@ describe('Supabase read-only preflight', () => {
     const transaction = describeTarget('postgresql://u:p@aws-0-region.pooler.supabase.com:6543/postgres');
     expect(transaction.transactionPooler).toBe(true);
     expect(evaluatePreflight({ target: transaction, facts: facts() }).blockers.join(' ')).toContain('Transaction-mode pooler');
+  });
+
+  it('reads the project-scoped pooler role and region without keeping the password', () => {
+    const poolerUrl = `postgresql://postgres.exampleprojectref:${SECRET}@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres`;
+    const target = describeTarget(poolerUrl);
+    expect(target.projectRef).toBe('exampleprojectref');
+    expect(target.region).toBe('ap-northeast-2');
+    expect(target.transactionPooler).toBe(true);
+    expect(JSON.stringify(target)).not.toContain(SECRET);
+
+    const result = evaluatePreflight({ target, facts: facts() });
+    expect(result.blockers.join(' ')).toContain('session-mode pooler on port 5432');
+    expect(result.notes.join(' ')).toContain('ap-northeast-2');
+    expect(result.notes.join(' ')).toContain('data-residency');
+
+    const sessionTarget = describeTarget(
+      `postgresql://postgres.exampleprojectref:${SECRET}@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres`
+    );
+    const sessionResult = evaluatePreflight({ target: sessionTarget, facts: facts() });
+    expect(sessionResult.blockers).toEqual([]);
+    expect(sessionResult.notes.join(' ')).toContain('migration-capable endpoint');
   });
 
   it('reports a clean development database without inventing readiness', () => {

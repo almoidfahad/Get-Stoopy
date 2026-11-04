@@ -71,12 +71,21 @@ export function describeTarget(rawUrl) {
   const pooled = host.includes('pooler.');
   const transactionPooler = pooled && port === 6543;
 
+  // Supabase poolers use a project-scoped role: `postgres.<project-ref>`.
+  // The reference is an identifier, not a credential; the password is never kept.
+  const username = decodeURIComponent(url.username || '');
+  const separator = username.indexOf('.');
+  const projectRef = separator > 0 ? username.slice(separator + 1) : null;
+  const region = pooled ? host.split('.')[0].replace(/^aws-\d+-/, '') : null;
+
   return {
     host,
     port,
     database: decodeURIComponent(url.pathname.replace(/^\//, '')) || 'postgres',
     pooled,
     transactionPooler,
+    projectRef,
+    region,
     // Direct Supabase hostnames are IPv6-only unless an IPv4 add-on is enabled.
     // The session pooler is the documented fallback for IPv4-only networks.
     direct: !pooled
@@ -115,11 +124,19 @@ export function evaluatePreflight({ target, facts }) {
   }
 
   if (target.transactionPooler) {
-    blockers.push('Transaction-mode pooler (6543) detected. Prisma migrate and SET LOCAL guarantees need a direct or session-mode connection.');
+    blockers.push(
+      'Transaction-mode pooler (6543) detected. Prisma migrate and SET LOCAL guarantees need a ' +
+        'session-mode pooler on port 5432, or a direct connection that is actually reachable.'
+    );
   } else if (target.pooled) {
     warnings.push('Session-mode pooler detected. Keep RLS context transaction-local; never use session-level set_config.');
+    notes.push('Session-mode pooler on 5432 is the migration-capable endpoint when the direct host is IPv6-only.');
   } else {
     notes.push('Direct connection detected. Verify network reachability (IPv6 or IPv4 add-on) before scheduling migrations.');
+  }
+
+  if (target.region) {
+    notes.push(`Pooler region: ${target.region}. Confirm latency and data-residency acceptability for a Bangladesh-first pilot.`);
   }
 
   const missingRoles = REQUIRED_ROLES.filter((role) => !presentRoles.has(role));
@@ -200,6 +217,8 @@ async function main() {
     console.log(`  host: ${target.host}`);
     console.log(`  port: ${target.port}`);
     console.log(`  database: ${target.database}`);
+    console.log(`  project ref: ${target.projectRef ?? '(not encoded in role)'}`);
+    console.log(`  region: ${target.region ?? '(direct host)'}`);
     console.log(`  connected role: ${facts.identity.role}`);
     console.log(`  schemas: ${facts.schemas.join(', ') || '(none)'}`);
     console.log(`  public tables: ${facts.publicTables}`);

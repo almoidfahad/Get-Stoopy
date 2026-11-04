@@ -76,20 +76,45 @@ owner approval.
 - **Applied migrations stay frozen.** Migrations 0001–0065 are already applied to the isolated
   local test database. A new environment gets a reviewed forward plan, not edits to history.
 
-## Connection planning notes to verify once access exists
+## Endpoint reachability — measured, not assumed (2026-11-04)
 
-- Prisma migrations need a direct or **session-mode** connection. The transaction-mode pooler
-  (port 6543) is unsuitable for migrations and for session-scoped assumptions; the preflight
-  raises a blocker for it.
+The owner then supplied shared-pooler details for the same project reference
+(`postgres.<project-ref>` role, region `ap-northeast-2`). DNS resolution and a bare TCP connect
+were measured from the development sandbox. **No credentials were sent, no PostgreSQL startup
+packet was issued, and no data was read.**
+
+| Endpoint | DNS | TCP connect |
+| --- | --- | --- |
+| `aws-0-ap-northeast-2.pooler.supabase.com:6543` (transaction mode) | 3 × IPv4 | **open** (~23 ms) |
+| `aws-0-ap-northeast-2.pooler.supabase.com:5432` (session mode) | 3 × IPv4 | **open** (~31 ms) |
+| `db.<project-ref>.supabase.co:5432` (direct) | IPv6 only (`A` → `ENODATA`) | **`ENETUNREACH`** |
+
+Conclusions:
+
+1. The **direct** hostname is IPv6-only here and unreachable from this network. An IPv4 add-on
+   or an IPv6-capable network would be required; neither is assumed or purchased.
+2. Port **6543 is transaction-mode** and must not be used for Prisma migrations. The preflight
+   raises a blocker and names the remedy.
+3. The **session-mode pooler on port 5432** is the migration-capable endpoint from this
+   environment, and is the endpoint to configure once access is granted.
+4. Region is **`ap-northeast-2` (Seoul)**. For a Bangladesh-first pilot the owner must accept the
+   latency and data-residency position, or choose another region. This is an owner decision, not
+   an implicit one.
+
+These are network facts only. They do **not** grant database access: the connector still returns
+403 and `list_projects` is still empty, so no query, migration or configuration change was made.
+
+## Connection rules that still apply
+
 - RLS context must remain transaction-local (`set_config(..., true)` inside the transaction).
   Session-level context can leak across pooled connections; this is already the worker rule.
-- Supabase direct hostnames may require IPv6 or an IPv4 add-on. Reachability from the sandbox
-  and from CI must be measured, not assumed.
 - The `postgres` role is highly privileged. It may be acceptable for an owner-run migration
   step, but the application runtime must use the least-privileged `gs_runtime` role with no
   superuser and no `BYPASSRLS`.
 - Organization MFA is currently disabled for the connected Supabase account. Enabling it is
   recommended before any non-local data is stored.
+- A pooler connection string is still a credential. It belongs in an ignored local `.env` or a
+  secret manager, never in chat, source control or CI logs.
 
 ## Not installed: third-party agent skills
 
