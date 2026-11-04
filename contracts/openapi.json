@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Get Stoopy — proposed marketplace API",
+    "title": "Get Stoopy \u2014 proposed marketplace API",
     "version": "0.1.0-review",
     "description": "PHASE 1 DESIGN ONLY. No endpoint is implemented or connected. Contract validation is not an application/security test. All authorization, idempotency and provider requirements are mandatory implementation gates. No live server is declared."
   },
@@ -7576,7 +7576,7 @@
           }
         ],
         "x-contract-status": "PROPOSED_NOT_IMPLEMENTED",
-        "x-authorization": "kyc:review ∩ assigned geography",
+        "x-authorization": "kyc:review \u2229 assigned geography",
         "x-required-permission": "admin kyc:get",
         "responses": {
           "200": {
@@ -7685,7 +7685,7 @@
           }
         ],
         "x-contract-status": "PROPOSED_NOT_IMPLEMENTED",
-        "x-authorization": "kyc:review ∩ assigned geography; step-up",
+        "x-authorization": "kyc:review \u2229 assigned geography; step-up",
         "x-required-permission": "admin kyc:post",
         "responses": {
           "200": {
@@ -7934,7 +7934,7 @@
           }
         ],
         "x-contract-status": "PROPOSED_NOT_IMPLEMENTED",
-        "x-authorization": "scope:grant ∩ grantor descendants; step-up",
+        "x-authorization": "scope:grant \u2229 grantor descendants; step-up",
         "x-required-permission": "admin access:post",
         "responses": {
           "200": {
@@ -8063,7 +8063,7 @@
           }
         ],
         "x-contract-status": "PROPOSED_NOT_IMPLEMENTED",
-        "x-authorization": "geography:write ∩ assigned scope",
+        "x-authorization": "geography:write \u2229 assigned scope",
         "x-required-permission": "admin geography:post",
         "responses": {
           "200": {
@@ -8432,7 +8432,7 @@
           }
         ],
         "x-contract-status": "PROPOSED_NOT_IMPLEMENTED",
-        "x-authorization": "rate:write ∩ assigned scope; maker-checker",
+        "x-authorization": "rate:write \u2229 assigned scope; maker-checker",
         "x-required-permission": "admin finance:post",
         "responses": {
           "200": {
@@ -10416,6 +10416,113 @@
           },
           "409": {
             "description": "State/version/KYC/MFA conflict"
+          }
+        }
+      }
+    },
+    "/risk/cases": {
+      "get": {
+        "operationId": "listRiskCases",
+        "x-authorization": "session+permission+country-scope+step-up",
+        "x-required-permission": "risk:case:review",
+        "tags": [
+          "admin"
+        ],
+        "summary": "List open fraud-risk cases in scope (aggregate only; no subject identifiers)",
+        "x-contract-status": "PROPOSED_NOT_IMPLEMENTED",
+        "x-implementation-reference": "GET /api/v1/risk/cases; docs/50-risk-review-api.md",
+        "parameters": [
+          {
+            "name": "countryId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoped queue; automatedEnforcement is always false"
+          },
+          "403": {
+            "description": "Permission or step-up denied"
+          }
+        }
+      }
+    },
+    "/risk/cases/{id}": {
+      "get": {
+        "operationId": "getRiskCase",
+        "x-authorization": "session+permission+country-scope+step-up",
+        "x-required-permission": "risk:case:review",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Read one risk case with its evidence; the sensitive read is audited",
+        "x-contract-status": "PROPOSED_NOT_IMPLEMENTED",
+        "x-implementation-reference": "GET /api/v1/risk/cases/{id}; docs/50-risk-review-api.md",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Case, signals and prior reviews"
+          },
+          "404": {
+            "description": "Missing or out-of-scope case"
+          }
+        }
+      }
+    },
+    "/risk/cases/{id}/review": {
+      "post": {
+        "operationId": "reviewRiskCase",
+        "x-authorization": "session+csrf+permission+country-scope+step-up",
+        "x-required-permission": "risk:case:review",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Record an independent CLEAR or CONFIRM_FRAUD finding (no automated enforcement)",
+        "x-contract-status": "PROPOSED_NOT_IMPLEMENTED",
+        "x-implementation-reference": "POST /api/v1/risk/cases/{id}/review; docs/50-risk-review-api.md",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Finding recorded; account, money and permissions unchanged"
+          },
+          "403": {
+            "description": "Permission/step-up/self-review/independence denied"
+          },
+          "409": {
+            "description": "State, version or idempotency conflict"
           }
         }
       }

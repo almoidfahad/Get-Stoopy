@@ -8,7 +8,7 @@ Result: 10 passed / 0 failed.
 |---|---|---|
 | Required documents | PASS | 16 core documents + 8 ADRs |
 | Logical model integrity | PASS | 113 entities; 253 unique valid logical relationships; required names/views mapped; no executable schema |
-| OpenAPI contract | PASS | OpenAPI 3.1 valid; 95 paths / 98 operations / 36 schemas; YAML=JSON; no live server |
+| OpenAPI contract | PASS | OpenAPI 3.1 valid; 98 paths / 101 operations / 36 schemas; YAML=JSON; no live server |
 | Requirement traceability | PASS | 916 unique rows; all 802 non-heading master lines mapped; 75 screenshot rows; verification plan NOT_RUN |
 | Source manifest | PASS | 460-message source counts and five upload hashes verified; unavailable artifacts disclosed |
 | Local document references | PASS | Local Markdown links/images resolve; external citations not fetched by this check |

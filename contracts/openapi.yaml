@@ -6102,6 +6102,63 @@ paths:
       responses:
         '201': {description: Review recorded}
         '409': {description: State/version/KYC/MFA conflict}
+  /risk/cases:
+    get:
+      operationId: listRiskCases
+      x-authorization: session+permission+country-scope+step-up
+      x-required-permission: risk:case:review
+      tags: [admin]
+      summary: List open fraud-risk cases in scope (aggregate only; no subject identifiers)
+      x-contract-status: PROPOSED_NOT_IMPLEMENTED
+      x-implementation-reference: GET /api/v1/risk/cases; docs/50-risk-review-api.md
+      parameters:
+      - name: countryId
+        in: query
+        required: true
+        schema: *id002
+      responses:
+        '200': {description: Scoped queue; automatedEnforcement is always false}
+        '403': {description: Permission or step-up denied}
+  /risk/cases/{id}:
+    get:
+      operationId: getRiskCase
+      x-authorization: session+permission+country-scope+step-up
+      x-required-permission: risk:case:review
+      tags: [admin]
+      summary: Read one risk case with its evidence; the sensitive read is audited
+      x-contract-status: PROPOSED_NOT_IMPLEMENTED
+      x-implementation-reference: GET /api/v1/risk/cases/{id}; docs/50-risk-review-api.md
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id002
+      responses:
+        '200': {description: 'Case, signals and prior reviews'}
+        '404': {description: Missing or out-of-scope case}
+  /risk/cases/{id}/review:
+    post:
+      operationId: reviewRiskCase
+      x-authorization: session+csrf+permission+country-scope+step-up
+      x-required-permission: risk:case:review
+      tags: [admin]
+      summary: Record an independent CLEAR or CONFIRM_FRAUD finding (no automated enforcement)
+      x-contract-status: PROPOSED_NOT_IMPLEMENTED
+      x-implementation-reference: POST /api/v1/risk/cases/{id}/review; docs/50-risk-review-api.md
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema: *id002
+      responses:
+        '201': {description: 'Finding recorded; account, money and permissions unchanged'}
+        '403': {description: Permission/step-up/self-review/independence denied}
+        '409': {description: 'State, version or idempotency conflict'}
   /kyc/admin/retention-policies:
     post:
       operationId: createKycRetentionPolicy
