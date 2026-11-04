@@ -19,7 +19,12 @@ let pool: pg.Pool;
 let queue: Queue;
 let redis: Redis;
 const queueName = `gs-lease-test-${randomUUID()}`;
-const opts = { maxAttempts: 5, batchSize: 10, queueName, leaseMs: 1000 };
+// The lease must outlive the whole test so that only the explicit expireLease()
+// helper can expire it. A 1s lease expired on slow CI runners before a failing
+// enqueue could release its own lease, so the row was correctly reported as
+// `fenced` while the backoff/dead-letter assertions expected `failed`.
+// vitest testTimeout is 30s; a lease at that bound cannot expire mid-test.
+const opts = { maxAttempts: 5, batchSize: 10, queueName, leaseMs: 30_000 };
 
 async function drainPendingFixtures() {
   // Test-fixture cleanup in the isolated integration DB only. maxAttempts=1
@@ -214,6 +219,35 @@ describe('outbox visibility lease and stale-worker fencing', () => {
     expect(r.attempts).toBe(2);
     expect(r.failedAt).toBeTruthy();
     expect(r.leaseToken).toBeNull();
+  });
+
+  it('fences a failing enqueue whose own lease expired mid-attempt instead of recording a failure', async () => {
+    // Regression guard for the production invariant behind the CI flake: when a
+    // worker's lease expires before its enqueue resolves, it must NOT write a
+    // backoff/dead-letter outcome. Only the lease holder may finalize a row.
+    const { id } = await insertEvent();
+    // 1000ms is the enforced MIN_LEASE_MS; the enqueue deliberately outlives it.
+    const shortLease = { ...opts, maxAttempts: 5, batchSize: 1, leaseMs: 1_000 };
+    const slowFailingQueue = {
+      add: async () => {
+        await new Promise(resolve => setTimeout(resolve, 1_300));
+        throw new Error('redis://user:super-secret@localhost:6379');
+      },
+    } as unknown as Queue;
+    const r = await publishOutboxBatch(pool, slowFailingQueue, shortLease);
+    expect(r.claimed).toBe(1);
+    expect(r.fenced).toBe(1);
+    expect(r.failed).toBe(0);
+    const after = await row(id);
+    expect(after.failedAt).toBeNull();
+    expect(after.publishedAt).toBeNull();
+    expect(after.lastError).toBeNull();
+    expect(JSON.stringify(after)).not.toContain('super-secret');
+    // The row stays recoverable: a later publisher can still claim and publish it.
+    await dueNow(id);
+    const recovered = await publishOutboxBatch(pool, queue, { ...opts, batchSize: 1 });
+    expect(recovered.published).toBe(1);
+    expect((await row(id)).publishedAt).toBeTruthy();
   });
 
   it('dead-letters a row whose final attempt crashed and whose lease expired', async () => {
