@@ -43,10 +43,25 @@ Local gates against the isolated test database passed before commit:
 
 - `db:validate`, `typecheck`, full build and `build:vercel`: PASS
 - unit: **187/38** PASS
-- integration: **145/26** PASS, including the 9 ledger tests
+- integration: **147/26** PASS, including the 11 ledger tests (after 0071)
 - design validator: **10/0** PASS
 
 Implementation commit `761a43b` passed GitHub Actions run `41768397273` (validate 1m28s, integration 4m3s). The CI evidence is recorded in `docs/15-progress-and-decisions.md`.
+
+## Follow-up correction: wraparound-safe seal (0071)
+
+`0070` used `pg_current_xact_id()`, a **32-bit** transaction id. PostgreSQL reuses 32-bit xids
+after roughly 2^32 transactions, so a far-future transaction could eventually be handed the same
+xid as a long-committed journal, satisfy the seal comparison, and re-open that historical journal
+to late line inserts.
+
+Migration `0071_ledger_seal_wraparound_safe` switches the column default and both seal functions
+to `txid_current()`, the **epoch-qualified 64-bit** id (`epoch << 32 | xid`), which is never
+reused. Already-stored values are not rewritten: inside epoch 0 both functions return the same
+number, and once the epoch advances a 64-bit value can never collide with an older 32-bit value,
+so existing journals stay sealed. Two further integration tests assert that the stored seal
+equals `txid_current()` and that neither the functions nor the column default reference
+`pg_current_xact_id`.
 
 ## Boundary
 

@@ -130,6 +130,35 @@ describe('immutable double-entry ledger persistence', () => {
     expect(posted.postingTxid).not.toBe(forged);
     await expect(asSuperClient(c => c.query('INSERT INTO "LedgerLine"(id,"journalId","accountId",side,"amountMinor","lineNo") VALUES ($1,$2,$3,$4,$5,$6)', [randomUUID(), posted.id, cashId, 'DEBIT', '100', 3]))).rejects.toThrow(/ledger_journal_sealed/);
   });
+  it('binds the posting seal to the epoch-qualified 64-bit transaction id', async () => {
+    const key = `ledger-${randomUUID()}`;
+    const bound = await asSuperClient(async c => {
+      const j = await c.query('INSERT INTO "LedgerJournal"(id,"businessEventKey","payloadHash",currency,description,"createdByUserId") VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,"postingTxid"', [randomUUID(), key, 'x'.repeat(64), 'BDT', 'epoch qualified seal', actorId]);
+      const id = j.rows[0].id;
+      await c.query('INSERT INTO "LedgerLine"(id,"journalId","accountId",side,"amountMinor","lineNo") VALUES ($1,$2,$3,$4,$5,$6)', [randomUUID(), id, cashId, 'DEBIT', '100', 1]);
+      await c.query('INSERT INTO "LedgerLine"(id,"journalId","accountId",side,"amountMinor","lineNo") VALUES ($1,$2,$3,$4,$5,$6)', [randomUUID(), id, revenueId, 'CREDIT', '100', 2]);
+      const current = await c.query('SELECT txid_current()::text AS txid64');
+      return { stored: j.rows[0].postingTxid as string, txid64: current.rows[0].txid64 as string };
+    });
+    expect(bound.stored).toBe(bound.txid64);
+  });
+  it('never compares the seal against a wraparound-prone 32-bit transaction id', async () => {
+    const defs = await asSuperClient(c => c.query(
+      `SELECT p.proname, pg_get_functiondef(p.oid) AS def
+         FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+        WHERE n.nspname='public' AND p.proname IN ('gs_ledger_journal_posting_guard','gs_ledger_line_insert_guard')`));
+    expect(defs.rowCount).toBe(2);
+    for (const row of defs.rows) {
+      expect(row.def).toContain('txid_current()');
+      expect(row.def).not.toContain('pg_current_xact_id');
+    }
+    const def = await asSuperClient(c => c.query(
+      `SELECT pg_get_expr(d.adbin, d.adrelid) AS expr
+         FROM pg_attrdef d JOIN pg_attribute a ON a.attrelid=d.adrelid AND a.attnum=d.adnum
+        WHERE d.adrelid='"LedgerJournal"'::regclass AND a.attname='postingTxid'`));
+    expect(def.rows[0].expr).toContain('txid_current()');
+    expect(def.rows[0].expr).not.toContain('pg_current_xact_id');
+  });
   it('rejects currency mismatch between account and journal', async () => {
     const usd = await asSuperClient(c => createLedgerAccount(c, { code: `test-usd-${randomUUID()}`, name: 'Test USD', type: 'ASSET', currency: 'USD', createdByUserId: actorId }));
     const key = `ledger-${randomUUID()}`;
