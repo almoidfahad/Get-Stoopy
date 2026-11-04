@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { formatMinorUnits, summarizeVariantPrices } from '@getstoopy/core';
 import { Shell } from '@/components/shell';
 import { fetchProduct, imageProxyUrl } from '@/lib/catalog';
+import { hasSessionCookie } from '@/lib/cart';
+import { AddToCart } from '@/components/cart-controls';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +35,10 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const product = result.data;
   const currency = product.currency || 'BDT';
   const summary = summarizeVariantPrices(product.variants);
+  const signedIn = await hasSessionCookie();
+  const orderable = product.variants
+    .filter(v => v.inStock && v.availableToPromise > 0)
+    .map(v => ({ id: v.id, label: v.title ?? v.id.slice(0, 8) }));
 
   return (
     <Shell>
@@ -123,9 +129,17 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </ul>
           )}
 
-          <div className="mt-8 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
-            Ordering is not enabled in this environment yet. Prices and stock shown here come from the live
-            catalog service; no payment is taken.
+          <div className="mt-8">
+            {orderable.length > 0 ? (
+              <AddToCart variants={orderable} signedIn={signedIn} />
+            ) : (
+              <p className="text-sm font-medium text-neutral-600">Nothing is currently available to order.</p>
+            )}
+          </div>
+
+          <div className="mt-6 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
+            You can build a cart, but checkout is not enabled in this environment. Prices and stock come from
+            the live catalog service; no payment is taken.
           </div>
 
           {product.description ? (
