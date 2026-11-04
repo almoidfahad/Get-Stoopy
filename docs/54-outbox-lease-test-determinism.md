@@ -54,3 +54,45 @@ Reproduced deterministically before changing anything, by delaying the failing e
 
 Test-fixture and documentation change only. `packages/events/src/outbox.ts` was not modified:
 lease fencing, backoff, dead-lettering and secret-redaction behaviour are unchanged.
+
+## Follow-up incident (2026-11-04, commit `00da0bb`)
+
+CI run `41809021119` failed once in
+`fences a failing enqueue whose own lease expired mid-attempt…` with
+`expected +0 to be 1` on `expect(r.claimed).toBe(1)`. A re-run of the same commit
+passed, and the suite passed locally both alone (3×) and in full (2×), so the
+failure was intermittent rather than a deterministic regression.
+
+The investigation ruled out the obvious explanations rather than assuming one:
+
+- integration files already run with `fileParallelism: false`, so suites do not
+  publish concurrently;
+- no `setInterval`/background publisher exists in `apps/api`, and no worker is
+  started by the suites;
+- `OutboxEvent` has no insert trigger that could pre-fail a row, and `attempts`
+  and `availableAt` default to `0` and `now()`;
+- the neighbouring stale-lease tests all `await` their in-flight publishers, so
+  there is no stray publisher holding a gate.
+
+What the failure actually exposed is a **diagnosability defect in the test**: it
+asserts on a global batch counter with `batchSize: 1`, which is only meaningful if
+the fixture row is the only claimable row. `claimed = 0` could not distinguish
+"row not yet due", "row already leased", and "a leftover row from another suite
+competed for the batch".
+
+The fix asserts that precondition explicitly before publishing:
+
+```sql
+SELECT id FROM "OutboxEvent"
+WHERE "publishedAt" IS NULL AND "failedAt" IS NULL
+  AND "availableAt" <= now() AND ("leaseUntil" IS NULL OR "leaseUntil" <= now())
+```
+
+and requires the result to be exactly `[fixtureRowId]`. No production code changed
+and no invariant was relaxed: if interference recurs, the failure now names the
+competing row instead of reporting an ambiguous counter. The fencing assertions
+(`fenced = 1`, `failed = 0`, no error text, later recovery) are unchanged.
+
+Recorded honestly as **root cause not yet proven**. If it recurs, the precondition
+failure will identify the mechanism, and this note should be updated rather than
+the assertion loosened.

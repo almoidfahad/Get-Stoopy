@@ -226,6 +226,19 @@ describe('outbox visibility lease and stale-worker fencing', () => {
     // worker's lease expires before its enqueue resolves, it must NOT write a
     // backoff/dead-letter outcome. Only the lease holder may finalize a row.
     const { id } = await insertEvent();
+    // This test asserts on a *global* batch counter with batchSize 1, which is only
+    // meaningful if the fixture row is the sole claimable row. A CI run once
+    // reported claimed=0 with no way to tell whether the row was not yet due,
+    // already leased, or competing with a leftover row from another suite. Assert
+    // the precondition explicitly so a recurrence names the competing row instead
+    // of failing on an ambiguous counter.
+    const claimable = await pool.query(
+      `SELECT id, attempts, "leaseUntil", "availableAt" FROM "OutboxEvent"
+       WHERE "publishedAt" IS NULL AND "failedAt" IS NULL
+         AND "availableAt" <= now() AND ("leaseUntil" IS NULL OR "leaseUntil" <= now())
+       ORDER BY "occurredAt", id`,
+    );
+    expect(claimable.rows.map(r => r.id)).toEqual([id]);
     // 1000ms is the enforced MIN_LEASE_MS; the enqueue deliberately outlives it.
     const shortLease = { ...opts, maxAttempts: 5, batchSize: 1, leaseMs: 1_000 };
     const slowFailingQueue = {
