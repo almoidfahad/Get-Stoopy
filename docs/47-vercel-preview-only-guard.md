@@ -1,6 +1,6 @@
 # 47 — Vercel preview-only guard and production-promotion containment
 
-Status: containment applied; production authorization remains absent.
+Status: containment applied and preview-only recovery verified; production authorization remains absent.
 
 ## Incident
 
@@ -20,7 +20,7 @@ The owner chose to pause both projects immediately. Pause was verified by HTTP 5
 - `https://get-stoopy-az9xul8ei-gemini-clone.vercel.app`
 - `https://getstoopy-ebw8mhmbr-gemini-clone.vercel.app`
 
-There was no earlier successful production deployment to roll back to. The projects remain paused; preview URLs are also unavailable while paused.
+There was no earlier successful production deployment to roll back to. While paused, preview URLs are also unavailable and Vercel reports new deployments as `BLOCKED` because the project is paused.
 
 ## Permanent guard
 
@@ -46,12 +46,35 @@ Local verification on the guarded tree:
 
 The local `.env` currently sets `NODE_ENV=development`; Next.js production builds must be run with `NODE_ENV=production` (or with `NODE_ENV` unset so Next.js can default it). CI and Vercel do not inherit that local development value.
 
-Remote CI and deployment-status evidence is recorded in the commit/PR checks after push. The regression suite `packages/core/test/vercel-preview-only.test.ts` checks:
+Remote CI for `2d01ccf` passed (`foundation-ci` run `41674294287`). Vercel statuses for that commit were initially `BLOCKED` solely because both projects were paused; the deployment reason was: "This deployment couldn’t be built because the project was paused." The regression suite `packages/core/test/vercel-preview-only.test.ts` checks:
 
 - automatic Git deployments and production aliases are disabled;
 - the ignored-build-step guard allows preview and cancels production/unknown environments;
 - Vercel builds only shared packages + web, while CI retains the full monorepo build;
 - CI contains no Vercel production deployment command.
+
+## Owner-approved recovery
+
+The owner approved deleting only the two unapproved, auto-promoted production deployments and then unpausing the projects for preview-only verification:
+
+- `get-stoopy`: `dpl_ARNzkwJBZrpMiAcySViziWFaExYD`
+- `getstoopy`: `dpl_88aiU2X3HKWER4CffvysuNmsdMvK`
+
+This deletion is limited to those Vercel deployment records. It does not delete the Git repository, database, user data, or preview deployments. There was no earlier successful production deployment to roll back to.
+
+## Recovery verification
+
+After the approved deletion and unpause:
+
+- Both production domains returned HTTP 404: `https://get-stoopy.vercel.app` and `https://getstoopy.vercel.app`.
+- Both deleted production deployment URLs returned HTTP 404.
+- Manual preview deployments were created for guarded commit `2d01ccf` without a production target:
+  - `get-stoopy`: `dpl_AhFa9pVopLFDE8Eoe1hFYbJjNG8Z` — `READY`, preview environment, `readySubstate: STAGED`.
+  - `getstoopy`: `dpl_DyDUAe8iQq31fFb52XAt7hrAmp1Q` — `READY`, preview environment, `readySubstate: STAGED`.
+- GitHub commit statuses for `2d01ccf` reported both Vercel checks as `success`, and `foundation-ci` run `41674294287` completed successfully.
+- The production domains remained HTTP 404 after the preview deployments became ready.
+
+This verifies the preview-only path while keeping production unavailable. Any future production deployment still requires separate owner approval and an explicit config/code change.
 
 ## Resume procedure
 
@@ -59,8 +82,8 @@ Do **not** unpause merely because builds are green. Before resuming any traffic:
 
 1. Confirm the production alias/domain strategy with the owner (there is no prior production rollback candidate).
 2. Keep automatic Git deployments disabled and retain the preview-only guard.
-3. Create manual preview deployments and verify their build status.
-4. Obtain explicit owner approval before unpausing, because unpausing currently also restores the promoted production aliases.
+3. Delete only the explicitly approved unapproved production deployments, then unpause and verify that the production domains and deleted deployment URLs no longer serve the application.
+4. Create manual preview deployments and verify their build status. Do not pass a production target.
 5. Keep live payments, payouts, cross-border and AI execution disabled unless separately authorized.
 
 ## References
@@ -68,3 +91,4 @@ Do **not** unpause merely because builds are green. Before resuming any traffic:
 - Vercel Git configuration: `https://vercel.com/docs/project-configuration/git-configuration`
 - Vercel GitHub integration: `https://vercel.com/docs/git/vercel-for-github`
 - Vercel build configuration / ignored build step: `https://vercel.com/docs/builds/configure-a-build`
+- Vercel environments: `https://vercel.com/docs/deployments/environments`
