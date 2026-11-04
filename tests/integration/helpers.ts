@@ -27,3 +27,38 @@ export async function asSuper<T>(url: string, fn: (c: pg.Client) => Promise<T>):
     try { const r = await fn(c); await c.query('COMMIT'); return r; } catch (e) { await c.query('ROLLBACK'); throw e; }
   });
 }
+
+/**
+ * Give a fixture store approved delivery coverage.
+ *
+ * Checkout requires the destination city to be served by every store in the cart,
+ * so a store fixture is incomplete without an APPROVED service area in an ACTIVE
+ * zone. Approval goes through the API with a separate reviewer because the service
+ * forbids self-review; inserting an APPROVED row directly would test nothing.
+ */
+export async function approveStoreCoverage(
+  deps: {
+    privilegedUrl: string;
+    cityId: string;
+    storeId: string;
+    owner: any;
+    makeUser: (label: string) => Promise<any>;
+    grantKeys: (user: any, keys: string[]) => Promise<void>;
+    post: (path: string, user: any, body?: unknown) => any;
+  },
+  label = 'coverage',
+): Promise<{ zoneId: string; serviceAreaId: string }> {
+  const { randomUUID } = await import('node:crypto');
+  const zoneId = await asSuper(deps.privilegedUrl, async c =>
+    (await c.query(
+      `INSERT INTO "ServiceZone"(id,"cityId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`,
+      [randomUUID(), deps.cityId, `zone-${randomUUID().slice(0, 8)}`, 'Coverage Zone'],
+    )).rows[0].id as string);
+  const admin = await deps.makeUser(`coverage-admin-${label}-${randomUUID().slice(0, 6)}`);
+  await deps.grantKeys(admin, ['catalog:store:serviceability:review']);
+  const area = await deps.post(`/api/v1/catalog/stores/${deps.storeId}/service-areas`, deps.owner, { serviceZoneId: zoneId }).expect(201);
+  await deps.post(`/api/v1/catalog/admin/service-areas/${area.body.serviceAreaId}/review`, admin, {
+    version: 1, decision: 'APPROVE', reason: 'fixture coverage approved',
+  }).expect(201);
+  return { zoneId, serviceAreaId: area.body.serviceAreaId as string };
+}

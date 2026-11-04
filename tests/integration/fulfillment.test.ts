@@ -5,7 +5,7 @@ import pg from 'pg';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { publishOutboxBatch } from '../../packages/events/src/index';
-import { urls, asSuper, asUser } from './helpers';
+import { urls, asSuper, asUser, approveStoreCoverage } from './helpers';
 import { signSandboxWebhook } from '../../packages/core/src/payment';
 
 const u = urls();
@@ -106,6 +106,7 @@ async function setupStore(label: string, price: string) {
   const storeId = store.body.storeId as string;
   const storeAdmin = await makeUser(`store-admin-${label}`); await grantKeys(storeAdmin, ['catalog:store:activate']);
   await post(`/api/v1/catalog/admin/stores/${storeId}/activate`, storeAdmin, { version: 1, reason: 'store evidence verified' }).expect(201);
+  await approveStoreCoverage({ privilegedUrl: u.privileged, cityId, storeId, owner, makeUser, grantKeys, post }, 'fulfillment');
   const product = await post(`/api/v1/catalog/stores/${storeId}/products`, owner, { title: `Fulfillment Product ${label}`, description: 'A product used for fulfillment integration tests', brand: 'Stoopy' }).expect(201);
   const productId = product.body.productId;
   const variant = await post(`/api/v1/catalog/products/${productId}/variants`, owner, { sku: `FUL-${label}-${randomUUID().slice(0, 8)}`, optionValues: {}, priceAmountMinor: price, currency: 'BDT' }).expect(201);

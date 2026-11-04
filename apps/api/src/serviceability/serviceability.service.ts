@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import { randomUUID } from 'node:crypto';
 import { PrivilegedPrismaService, setRls } from '../common/prisma.js';
 import { assertLatitudeLongitude, assertOperatingHours, authorize, hasPermission, inGeographicScope, isStoreDispatchServiceable, type AccessContext, type OperatingHourInput } from '@getstoopy/core';
+import { MAX_PUBLIC_SERVICEABLE_CITIES, serviceableStoreWhere } from './serviceable-store.js';
 
 function reasonText(reason: string): string {
   const trimmed = reason?.trim();
@@ -15,6 +16,44 @@ function assertVersion(version: number): void {
 @Injectable()
 export class ServiceabilityService {
   constructor(@Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService) {}
+
+  /**
+   * Cities a buyer can currently choose as a delivery destination.
+   *
+   * Aggregated with a groupBy so a large store table is never materialised in the
+   * API process, and capped so an unbounded public query is impossible. `truncated`
+   * is reported rather than silently dropping cities.
+   */
+  async publicServiceableCities(countryId: string, q?: string) {
+    return this.privileged.$transaction(async tx => {
+      await setRls(tx, { userId: '00000000-0000-0000-0000-000000000000', authorizationVersion: 0, isSuper: true });
+      const country = await tx.country.findFirst({ where: { id: countryId, status: 'ACTIVE' } });
+      if (!country) throw new NotFoundException({ code: 'COUNTRY_NOT_AVAILABLE', message: 'Country is not available' });
+      const base = serviceableStoreWhere(countryId, new Date());
+      const where = q ? { ...base, city: { status: 'ACTIVE' as const, name: { contains: q, mode: 'insensitive' as const } } } : base;
+      const grouped = await tx.store.groupBy({
+        by: ['cityId'],
+        where,
+        _count: { _all: true },
+        orderBy: { cityId: 'asc' },
+        take: MAX_PUBLIC_SERVICEABLE_CITIES + 1,
+      });
+      const truncated = grouped.length > MAX_PUBLIC_SERVICEABLE_CITIES;
+      const page = truncated ? grouped.slice(0, MAX_PUBLIC_SERVICEABLE_CITIES) : grouped;
+      const cities = page.length
+        ? await tx.city.findMany({ where: { id: { in: page.map(g => g.cityId) } }, select: { id: true, name: true, code: true } })
+        : [];
+      const byId = new Map(cities.map(c => [c.id, c]));
+      const items = page
+        .map(g => {
+          const city = byId.get(g.cityId);
+          return city ? { cityId: city.id, name: city.name, code: city.code, storeCount: g._count._all } : null;
+        })
+        .filter((x): x is { cityId: string; name: string; code: string; storeCount: number } => x !== null)
+        .sort((a, b) => (a.name === b.name ? a.cityId.localeCompare(b.cityId) : a.name.localeCompare(b.name)));
+      return { countryId, currency: country.currencyCode, items, truncated };
+    });
+  }
 
   private async audit(tx: any, ctx: AccessContext, action: string, resourceType: string, resourceId: string, countryId: string, reason?: string) {
     await tx.$executeRaw`INSERT INTO "AuditLog"(id,"actorId","actorType","sessionId",action,"resourceType","resourceId","scopeSnapshot",reason,"requestId") VALUES (gen_random_uuid(), ${ctx.userId}::uuid, 'USER'::"ActorType", ${ctx.sessionId}::uuid, ${action}, ${resourceType}, ${resourceId}::uuid, ${JSON.stringify({ countryId })}::jsonb, ${reason ?? null}, ${randomUUID()}::uuid)`;

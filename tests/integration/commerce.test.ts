@@ -13,6 +13,8 @@ let app: any;
 const origin = 'http://localhost:3000';
 let countryId: string;
 let cityId: string;
+let zoneId: string;
+let serviceabilityAdmin: any;
 let pool: pg.Pool;
 let privilegedPool: pg.Pool;
 let queue: Queue;
@@ -97,6 +99,10 @@ async function setupVendor(label: string, price: string, stock: number) {
   const store = await post('/api/v1/catalog/stores', owner, { vendorId, cityId, name: `Commerce Store ${label}`, slug: `commerce-store-${label}-${randomUUID().slice(0, 8)}`, addressLine: '123 Pilot Road, Mymensingh' }).expect(201);
   const storeId = store.body.storeId;
   await post(`/api/v1/catalog/admin/stores/${storeId}/activate`, storeAdmin, { version: 1, reason: 'store evidence verified' }).expect(201);
+  // Checkout now requires the destination to be served, so a fixture store is only
+  // complete once it has an approved service area in an active zone.
+  const area = await post(`/api/v1/catalog/stores/${storeId}/service-areas`, owner, { serviceZoneId: zoneId }).expect(201);
+  await post(`/api/v1/catalog/admin/service-areas/${area.body.serviceAreaId}/review`, serviceabilityAdmin, { version: 1, decision: 'APPROVE', reason: 'service area geometry verified' }).expect(201);
   const product = await post(`/api/v1/catalog/stores/${storeId}/products`, owner, { title: `Commerce Product ${label}`, description: 'A product used for commerce integration tests', brand: 'Stoopy' }).expect(201);
   const productId = product.body.productId;
   const variant = await post(`/api/v1/catalog/products/${productId}/variants`, owner, { sku: `COM-${label}-${randomUUID().slice(0, 8)}`, optionValues: {}, priceAmountMinor: price, currency: 'BDT' }).expect(201);
@@ -122,6 +128,7 @@ beforeAll(async () => {
     const city = await c.query(`INSERT INTO "City"(id,"districtId",code,name,kind,status) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, [randomUUID(), district.rows[0].id, `com-city-${randomUUID().slice(0, 8)}`, 'Commerce', 'CITY', 'ACTIVE']);
     return city.rows[0].id as string;
   });
+  zoneId = await asSuper(u.privileged, async c => (await c.query(`INSERT INTO "ServiceZone"(id,"cityId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`, [randomUUID(), cityId, `com-zone-${randomUUID().slice(0, 8)}`, 'Commerce Zone'])).rows[0].id as string);
   pool = new pg.Pool({ connectionString: u.runtime, max: 4 });
   privilegedPool = new pg.Pool({ connectionString: u.privileged, max: 4 });
   const parsed = new URL(process.env['TEST_REDIS_URL'] ?? 'redis://localhost:6379/15');
@@ -134,6 +141,7 @@ beforeAll(async () => {
   partyAdmin = await makeUser('party-admin'); await grantKeys(partyAdmin, ['vendor:profile:activate']);
   storeAdmin = await makeUser('store-admin'); await grantKeys(storeAdmin, ['catalog:store:activate']);
   productModerator = await makeUser('product-moderator'); await grantKeys(productModerator, ['catalog:product:review', 'catalog:product:publish']);
+  serviceabilityAdmin = await makeUser('serviceability-admin'); await grantKeys(serviceabilityAdmin, ['catalog:store:serviceability:review']);
   vendorA = await setupVendor('a', '1000', 10);
   vendorB = await setupVendor('b', '250', 10);
   storeA = vendorA.storeId; storeB = vendorB.storeId; variantA = vendorA.variantId; variantB = vendorB.variantId; productA = vendorA.productId;
@@ -261,5 +269,71 @@ describe('cart and checkout quote orchestration', () => {
     await expect(asSuper(u.privileged, c => c.query(`UPDATE "CheckoutQuote" SET "subtotalMinor"="subtotalMinor"+1, version=version+1 WHERE id=$1`, [quote.id]))).rejects.toThrow(/checkout_quote_immutable_fields/);
     const cartRow = await asSuper(u.privileged, async c => (await c.query(`SELECT version FROM "Cart" WHERE id=$1`, [cartId])).rows[0]);
     await expect(asSuper(u.privileged, c => c.query(`INSERT INTO "CheckoutQuote"(id,"userId","countryId","cartId","cartVersion","destinationCityId","commandKey","payloadHash",currency,"subtotalMinor","expiresAt","updatedAt") VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,'BDT',100,now()+interval '900 seconds',now())`, [customer.userId, countryId, cartId, cartRow.version, cityId, `empty-${randomUUID().slice(0, 8)}`, createHash('sha256').update('empty').digest('hex')]))).rejects.toThrow(/checkout_quote_empty|checkout_quote_total_mismatch/);
+  });
+});
+
+describe('checkout destination must be serviceable before stock is reserved', () => {
+  async function freshCart() {
+    const created = await post('/api/v1/commerce/carts', customer, { countryId }).expect(201);
+    const cartId = created.body.cartId as string;
+    let version = created.body.version as number;
+    const added = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId: variantA, quantity: 1, expectedVersion: version }).expect(201);
+    version = added.body.version as number;
+    return { cartId, version };
+  }
+
+  it('rejects a destination that does not exist and reserves nothing', async () => {
+    const { cartId, version } = await freshCart();
+    const missingCity = randomUUID();
+    // Other suites hold reservations on this variant, so compare before/after
+    // rather than asserting a global count of zero.
+    const countActive = async () => (await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "InventoryReservation" ir JOIN "Inventory" i ON i."id"=ir."inventoryId" WHERE i."variantId"=$1 AND ir.state='ACTIVE'`, [variantA]))).rows[0].n as number;
+    // The cart is unique per (user, country), so it already carries quotes from
+    // earlier tests. Compare counts across this one rejected attempt.
+    const countQuotes = async () => (await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "CheckoutQuote" WHERE "cartId"=$1`, [cartId]))).rows[0].n as number;
+    const before = await countActive();
+    const quotesBefore = await countQuotes();
+    const res = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, {
+      expectedVersion: version, destinationCityId: missingCity, commandKey: `dest-missing-${randomUUID().slice(0, 8)}`,
+    }).expect(409);
+    expect(res.body.code).toBe('CHECKOUT_DESTINATION_NOT_SERVICEABLE');
+    expect(await countQuotes()).toBe(quotesBefore);
+    expect(await countActive()).toBe(before);
+  });
+
+  it('rejects an active city in the same country that has no approved coverage', async () => {
+    const uncoveredCity = await asSuper(u.privileged, async c => {
+      const region = await c.query(`INSERT INTO "Region"(id,"countryId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`, [randomUUID(), countryId, `unc-reg-${randomUUID().slice(0, 8)}`, 'Uncovered']);
+      const district = await c.query(`INSERT INTO "District"(id,"regionId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`, [randomUUID(), region.rows[0].id, `unc-dist-${randomUUID().slice(0, 8)}`, 'Uncovered']);
+      return (await c.query(`INSERT INTO "City"(id,"districtId",code,name,kind,status) VALUES ($1,$2,$3,$4,'CITY','ACTIVE') RETURNING id`, [randomUUID(), district.rows[0].id, `unc-city-${randomUUID().slice(0, 8)}`, 'Uncovered City'])).rows[0].id as string;
+    });
+    const { cartId, version } = await freshCart();
+    const res = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, {
+      expectedVersion: version, destinationCityId: uncoveredCity, commandKey: `dest-uncovered-${randomUUID().slice(0, 8)}`,
+    }).expect(409);
+    expect(res.body.code).toBe('CHECKOUT_DESTINATION_NOT_SERVICEABLE');
+  });
+
+  it('rejects a city from another country even when that city is active', async () => {
+    const foreignCity = await asSuper(u.privileged, async c => {
+      const country = (await c.query(`INSERT INTO "Country"(id,iso2,name,"currencyCode","callingCode",timezone,status) VALUES ($1,$2,$3,$4,$5,$6,'ACTIVE') RETURNING id`, [randomUUID(), `X${randomUUID().slice(0, 1).toUpperCase()}${Math.floor(Math.random() * 9)}`, 'Foreign', 'USD', '+1', 'UTC'])).rows[0].id as string;
+      const region = (await c.query(`INSERT INTO "Region"(id,"countryId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`, [randomUUID(), country, `for-reg-${randomUUID().slice(0, 8)}`, 'Foreign'])).rows[0].id as string;
+      const district = (await c.query(`INSERT INTO "District"(id,"regionId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`, [randomUUID(), region, `for-dist-${randomUUID().slice(0, 8)}`, 'Foreign'])).rows[0].id as string;
+      return (await c.query(`INSERT INTO "City"(id,"districtId",code,name,kind,status) VALUES ($1,$2,$3,$4,'CITY','ACTIVE') RETURNING id`, [randomUUID(), district, `for-city-${randomUUID().slice(0, 8)}`, 'Foreign City'])).rows[0].id as string;
+    });
+    const { cartId, version } = await freshCart();
+    const res = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, {
+      expectedVersion: version, destinationCityId: foreignCity, commandKey: `dest-foreign-${randomUUID().slice(0, 8)}`,
+    }).expect(409);
+    expect(res.body.code).toBe('CHECKOUT_DESTINATION_NOT_SERVICEABLE');
+  });
+
+  it('still accepts the covered fixture city', async () => {
+    const { cartId, version } = await freshCart();
+    const quote = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, {
+      expectedVersion: version, destinationCityId: cityId, commandKey: `dest-ok-${randomUUID().slice(0, 8)}`,
+    }).expect(201);
+    expect(quote.body.destinationCityId).toBe(cityId);
+    await post(`/api/v1/commerce/quotes/${quote.body.quoteId}/release`, customer, { version: 1, reason: 'test cleanup release' }).expect(201);
   });
 });

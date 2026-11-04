@@ -200,3 +200,71 @@ describe('store serviceability and rider eligibility foundation', () => {
     await expect(asUser(u.runtime, stranger.userId, c => c.query(`SELECT id FROM "RiderLocationSample" WHERE "riderId"=$1`, [riderId]))).resolves.toMatchObject({ rowCount: 0 });
   });
 });
+
+describe('public serviceable-city lookup', () => {
+  const publicGet = (path: string) => request(app.getHttpServer()).get(path);
+
+  beforeAll(async () => {
+    // The dispatch test above leaves the service area SUSPENDED. Re-approve it
+    // explicitly so this suite states its own precondition instead of inheriting
+    // another test's final state.
+    let area = await asSuper(u.privileged, async c => (await c.query(`SELECT id, version, status FROM "StoreServiceArea" WHERE "storeId"=$1 AND "serviceZoneId"=$2`, [storeId, zoneId])).rows[0]);
+    if (!area) {
+      const proposed = await post(`/api/v1/catalog/stores/${storeId}/service-areas`, owner, { serviceZoneId: zoneId }).expect(201);
+      area = { id: proposed.body.serviceAreaId, version: 1, status: 'DRAFT' };
+    }
+    if (area.status !== 'APPROVED') {
+      await post(`/api/v1/catalog/admin/service-areas/${area.id}/review`, serviceabilityAdmin, { version: area.version, decision: 'APPROVE', reason: 'restore coverage for public lookup' }).expect(201);
+    }
+  });
+
+  it('lists a covered city without needing a session and without leaking store identity', async () => {
+    const res = await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}`).expect(200);
+    expect(res.body.countryId).toBe(countryId);
+    expect(res.body.currency).toBe('BDT');
+    expect(res.body.truncated).toBe(false);
+    const entry = res.body.items.find((c: any) => c.cityId === cityId);
+    expect(entry).toBeDefined();
+    expect(entry.storeCount).toBeGreaterThanOrEqual(1);
+    expect(Object.keys(entry).sort()).toEqual(['cityId', 'code', 'name', 'storeCount']);
+    expect(JSON.stringify(res.body)).not.toContain(storeId);
+    expect(JSON.stringify(res.body)).not.toContain(vendorId);
+  });
+
+  it('does not list an active city that has no covered store', async () => {
+    const emptyCity = await asSuper(u.privileged, async c => {
+      const region = (await c.query(`INSERT INTO "Region"(id,"countryId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`, [randomUUID(), countryId, `pub-reg-${randomUUID().slice(0, 8)}`, 'Public Lookup'])).rows[0].id as string;
+      const district = (await c.query(`INSERT INTO "District"(id,"regionId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`, [randomUUID(), region, `pub-dist-${randomUUID().slice(0, 8)}`, 'Public Lookup'])).rows[0].id as string;
+      return (await c.query(`INSERT INTO "City"(id,"districtId",code,name,kind,status) VALUES ($1,$2,$3,$4,'CITY','ACTIVE') RETURNING id`, [randomUUID(), district, `pub-city-${randomUUID().slice(0, 8)}`, 'Zzz Uncovered City'])).rows[0].id as string;
+    });
+    const res = await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}`).expect(200);
+    expect(res.body.items.some((c: any) => c.cityId === emptyCity)).toBe(false);
+  });
+
+  it('filters by name and rejects an over-long query', async () => {
+    const hit = await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}&q=Serviceability`).expect(200);
+    expect(hit.body.items.some((c: any) => c.cityId === cityId)).toBe(true);
+    const miss = await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}&q=NoSuchCityName`).expect(200);
+    expect(miss.body.items).toEqual([]);
+    const tooLong = await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}&q=${'x'.repeat(61)}`).expect(400);
+    expect(tooLong.body.code).toBe('QUERY_INVALID');
+  });
+
+  it('rejects a malformed country id and an unknown country', async () => {
+    await publicGet('/api/v1/public/serviceability/cities?countryId=not-a-uuid').expect(400);
+    const unknown = await publicGet(`/api/v1/public/serviceability/cities?countryId=${randomUUID()}`).expect(404);
+    expect(unknown.body.code).toBe('COUNTRY_NOT_AVAILABLE');
+  });
+
+  it('drops the city when its service zone is deactivated, and restores it', async () => {
+    await asSuper(u.privileged, async c => { await c.query(`UPDATE "ServiceZone" SET status='INACTIVE' WHERE id=$1`, [zoneId]); });
+    try {
+      const res = await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}`).expect(200);
+      expect(res.body.items.some((c: any) => c.cityId === cityId)).toBe(false);
+    } finally {
+      await asSuper(u.privileged, async c => { await c.query(`UPDATE "ServiceZone" SET status='ACTIVE' WHERE id=$1`, [zoneId]); });
+    }
+    const restored = await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}`).expect(200);
+    expect(restored.body.items.some((c: any) => c.cityId === cityId)).toBe(true);
+  });
+});

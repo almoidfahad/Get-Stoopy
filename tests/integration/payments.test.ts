@@ -5,7 +5,7 @@ import pg from 'pg';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { publishOutboxBatch } from '../../packages/events/src/index';
-import { urls, asSuper, asUser } from './helpers';
+import { urls, asSuper, asUser, approveStoreCoverage } from './helpers';
 import { signSandboxWebhook } from '../../packages/core/src/payment';
 
 const u = urls();
@@ -133,6 +133,7 @@ beforeAll(async () => {
   const store = await post('/api/v1/catalog/stores', owner, { vendorId, cityId, name: 'Payments Store', slug: `payments-store-${randomUUID().slice(0, 8)}`, addressLine: '123 Pilot Road, Mymensingh' }).expect(201);
   storeId = store.body.storeId;
   await post(`/api/v1/catalog/admin/stores/${storeId}/activate`, storeAdmin, { version: 1, reason: 'store evidence verified' }).expect(201);
+  await approveStoreCoverage({ privilegedUrl: u.privileged, cityId, storeId, owner, makeUser, grantKeys, post }, 'payments');
   const product = await post(`/api/v1/catalog/stores/${storeId}/products`, owner, { title: 'Payments Product', description: 'A product used for payment integration tests', brand: 'Stoopy' }).expect(201);
   const productId = product.body.productId;
   const variant = await post(`/api/v1/catalog/products/${productId}/variants`, owner, { sku: `PAY-${randomUUID().slice(0, 8)}`, optionValues: {}, priceAmountMinor: '1000', currency: 'BDT' }).expect(201);

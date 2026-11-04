@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
+import { serviceableStoreWhere } from '../serviceability/serviceable-store.js';
 import { PrismaService, PrivilegedPrismaService, setRls } from '../common/prisma.js';
 import { InventoryService } from '../inventory/inventory.service.js';
 import { assertCartItemCount, assertCartQuantity, groupQuoteItems, MAX_ACTIVE_QUOTES_PER_USER, MAX_CART_ITEMS, type AccessContext, type QuotePricedItem } from '@getstoopy/core';
@@ -177,6 +178,27 @@ export class CommerceService {
       const cartItems = await tx.cartItem.findMany({ where: { cartId }, orderBy: { variantId: 'asc' } });
       if (!cartItems.length) throw new ConflictException({ code: 'CART_EMPTY', message: 'Cart is empty' });
       if (cartItems.length > MAX_CART_ITEMS) throw new ConflictException({ code: 'CART_ITEM_LIMIT', message: 'Cart item limit exceeded' });
+
+      // The destination must actually be served before any stock is reserved.
+      // Without this check any well-formed UUID was accepted, so a buyer could
+      // reserve inventory against a non-existent, inactive or foreign city, or
+      // against a city none of the cart's stores can deliver to.
+      const storeIds = [...new Set(cartItems.map(item => item.storeId))];
+      const serviceableStores = await tx.store.findMany({
+        where: {
+          ...serviceableStoreWhere(cart.countryId, new Date()),
+          id: { in: storeIds },
+          cityId: input.destinationCityId,
+        },
+        select: { id: true },
+      });
+      if (serviceableStores.length !== storeIds.length) {
+        throw new ConflictException({
+          code: 'CHECKOUT_DESTINATION_NOT_SERVICEABLE',
+          message: 'The destination city is not served by every store in this cart',
+        });
+      }
+
       const quoteId = randomUUID();
       const priced: QuotePricedItem[] = [];
       const reservations = new Map<string, { reservationId: string; expiresAt: Date }>();

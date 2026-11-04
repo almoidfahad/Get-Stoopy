@@ -5,7 +5,7 @@ import pg from 'pg';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { publishOutboxBatch } from '../../packages/events/src/index';
-import { urls, asSuper } from './helpers';
+import { urls, asSuper, approveStoreCoverage } from './helpers';
 import { signSandboxWebhook } from '../../packages/core/src/payment';
 
 const u = urls();
@@ -122,6 +122,7 @@ beforeAll(async () => {
   await post(`/api/v1/parties/admin/vendors/${vendor.body.vendorId}/activate`, partyAdmin, { version: 1, kycCaseId, reason: 'approved vendor evidence' }).expect(201);
   const store = await post('/api/v1/catalog/stores', owner, { vendorId: vendor.body.vendorId, cityId, name: 'Risk Producer Store', slug: `risk-prod-store-${randomUUID()}`, addressLine: '123 Pilot Road, Mymensingh' }).expect(201);
   await post(`/api/v1/catalog/admin/stores/${store.body.storeId}/activate`, storeAdmin, { version: 1, reason: 'store evidence verified' }).expect(201);
+  await approveStoreCoverage({ privilegedUrl: u.privileged, cityId, storeId: store.body.storeId, owner, makeUser, grantKeys, post }, 'risk');
   const product = await post(`/api/v1/catalog/stores/${store.body.storeId}/products`, owner, { title: 'Risk Producer Product', description: 'A product used for risk producer integration tests', brand: 'Stoopy' }).expect(201);
   const variant = await post(`/api/v1/catalog/products/${product.body.productId}/variants`, owner, { sku: `RISK-${randomUUID()}`, optionValues: {}, priceAmountMinor: '1000', currency: 'BDT' }).expect(201);
   variantId = variant.body.id;
