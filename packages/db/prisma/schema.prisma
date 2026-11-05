@@ -309,6 +309,8 @@ model User {
   riskCasesResolved   RiskCase[]       @relation("RiskCaseResolvedBy")
   riskCasesSubject    RiskCase[]       @relation("RiskCaseSubject")
   riskCaseReviews     RiskCaseReview[] @relation("RiskCaseReviewer")
+  notifications       Notification[]   @relation("NotificationUser")
+  notificationPreferences NotificationPreference[] @relation("NotificationPreferenceUser")
 }
 
 model UserIdentity {
@@ -2679,4 +2681,80 @@ model RiskCaseReview {
 
   @@unique([caseId, commandKey])
   @@index([reviewerUserId, occurredAt])
+}
+
+enum NotificationType {
+  ORDER_STATUS
+  DELIVERY_UPDATE
+  PAYMENT_REMINDER
+  KYC_UPDATE
+  PROMOTIONAL
+  SYSTEM_ALERT
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  PUSH
+  IN_APP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  READ
+}
+
+model Notification {
+  id            String            @id @default(uuid()) @db.Uuid
+  userId        String            @db.Uuid
+  type          NotificationType
+  channel       NotificationChannel
+  status        NotificationStatus @default(PENDING)
+  subject       String            @db.VarChar(200)
+  body          String            @db.Text
+  templateId    String?           @db.Uuid
+  commandKey    String            @db.VarChar(128)
+  payloadHash   String            @db.VarChar(64)
+  sentAt        DateTime?
+  readAt        DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  user          User              @relation("NotificationUser", fields: [userId], references: [id])
+  notificationAttempts NotificationAttempt[] @relation("NotificationAttemptNotification")
+
+  @@unique([userId, commandKey])
+  @@index([userId, status, createdAt])
+  @@index([userId, channel, createdAt])
+  @@index([status, createdAt])
+}
+
+model NotificationPreference {
+  id        String            @id @default(uuid()) @db.Uuid
+  userId    String            @db.Uuid
+  channel   NotificationChannel
+  enabled   Boolean           @default(true)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  user      User              @relation("NotificationPreferenceUser", fields: [userId], references: [id])
+
+  @@unique([userId, channel])
+  @@index([userId])
+}
+
+model NotificationAttempt {
+  id             String            @id @default(uuid()) @db.Uuid
+  notificationId String            @db.Uuid
+  channel        NotificationChannel
+  status         NotificationStatus
+  errorCode      String?           @db.VarChar(64)
+  errorMessage   String?           @db.Text
+  attemptedAt    DateTime          @default(now())
+  createdAt      DateTime          @default(now())
+  notification   Notification      @relation("NotificationAttemptNotification", fields: [notificationId], references: [id])
+
+  @@index([notificationId])
+  @@index([attemptedAt])
 }
