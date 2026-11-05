@@ -19,6 +19,22 @@ async function makeUser(label: string) {
   const sessionId = randomUUID();
   await asSuper(u.privileged, async c => {
     await c.query(`INSERT INTO "User"(id,"displayName","updatedAt") VALUES ($1,$2,now())`, [userId, `Notif ${label}`]);
+
+    // Grant notification.create/read/update permissions to the test user via a dedicated role.
+    // ON CONFLICT keeps existing permission rows (idempotent re-runs) and assigns their id to our vars.
+    const permCreate = randomUUID();
+    const permRead = randomUUID();
+    const permUpdate = randomUUID();
+    await c.query(`INSERT INTO "Permission"(id,key,resource,action,sensitivity) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (key) DO UPDATE SET id = EXCLUDED.id`, [permCreate, 'notification.create', 'Notification', 'create', 'LOW']);
+    await c.query(`INSERT INTO "Permission"(id,key,resource,action,sensitivity) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (key) DO UPDATE SET id = EXCLUDED.id`, [permRead, 'notification.read', 'Notification', 'read', 'LOW']);
+    await c.query(`INSERT INTO "Permission"(id,key,resource,action,sensitivity) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (key) DO UPDATE SET id = EXCLUDED.id`, [permUpdate, 'notification.update', 'Notification', 'update', 'LOW']);
+    const roleId = randomUUID();
+    await c.query(`INSERT INTO "Role"(id,key,name,description) VALUES ($1,$2,$3,$4) ON CONFLICT (key) DO UPDATE SET id = EXCLUDED.id`, [roleId, `notification-role-${label}`, `Notification Role ${label}`, 'Test role for notification permissions']);
+    await c.query(`INSERT INTO "RolePermission"("roleId","permissionId") VALUES ($1,$2) ON CONFLICT ("roleId","permissionId") DO NOTHING`, [roleId, permCreate]);
+    await c.query(`INSERT INTO "RolePermission"("roleId","permissionId") VALUES ($1,$2) ON CONFLICT ("roleId","permissionId") DO NOTHING`, [roleId, permRead]);
+    await c.query(`INSERT INTO "RolePermission"("roleId","permissionId") VALUES ($1,$2) ON CONFLICT ("roleId","permissionId") DO NOTHING`, [roleId, permUpdate]);
+    await c.query(`INSERT INTO "UserRole"("id","userId","roleId","grantedBy","expiresAt","revokedAt") VALUES ($1,$2,$3,$3,null,null)`, [randomUUID(), userId, roleId]);
+
     await c.query(`INSERT INTO "Session"(id,"userId","tokenHash","expiresAt","idleExpiresAt","authVersion") VALUES ($1,$2,$3,now()+interval '1 hour',now()+interval '15 minutes',1)`, [sessionId, userId, tokenHash]);
   });
   const me = await request(app.getHttpServer()).get('/api/v1/auth/me').set('Cookie', `gs_session_dev=${token}`).expect(200);

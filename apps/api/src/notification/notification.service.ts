@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { PrismaService, PrivilegedPrismaService, setRls } from '../common/prisma.js';
-import { type AccessContext, type NotificationChannel, type NotificationInput } from '@getstoopy/core';
+import { hasPermission, type AccessContext, type NotificationChannel, type NotificationInput } from '@getstoopy/core';
 
 /**
  * Notification service.
@@ -24,6 +24,9 @@ export class NotificationService {
   ) {}
 
   private requireOwner(ctx: AccessContext, userId: string) {
+    if (!hasPermission(ctx, 'notification.create') && !hasPermission(ctx, 'notification.read') && !hasPermission(ctx, 'notification.update')) {
+      throw new ForbiddenException({ code: 'PERMISSION_DENIED', message: 'Notification permission denied' });
+    }
     if (ctx.userId !== userId) {
       throw new ForbiddenException({ code: 'NOTIFICATION_FOR_OWNER_ONLY', message: 'You can only access your own notifications.' });
     }
