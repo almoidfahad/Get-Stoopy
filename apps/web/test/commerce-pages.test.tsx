@@ -47,6 +47,13 @@ describe('cart and checkout UI', () => {
     expect(html).toContain('Checkout unavailable');
     expect(html).not.toContain('Continue to checkout');
   });
+  it('links the preview while asking the buyer to resolve cart issues', async () => {
+    mocks.cart.mockResolvedValue({ state: 'ok', cart: { ...cart, items: [{ ...item, availableToPromise: 0 }] } });
+    const html = renderToStaticMarkup(await CheckoutPage());
+    expect(html).toContain('Resolve your cart first');
+    expect(html).toContain('href="/checkout/recipient-preview"');
+    expect(html).toContain('not an order form');
+  });
   it('shows the delivery city and disabled payment with no invented totals', async () => {
     const html = renderToStaticMarkup(await CheckoutPage());
     expect(html).toContain('Choose a city');
@@ -55,12 +62,16 @@ describe('cart and checkout UI', () => {
     expect(html).toContain('Not quoted yet');
     expect(html).toContain('Payment not available');
     expect(html).toContain('no money');
+    expect(html).toContain('href="/checkout/recipient-preview"');
+    expect(html).toContain('does not change this quote');
   });
   it('shows an explicit unconfigured checkout rather than sample cities', async () => {
     mocks.cart.mockResolvedValue({ state: 'not-configured' });
     const html = renderToStaticMarkup(await CheckoutPage());
     expect(html).toContain('Market not configured');
     expect(html).toContain('Back to cart');
+    expect(html).toContain('href="/checkout/recipient-preview"');
+    expect(html).toContain('not an order form');
     expect(html).not.toContain('Choose a city');
   });
 });

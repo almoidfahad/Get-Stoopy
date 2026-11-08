@@ -67,6 +67,7 @@ export default async function CheckoutPage() {
           <Link href="/cart" className="mt-4 inline-block rounded-lg border border-neutral-400 px-4 py-2 text-sm font-semibold">
             Back to cart
           </Link>
+          <p className="mt-4 text-sm leading-6 text-neutral-700">Explore the <Link href="/checkout/recipient-preview" className="font-bold text-brand-red underline">recipient details layout preview</Link>. It is not an order form.</p>
         </div>
       </Shell>
     );
@@ -108,6 +109,7 @@ export default async function CheckoutPage() {
         reservationUnavailable={reservationUnavailable}
         initialQuote={initialQuote}
       />
+      <p className="mt-6 text-sm leading-6 text-neutral-700">Explore the <Link href="/checkout/recipient-preview" className="font-bold text-brand-red underline">recipient details layout preview</Link>. It is not an order form and does not change this quote.</p>
       <Link href="/cart" className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-brand-red hover:underline"><ArrowLeft size={15} />Back to cart</Link>
     </Shell>
   );
