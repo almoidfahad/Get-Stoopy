@@ -174,6 +174,12 @@ export class CommerceService {
     const payloadHash = hashPayload({ cartId, cartVersion: input.expectedVersion, destinationCityId: input.destinationCityId, ttlSeconds });
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      // Serialize this buyer's quote creations before the idempotency lookup.
+      // Otherwise two transactions can both see no command and the second can
+      // fail after waiting on the cart, rather than replaying the first quote.
+      // A per-buyer lock also protects the active-quote limit across their carts.
+      // The namespace and 64-bit hash only identify a lock, not authorization.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`checkout-quote-create:${ctx.userId}`}, 0))`;
       const existing = await tx.checkoutQuote.findUnique({ where: { userId_commandKey: { userId: ctx.userId, commandKey: input.commandKey } } });
       if (existing) {
         if (existing.payloadHash !== payloadHash) throw new ConflictException({ code: 'CHECKOUT_IDEMPOTENCY_CONFLICT', message: 'Checkout command key already used with different payload' });

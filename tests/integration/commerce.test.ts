@@ -369,3 +369,73 @@ describe('checkout destination must be serviceable before stock is reserved', ()
     expect(afterRelease.body.activeQuoteId).toBeNull();
   });
 });
+
+describe('concurrent checkout reservation idempotency', () => {
+  // Hold the cart row until both HTTP requests have reached the database. This
+  // forces the second request to overlap the first, rather than relying on timing
+  // or merely testing a sequential replay. One waiter is on the cart; with the
+  // buyer lock the other waits on the advisory lock, without it both wait on cart.
+  async function overlapQuoteRequests(changedPayload: boolean) {
+    const buyer = await makeUser(`quote-race-${randomUUID().slice(0, 8)}`);
+    const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    const cartId = cart.body.cartId as string;
+    const added = await post(`/api/v1/commerce/carts/${cartId}/items`, buyer, { variantId: variantA, quantity: 1, expectedVersion: cart.body.version }).expect(201);
+    const body = { expectedVersion: added.body.version as number, destinationCityId: cityId, commandKey: `race-${randomUUID()}` };
+    const baseline = await get(`/api/v1/inventory/variants/${variantA}`, vendorA.owner).expect(200);
+    const holder = new pg.Client({ connectionString: u.privileged });
+    await holder.connect();
+    let first: Promise<any> | undefined;
+    let second: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN');
+      await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('SELECT id FROM "Cart" WHERE id=$1 FOR UPDATE', [cartId]);
+      const waitForRequests = async (count: number) => {
+        const deadline = Date.now() + 10000;
+        while (Date.now() < deadline) {
+          const waiting = await privilegedPool.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+            WHERE pid <> pg_backend_pid() AND state = 'active' AND wait_event_type = 'Lock'
+              AND (query LIKE '%pg_advisory_xact_lock%' OR query LIKE '%FROM "Cart"%FOR UPDATE%')`);
+          if (waiting.rows[0].n >= count) return;
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        throw new Error(`Expected ${count} blocked quote requests`);
+      };
+      first = post(`/api/v1/commerce/carts/${cartId}/quotes`, buyer, body).then((res: any) => res);
+      await waitForRequests(1);
+      const secondBody = changedPayload ? { ...body, expectedVersion: body.expectedVersion + 1 } : body;
+      second = post(`/api/v1/commerce/carts/${cartId}/quotes`, buyer, secondBody).then((res: any) => res);
+      await waitForRequests(2);
+      await holder.query('COMMIT');
+    } finally {
+      // Also unblock requests on failure, so the suite can clean up its server.
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end();
+    }
+    const [a, b] = await Promise.all([first!, second!]);
+    expect(a.status).toBe(201);
+    if (changedPayload) {
+      expect(b.status).toBe(409);
+      expect(b.body.code).toBe('CHECKOUT_IDEMPOTENCY_CONFLICT');
+    } else {
+      expect(b.status).toBe(201);
+      expect(b.body.quoteId).toBe(a.body.quoteId);
+      expect(b.body.duplicate).toBe(true);
+    }
+    expect(a.body.duplicate).toBe(false);
+    const rows = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "CheckoutQuote" WHERE "cartId"=$1`, [cartId]));
+    expect(rows.rows[0].n).toBe(1);
+    const inv = await get(`/api/v1/inventory/variants/${variantA}`, vendorA.owner).expect(200);
+    expect(inv.body.reserved).toBe(baseline.body.reserved + 1);
+    await post(`/api/v1/commerce/quotes/${a.body.quoteId}/release`, buyer, { version: a.body.version, reason: 'concurrent quote test cleanup' }).expect(201);
+    const after = await get(`/api/v1/inventory/variants/${variantA}`, vendorA.owner).expect(200);
+    expect(after.body.reserved).toBe(baseline.body.reserved);
+  }
+
+  it('returns the original quote when the same command arrives concurrently', async () => {
+    await overlapQuoteRequests(false);
+  });
+  it('returns an idempotency conflict for a concurrently reused key with different input', async () => {
+    await overlapQuoteRequests(true);
+  });
+});
