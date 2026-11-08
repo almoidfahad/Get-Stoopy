@@ -14,6 +14,21 @@ Open `architecture-review.html` for the self-contained review: executive summary
 
 The companion ZIP contains the same package plus Markdown/CSV/YAML/JSON sources, research extracts, documentation tools and reference images.
 
+## Development setup and TypeScript diagnostics
+
+Use the repository root and the pinned Node **26.x** / npm **10.x** versions. After a fresh checkout or `npm ci`, generate the project-specific Prisma Client and workspace types before opening the backend in the editor:
+
+```bash
+npm ci
+npm run setup:dev
+npm run typecheck
+npm test
+```
+
+`setup:dev` generates Prisma Client from `packages/db/prisma/schema.prisma` and builds the internal packages. It does **not** run migrations or connect a database. The standard Prisma generation may need network access to Prisma's engine download service. If the download fails, check network/certificate configuration; do not disable TLS verification or use an untrusted binary. Once setup succeeds, reload the editor's TypeScript server if diagnostics remain stale. Typecheck now reports a clear prerequisite error if the generated Prisma types are missing instead of flooding the terminal with cascading type errors. Frontend-only Vercel builds do not need this backend setup.
+
+A successful typecheck does not prove a working database connection, runtime engine, integration tests or production readiness. Do not paste passwords or keys into issues or chat. If errors remain, share the first error messages and file paths, with secrets removed.
+
 ## What is included
 
 - Phase-1 review documents, validation report, Phase-2 foundation log and 8 ADRs accepted for development.

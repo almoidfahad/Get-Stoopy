@@ -13,6 +13,8 @@
   ],
   "scripts": {
     "build": "npm run build:packages && npm run build:api && npm run build:worker && npm run build:web",
+    "pretypecheck": "node scripts/check-prisma-client.mjs",
+    "setup:dev": "npm run db:generate && npm run build:packages",
     "typecheck": "npm run build:packages && tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/worker/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
