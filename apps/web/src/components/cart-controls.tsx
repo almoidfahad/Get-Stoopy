@@ -88,7 +88,7 @@ export function AddToCart({
 
   if (!signedIn) {
     return (
-      <p className="rounded-lg border border-neutral-300 bg-white p-4 text-sm">
+      <p className="rounded-xl border border-neutral-200 bg-white p-4 text-sm leading-6">
         <a href="/login" className="font-semibold text-brand-red">Sign in</a> to add this item to your cart.
       </p>
     );
@@ -103,7 +103,7 @@ export function AddToCart({
             <select
               value={selected}
               onChange={event => setSelected(event.target.value)}
-              className="rounded-lg border border-neutral-300 px-3 py-2"
+              className="min-h-12 rounded-xl border border-neutral-300 bg-white px-3 py-2"
             >
               {variants.map(variant => (
                 <option key={variant.id} value={variant.id}>{variant.label}</option>
@@ -122,14 +122,14 @@ export function AddToCart({
               const next = Number(event.target.value);
               setQuantity(Number.isInteger(next) && next >= 1 && next <= 100 ? next : 1);
             }}
-            className="w-24 rounded-lg border border-neutral-300 px-3 py-2"
+            className="min-h-12 w-24 rounded-xl border border-neutral-300 bg-white px-3 py-2"
           />
         </label>
         <button
           type="button"
           disabled={disabled || working}
           onClick={() => void send('POST', { variantId: selected, quantity })}
-          className="rounded-lg bg-brand-red px-6 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-12 rounded-full bg-brand-red px-6 py-3 font-bold text-white hover:bg-brand-red-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           {working ? 'Adding…' : 'Add to cart'}
         </button>
