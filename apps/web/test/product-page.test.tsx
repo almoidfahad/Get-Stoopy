@@ -37,6 +37,9 @@ describe('product detail', () => {
     const html = await render();
     expect(html).toContain('Add to cart');
     expect(html).toContain('Quantity');
+    expect(html).toContain('Choose an available option');
+    expect(html).toContain('Small — BDT');
+    expect(html).toContain('does not reserve stock');
     expect(html).not.toContain('<option value="v2">');
   });
   it('handles out-of-stock and missing images without fabricated values', async () => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useId, useRef, useState, useTransition } from 'react';
+import { useEffect, useId, useRef, useState, useTransition } from 'react';
 
 /**
  * Shared error copy for cart calls. A version conflict is explained rather than
@@ -78,6 +78,7 @@ export function useCartMutation() {
 export interface OrderableVariant {
   id: string;
   label: string;
+  priceLabel: string;
 }
 
 export function AddToCart({
@@ -90,8 +91,11 @@ export function AddToCart({
   const { send, error, done, working, clearFeedback } = useCartMutation();
   const quantityHelpId = useId();
   const [quantity, setQuantity] = useState('1');
-  const [selected, setSelected] = useState(variants[0]?.id ?? '');
-  const selectedAvailable = variants.some(variant => variant.id === selected);
+  const [selected, setSelected] = useState('');
+  const selectedOption = variants.find(variant => variant.id === selected);
+  const selectedAvailable = !!selectedOption;
+  // Do not silently restore a choice if it disappears and later returns.
+  useEffect(() => { if (selected && !selectedAvailable) setSelected(''); }, [selected, selectedAvailable]);
   const effectiveSelected = selectedAvailable ? selected : '';
   const validQuantity = /^\d+$/.test(quantity) && Number(quantity) >= 1 && Number(quantity) <= 100;
   const disabled = !selectedAvailable || !validQuantity;
@@ -107,22 +111,20 @@ export function AddToCart({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-end gap-3">
-        {variants.length > 1 || (variants.length > 0 && !selectedAvailable) ? (
-          <label className="flex flex-col text-sm">
-            <span className="mb-1 font-medium">Option</span>
-            <select
-              value={effectiveSelected}
-              disabled={working}
-              onChange={event => { setSelected(event.target.value); clearFeedback(); }}
-              className="min-h-12 rounded-xl border border-neutral-300 bg-white px-3 py-2"
-            >
-              <option value="" disabled>Choose an available option</option>
-              {variants.map(variant => (
-                <option key={variant.id} value={variant.id}>{variant.label}</option>
-              ))}
-            </select>
-          </label>
-        ) : null}
+        <label className="flex w-full min-w-0 flex-col text-sm sm:w-auto sm:max-w-full">
+          <span className="mb-1 font-medium">Option</span>
+          <select
+            value={effectiveSelected}
+            disabled={working}
+            onChange={event => { setSelected(event.target.value); clearFeedback(); }}
+            className="min-h-12 w-full max-w-full rounded-xl border border-neutral-300 bg-white px-3 py-2"
+          >
+            <option value="" disabled>Choose an available option</option>
+            {variants.map(variant => (
+              <option key={variant.id} value={variant.id}>{variant.label} — {variant.priceLabel} each</option>
+            ))}
+          </select>
+        </label>
         <label className="flex flex-col text-sm">
           <span className="mb-1 font-medium">Quantity</span>
           <input
@@ -146,6 +148,8 @@ export function AddToCart({
           {working ? 'Adding…' : 'Add to cart'}
         </button>
       </div>
+      <p aria-live="polite" className="text-sm leading-6 text-neutral-700 [overflow-wrap:anywhere]">{selectedOption ? <>Selected: <span className="font-semibold">{selectedOption.label}</span> · {selectedOption.priceLabel} each</> : 'Choose an option before adding to your cart.'}</p>
+      <p className="text-xs leading-5 text-neutral-600">Price and availability may change; adding to your cart does not reserve stock.</p>
       {!validQuantity ? <p id={quantityHelpId} className="text-sm font-medium text-brand-red">Enter a whole number between 1 and 100.</p> : null}
       {error ? <p role="alert" className="text-sm font-medium text-brand-red">{error}</p> : null}
       {done && !error && selectedAvailable ? (
