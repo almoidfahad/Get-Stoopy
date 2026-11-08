@@ -44,7 +44,9 @@ describe('rider dashboard layout', () => {
   });
   it('treats network or configuration failures as unavailable', async () => {
     mocks.apiFetch.mockRejectedValue(new Error('unavailable'));
-    expect(await render()).toContain('Rider access could not be checked');
+    const html = await render();
+    expect(html).toContain('Rider access could not be checked');
+    expect(html).toMatch(/<a href="\/rider"[^>]*>Try again<\/a>/);
   });
   it.each([{}, { user: { id: 'u' } }, { user: { id: 'u' }, riderId: '' }, { user: { id: 'u' }, riderId: 3 }])('fails closed on malformed session data', async data => {
     mocks.apiFetch.mockResolvedValue(Response.json(data));

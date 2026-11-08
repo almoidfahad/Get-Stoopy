@@ -63,6 +63,7 @@ describe('reserved quote recovery', () => {
     const html = renderToStaticMarkup(await CheckoutPage());
     expect(html).toContain('Reserved quote unavailable');
     expect(html).toContain('reservation may still be active');
+    expect(html).toMatch(/<a href="\/checkout"[^>]*>Try again<\/a>/);
     expect(mocks.cities).not.toHaveBeenCalled();
   });
 

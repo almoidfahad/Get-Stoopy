@@ -27,7 +27,7 @@ describe('account page', () => {
     mocks.apiFetch.mockRejectedValue(new Error('service unreachable'));
     const html = await render();
     expect(html).toContain('Account temporarily unavailable');
-    expect(html).toContain('Try again');
+    expect(html).toMatch(/<a href="\/account"[^>]*>Try again/);
     expect(html).not.toContain('service unreachable');
   });
   it('treats invalid response JSON as unavailable', async () => {

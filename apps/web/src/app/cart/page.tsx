@@ -16,9 +16,9 @@ export default async function CartPage() {
       result.state === 'sign-in'
         ? { title: 'Sign in to view your cart', body: 'Your cart belongs to your account, so you need to be signed in.' }
         : result.state === 'not-configured'
-          ? { title: 'Market not configured', body: 'This deployment has no market country set, so carts are unavailable. No demo cart is substituted.' }
+          ? { title: 'Cart not available yet', body: 'Cart services aren’t available here yet. Please check back later.' }
           : { title: 'Cart unavailable', body: 'The cart service could not be reached. Please try again shortly.' };
-    return <CommerceNotice stage="Cart" title={copy.title} body={copy.body} signIn={result.state === 'sign-in'} />;
+    return <CommerceNotice stage="Cart" title={copy.title} body={copy.body} signIn={result.state === 'sign-in'} retry={result.state === 'unavailable'} />;
   }
 
   const cart = result.cart;
@@ -74,10 +74,10 @@ export default async function CartPage() {
               return (
                 <li key={item.id} className="flex flex-col gap-5 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
                   <div className="min-w-0">
-                    <Link href={`/shop/${item.productId}`} className="font-bold text-neutral-950 hover:text-brand-red">
+                    <Link href={`/shop/${item.productId}`} className="break-words font-bold text-neutral-950 hover:text-brand-red [overflow-wrap:anywhere]">
                       {item.title}
                     </Link>
-                    <p className="text-sm text-neutral-600">{item.storeName}</p>
+                    <p className="break-words text-sm text-neutral-600 [overflow-wrap:anywhere]">{item.storeName}</p>
                     <p className="mt-1 text-sm text-neutral-700">
                       {unit ? `${unit} each` : 'Unit price unavailable'} · <span className="font-semibold">{lineTotal ?? 'Line total unavailable'}</span>
                     </p>

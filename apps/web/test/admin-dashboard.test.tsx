@@ -43,7 +43,9 @@ describe('admin dashboard layout', () => {
   });
   it('treats network or configuration failures as unavailable', async () => {
     mocks.apiFetch.mockRejectedValue(new Error('unavailable'));
-    expect(await render()).toContain('Account session could not be checked');
+    const html = await render();
+    expect(html).toContain('Account session could not be checked');
+    expect(html).toMatch(/<a href="\/admin"[^>]*>Try again<\/a>/);
   });
   it.each([{}, { user: {} }, { user: { id: '' } }, { user: { id: 3 } }])('fails closed on malformed session data', async data => {
     mocks.apiFetch.mockResolvedValue(Response.json(data));

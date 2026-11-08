@@ -254,7 +254,7 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
             <ul className="mt-3 space-y-1 text-sm">
               {quote.items.map(item => (
                 <li key={item.itemId} className="flex justify-between gap-4">
-                  <span className="min-w-0">
+                  <span className="min-w-0 break-words [overflow-wrap:anywhere]">
                     {item.productTitle} × {item.quantity}
                   </span>
                   <span className="font-semibold">

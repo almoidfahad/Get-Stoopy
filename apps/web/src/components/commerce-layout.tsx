@@ -22,7 +22,7 @@ export function CommerceHeader({ stage, title, description }: { stage: Stage; ti
   );
 }
 
-export function CommerceNotice({ stage, title, body, signIn = false }: { stage: Stage; title: string; body: string; signIn?: boolean }) {
+export function CommerceNotice({ stage, title, body, signIn = false, retry = false }: { stage: Stage; title: string; body: string; signIn?: boolean; retry?: boolean }) {
   const backHref = stage === 'Cart' ? '/shop' : '/cart';
   const backLabel = stage === 'Cart' ? 'Browse products' : 'Back to cart';
   return (
@@ -34,7 +34,8 @@ export function CommerceNotice({ stage, title, body, signIn = false }: { stage: 
         <p className="mt-2 text-sm leading-6 text-neutral-700">{body}</p>
         <div className="mt-5 flex flex-wrap items-center gap-3">
           {signIn ? <Link href="/login" className="inline-flex min-h-12 items-center rounded-full bg-brand-red px-6 py-3 text-sm font-bold text-white hover:bg-brand-red-hover">Sign in</Link> : null}
-          <Link href={backHref} className="inline-flex min-h-12 items-center gap-2 rounded-full border border-neutral-300 bg-white px-5 py-3 text-sm font-bold hover:border-neutral-900"><ArrowLeft size={15} />{backLabel}</Link>
+          {retry ? <a href={stage === 'Cart' ? '/cart' : '/checkout'} className="inline-flex min-h-12 items-center rounded-full bg-brand-red px-6 py-3 text-sm font-bold text-white hover:bg-brand-red-hover">Try again</a> : null}
+          <Link href={backHref} className="inline-flex min-h-12 items-center gap-2 rounded-full border border-neutral-300 bg-white px-5 py-3 text-sm font-bold hover:border-neutral-900"><ArrowLeft size={15} aria-hidden="true" />{backLabel}</Link>
         </div>
         {stage === 'Checkout' ? <p className="mt-5 text-sm leading-6 text-neutral-700">Explore the <Link href="/checkout/recipient-preview" className="font-bold text-brand-red underline">recipient details layout preview</Link>. It is not an order form.</p> : null}
       </section>

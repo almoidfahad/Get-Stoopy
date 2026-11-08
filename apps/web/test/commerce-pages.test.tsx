@@ -18,10 +18,12 @@ describe('cart and checkout UI', () => {
   it.each(['not-configured', 'unavailable', 'sign-in'] as const)('shows the cart %s state without a demo cart', async state => {
     mocks.cart.mockResolvedValue({ state });
     const html = renderToStaticMarkup(await CartPage());
-    expect(html).toContain(state === 'not-configured' ? 'Market not configured' : state === 'sign-in' ? 'Sign in to view your cart' : 'Cart unavailable');
+    expect(html).toContain(state === 'not-configured' ? 'Cart not available yet' : state === 'sign-in' ? 'Sign in to view your cart' : 'Cart unavailable');
     expect(html).toContain('Browse products');
     expect(html).not.toContain('Real item');
     if (state === 'sign-in') expect(html).toContain('href="/login"');
+    if (state === 'unavailable') expect(html).toMatch(/<a href="\/cart"[^>]*>Try again<\/a>/);
+    else expect(html).not.toContain('Try again');
   });
   it('shows an empty cart and retains the shop link', async () => {
     mocks.cart.mockResolvedValue({ state: 'ok', cart: { ...cart, items: [] } });
@@ -82,10 +84,29 @@ describe('cart and checkout UI', () => {
     expect(html).toContain('href="/checkout/recipient-preview"');
     expect(html).toContain('does not change this quote');
   });
+  it('offers retry only for unavailable checkout, not when sign-in is needed', async () => {
+    mocks.cart.mockResolvedValue({ state: 'unavailable' });
+    const unavailable = renderToStaticMarkup(await CheckoutPage());
+    expect(unavailable).toMatch(/<a href="\/checkout"[^>]*>Try again<\/a>/);
+    mocks.cart.mockResolvedValue({ state: 'sign-in' });
+    const signedOut = renderToStaticMarkup(await CheckoutPage());
+    expect(signedOut).toContain('Sign in to check out');
+    expect(signedOut).not.toContain('Try again');
+  });
+  it('offers a retry for a temporary delivery-city failure, but not for an empty list', async () => {
+    mocks.cities.mockResolvedValue({ state: 'unavailable' });
+    const unavailable = renderToStaticMarkup(await CheckoutPage());
+    expect(unavailable).toContain('Delivery cities unavailable');
+    expect(unavailable).toMatch(/<a href="\/checkout"[^>]*>Try again<\/a>/);
+    mocks.cities.mockResolvedValue({ ...cities, data: { ...cities.data, items: [] } });
+    const empty = renderToStaticMarkup(await CheckoutPage());
+    expect(empty).toContain('No delivery cities yet');
+    expect(empty).not.toContain('Try again');
+  });
   it('shows an explicit unconfigured checkout rather than sample cities', async () => {
     mocks.cart.mockResolvedValue({ state: 'not-configured' });
     const html = renderToStaticMarkup(await CheckoutPage());
-    expect(html).toContain('Market not configured');
+    expect(html).toContain('Checkout not available yet');
     expect(html).toContain('Back to cart');
     expect(html).toContain('href="/checkout/recipient-preview"');
     expect(html).toContain('not an order form');

@@ -11,8 +11,8 @@ import { ArrowLeft } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-function Notice({ title, body, signIn = false }: { title: string; body: string; signIn?: boolean }) {
-  return <CommerceNotice stage="Checkout" title={title} body={body} signIn={signIn} />;
+function Notice({ title, body, signIn = false, retry = false }: { title: string; body: string; signIn?: boolean; retry?: boolean }) {
+  return <CommerceNotice stage="Checkout" title={title} body={body} signIn={signIn} retry={retry} />;
 }
 
 /**
@@ -30,9 +30,9 @@ export default async function CheckoutPage() {
       result.state === 'sign-in'
         ? { title: 'Sign in to check out', body: 'Checkout uses your account cart, so you need to be signed in.', signIn: true }
         : result.state === 'not-configured'
-          ? { title: 'Market not configured', body: 'This deployment has no market country set, so checkout is unavailable. No demo cart is substituted.', signIn: false }
+          ? { title: 'Checkout not available yet', body: 'Checkout services aren’t available here yet. Please check back later.', signIn: false }
           : { title: 'Checkout unavailable', body: 'The cart service could not be reached. Please try again shortly.', signIn: false };
-    return <Notice title={copy.title} body={copy.body} signIn={copy.signIn} />;
+    return <Notice title={copy.title} body={copy.body} signIn={copy.signIn} retry={result.state === 'unavailable'} />;
   }
 
   const cart = result.cart;
@@ -44,7 +44,7 @@ export default async function CheckoutPage() {
   if (cart.activeQuoteId) {
     const existing = await readQuote(cart.activeQuoteId);
     if (existing.status !== 200) {
-      return <Notice title="Reserved quote unavailable" body="Your cart may still have reserved stock, but the quote could not be loaded. Please reload this page and try again; the reservation may still be active." />;
+      return <Notice retry title="Reserved quote unavailable" body="Your cart may still have reserved stock, but the quote could not be loaded. Please reload this page and try again; the reservation may still be active." />;
     }
     initialQuote = existing.body as QuoteInput;
   }
@@ -76,10 +76,10 @@ export default async function CheckoutPage() {
   const cities = await fetchServiceableCities();
 
   if (!initialQuote && cities.state === 'not-configured') {
-    return <Notice title="Market not configured" body="This deployment has no market country set, so delivery cities cannot be listed." />;
+    return <Notice title="Delivery cities not available yet" body="Delivery cities aren’t available to browse here yet. Please check back later." />;
   }
   if (!initialQuote && cities.state === 'unavailable') {
-    return <Notice title="Delivery cities unavailable" body="The list of serviceable cities could not be loaded. Please try again shortly." />;
+    return <Notice retry title="Delivery cities unavailable" body="The list of serviceable cities could not be loaded. Please try again shortly." />;
   }
   if (!initialQuote && cities.state === 'ok' && cities.data.items.length === 0) {
     return (

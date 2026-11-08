@@ -46,7 +46,9 @@ describe('vendor dashboard layout', () => {
   });
   it('treats network or config failure as unavailable', async () => {
     mocks.apiFetch.mockRejectedValue(new Error('unavailable'));
-    expect(await render()).toContain('Vendor access could not be checked');
+    const html = await render();
+    expect(html).toContain('Vendor access could not be checked');
+    expect(html).toMatch(/<a href="\/vendor"[^>]*>Try again<\/a>/);
   });
   it.each([{}, { user: { id: 'u' }, vendorMemberships: [{}] }, { user: { id: 'u' }, vendorMemberships: 'bad' }])('fails closed on invalid session data', async data => {
     mocks.apiFetch.mockResolvedValue(Response.json(data));
