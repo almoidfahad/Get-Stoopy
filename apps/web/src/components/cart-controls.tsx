@@ -146,47 +146,50 @@ export function AddToCart({
 
 export function CartLineControls({
   variantId,
+  productTitle,
   quantity,
   version,
 }: {
   variantId: string;
+  productTitle: string;
   quantity: number;
   version: number;
 }) {
   const { send, error, working } = useCartMutation();
 
   return (
-    <div className="flex flex-col items-end gap-2">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col items-start gap-2 sm:items-end">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          aria-label="Decrease quantity"
+          aria-label={`Decrease quantity for ${productTitle}`}
           disabled={working || quantity <= 1}
           onClick={() => void send('PATCH', { variantId, quantity: quantity - 1, expectedVersion: version })}
-          className="h-9 w-9 rounded-lg border border-neutral-300 font-semibold disabled:opacity-40"
+          className="h-11 w-11 rounded-xl border border-neutral-300 font-semibold hover:border-neutral-900 disabled:opacity-40"
         >
           −
         </button>
-        <span aria-live="polite" className="w-10 text-center font-medium">{quantity}</span>
+        <span aria-live="polite" aria-label={`Quantity for ${productTitle}: ${quantity}`} className="w-8 text-center font-medium">{quantity}</span>
         <button
           type="button"
-          aria-label="Increase quantity"
+          aria-label={`Increase quantity for ${productTitle}`}
           disabled={working || quantity >= 100}
           onClick={() => void send('PATCH', { variantId, quantity: quantity + 1, expectedVersion: version })}
-          className="h-9 w-9 rounded-lg border border-neutral-300 font-semibold disabled:opacity-40"
+          className="h-11 w-11 rounded-xl border border-neutral-300 font-semibold hover:border-neutral-900 disabled:opacity-40"
         >
           +
         </button>
         <button
           type="button"
           disabled={working}
+          aria-label={`Remove ${productTitle} from cart`}
           onClick={() => void send('DELETE', { variantId, expectedVersion: version })}
-          className="ml-2 rounded-lg border border-neutral-300 px-3 py-2 text-sm font-medium disabled:opacity-40"
+          className="min-h-11 rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold hover:border-neutral-900 disabled:opacity-40"
         >
           Remove
         </button>
       </div>
-      {error ? <p role="alert" className="max-w-xs text-right text-sm font-medium text-brand-red">{error}</p> : null}
+      {error ? <p role="alert" className="max-w-xs text-left text-sm font-medium text-brand-red sm:text-right">{error}</p> : null}
     </div>
   );
 }

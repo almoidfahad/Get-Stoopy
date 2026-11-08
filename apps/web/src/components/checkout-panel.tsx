@@ -134,11 +134,12 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
   const seconds = summary ? summary.secondsRemaining % 60 : 0;
 
   return (
-    <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_20rem]">
-      <section className="rounded-2xl border border-neutral-200 p-6">
-        <h2 className="text-lg font-semibold">Delivery city</h2>
+    <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
+      <section className="rounded-2xl border border-neutral-200 bg-white p-6 sm:p-8">
+        <p className="section-eyebrow">Delivery destination</p>
+        <h2 className="mt-2 text-xl font-bold">Delivery city</h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Only cities where a store can actually deliver are listed.
+          Cities with reported store coverage are listed. Availability for your cart is checked when you request a quote.
         </p>
 
         <label htmlFor="destination-city" className="mt-4 block text-sm font-semibold">
@@ -152,7 +153,7 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
             setCityId(event.target.value);
             attemptId.current = null;
           }}
-          className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 disabled:bg-neutral-100"
+          className="mt-2 min-h-12 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 disabled:bg-neutral-100"
         >
           <option value="">Choose a city</option>
           {cities.map(city => (
@@ -171,7 +172,7 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
           type="button"
           onClick={reserve}
           disabled={busy || !!reservationUnavailable || !cityId || quote?.state === 'RESERVED'}
-          className="mt-4 rounded-lg bg-brand-red px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-600"
+          className="mt-5 min-h-12 rounded-full bg-brand-red px-6 py-3 font-bold text-white hover:bg-brand-red-hover disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-700"
         >
           {busy ? 'Working…' : 'Reserve stock and get quote'}
         </button>
@@ -238,7 +239,7 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
                 type="button"
                 onClick={release}
                 disabled={busy}
-                className="mt-4 rounded-lg border border-neutral-400 px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-4 min-h-11 rounded-full border border-neutral-400 bg-white px-5 py-2 text-sm font-bold hover:border-neutral-900 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Release reserved stock
               </button>
@@ -251,8 +252,8 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
         ) : null}
       </section>
 
-      <aside className="h-fit rounded-2xl border border-neutral-200 bg-neutral-50 p-6">
-        <h2 className="text-lg font-semibold">Summary</h2>
+      <aside className="h-fit rounded-2xl border border-[#eee4d8] bg-[#faf5ee] p-6">
+        <h2 className="text-lg font-bold">Quote summary</h2>
         <dl className="mt-4 space-y-2 text-sm">
           <div className="flex justify-between">
             <dt>Subtotal</dt>
@@ -275,7 +276,7 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
           type="button"
           disabled
           aria-disabled="true"
-          className="mt-5 w-full cursor-not-allowed rounded-lg bg-neutral-300 px-5 py-3 font-semibold text-neutral-600"
+          className="mt-5 min-h-12 w-full cursor-not-allowed rounded-full bg-neutral-300 px-5 py-3 font-bold text-neutral-700"
         >
           Payment not available
         </button>

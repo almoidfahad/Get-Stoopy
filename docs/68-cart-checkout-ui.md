@@ -1,0 +1,7 @@
+# Cart and checkout UI increment
+
+Cart and checkout now share responsive storefront headings, breadcrumbs, notice states and a consistent cart/quote summary layout. Cart item controls have item-specific accessible names and larger touch targets. The existing cart mutations, optimistic version checks, quote reservation, recovery and release flows remain in place. The serviceability wording now avoids implying that every listed city can serve every item in the cart.
+
+The cart still shows actual API items and recalculated subtotals; it does not invent delivery fees or totals. Checkout still offers a stock reservation only when its prerequisites are satisfied. Delivery charges, taxes, payment and order placement remain unimplemented. The UI does not substitute sample carts or cities when a market or service is unavailable. No new backend/database configuration or production deployment is part of this increment.
+
+Server-rendered tests cover unconfigured, unavailable, sign-in, empty and populated carts; item-specific control labels; insufficient stock; checkout city and disabled payment; and reserved quote recovery in existing tests. These are not browser interaction, accessibility audit or live database end-to-end tests. This Vercel preview has no market configured and thus displays only the unavailable state; a configured test catalog and account are needed to inspect the populated flows. The supplied reference inventory has no dedicated cart or checkout mockup, so the visual layout is a storefront-consistent interpretation awaiting user review.

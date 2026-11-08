@@ -6,24 +6,13 @@ import { getOrCreateCart } from '@/lib/cart';
 import { readQuote } from '@/lib/checkout';
 import type { QuoteInput } from '@getstoopy/core';
 import { fetchServiceableCities } from '@/lib/serviceability';
+import { CommerceHeader, CommerceNotice } from '@/components/commerce-layout';
+import { ArrowLeft } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
 function Notice({ title, body, signIn = false }: { title: string; body: string; signIn?: boolean }) {
-  return (
-    <Shell>
-      <div className="max-w-xl rounded-2xl border border-neutral-200 bg-neutral-50 p-8">
-        <h1 className="text-2xl font-bold">{title}</h1>
-        <p className="mt-2 text-neutral-700">{body}</p>
-        <div className="mt-5 flex gap-3">
-          {signIn ? (
-            <Link href="/login" className="rounded-lg bg-brand-red px-5 py-3 font-semibold text-white">Sign in</Link>
-          ) : null}
-          <Link href="/cart" className="rounded-lg border border-neutral-300 px-5 py-3 font-semibold">Back to cart</Link>
-        </div>
-      </div>
-    </Shell>
-  );
+  return <CommerceNotice stage="Checkout" title={title} body={body} signIn={signIn} />;
 }
 
 /**
@@ -67,7 +56,7 @@ export default async function CheckoutPage() {
   if (!initialQuote && !summary.readyForCheckout) {
     return (
       <Shell>
-        <h1 className="text-3xl font-bold">Checkout</h1>
+        <CommerceHeader stage="Checkout" title="Checkout" />
         <div className="mt-6 max-w-xl rounded-2xl border border-brand-red bg-red-50 p-6">
           <h2 className="text-lg font-semibold text-brand-red">Resolve your cart first</h2>
           <ul className="mt-3 space-y-1 text-sm font-medium text-brand-red">
@@ -110,11 +99,7 @@ export default async function CheckoutPage() {
 
   return (
     <Shell>
-      <h1 className="text-3xl font-bold">Checkout</h1>
-      <p className="mt-1 text-neutral-600">
-        {summary.lineCount} {summary.lineCount === 1 ? 'item' : 'items'} · {summary.unitCount}{' '}
-        {summary.unitCount === 1 ? 'unit' : 'units'}
-      </p>
+      <CommerceHeader stage="Checkout" title="Checkout" description={`${summary.lineCount} ${summary.lineCount === 1 ? 'item' : 'items'} · ${summary.unitCount} ${summary.unitCount === 1 ? 'unit' : 'units'}`} />
       <CheckoutPanel
         cartVersion={cart.version}
         currency={summary.currency ?? cart.currency}
@@ -123,7 +108,7 @@ export default async function CheckoutPage() {
         reservationUnavailable={reservationUnavailable}
         initialQuote={initialQuote}
       />
-      <Link href="/cart" className="mt-6 inline-block text-sm font-semibold text-brand-red">Back to cart</Link>
+      <Link href="/cart" className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-brand-red hover:underline"><ArrowLeft size={15} />Back to cart</Link>
     </Shell>
   );
 }
