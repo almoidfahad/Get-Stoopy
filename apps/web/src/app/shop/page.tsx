@@ -2,15 +2,15 @@ import Link from 'next/link';
 import { ArrowRight, PackageSearch, Search } from 'lucide-react';
 import { Shell } from '@/components/shell';
 import { ProductCard } from '@/components/product-card';
-import { fetchCategories, fetchProducts } from '@/lib/catalog';
+import { fetchCategories, fetchProducts, type PublicCategory } from '@/lib/catalog';
 import { isValidShopCursor, normalizeShopQuery } from '@/lib/shop-query';
 
 export const dynamic = 'force-dynamic';
 
 interface ShopSearchParams {
-  q?: string;
-  categoryId?: string;
-  cursor?: string;
+  q?: string | undefined;
+  categoryId?: string | undefined;
+  cursor?: string | undefined;
 }
 
 function shopHref(params: ShopSearchParams): string {
@@ -20,6 +20,14 @@ function shopHref(params: ShopSearchParams): string {
   if (params.cursor) search.set('cursor', params.cursor);
   const query = search.toString();
   return query ? `/shop?${query}` : '/shop';
+}
+
+/** Shared category links retain search while returning to the first page. */
+function CategoryLinks({ categories, q, categoryId }: { categories: PublicCategory[]; q: string | undefined; categoryId: string | undefined }) {
+  return <div className="mt-3 flex flex-wrap gap-2 lg:flex-col lg:gap-1">
+    <Link href={shopHref({ q })} aria-current={categoryId ? undefined : 'page'} className={`inline-flex min-h-11 items-center rounded-lg px-3 py-2.5 text-sm ${categoryId ? 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100' : 'bg-red-50 font-bold text-brand-red'}`}>All categories</Link>
+    {categories.map(category => <Link key={category.id} href={shopHref({ categoryId: category.id, q })} aria-current={categoryId === category.id ? 'page' : undefined} className={`inline-flex min-h-11 min-w-0 max-w-full items-center break-words rounded-lg px-3 py-2.5 text-sm [overflow-wrap:anywhere] ${categoryId === category.id ? 'bg-red-50 font-bold text-brand-red' : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100'}`}>{category.name}</Link>)}
+  </div>;
 }
 
 export default async function ShopPage({
@@ -51,7 +59,7 @@ export default async function ShopPage({
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-10">
         <aside aria-label="Shop filters" className="min-w-0">
-          <form action="/shop" method="get" role="search">
+          <form action="/shop" method="get" role="search" aria-label="Shop collection">
             <label htmlFor="shop-search" className="block text-sm font-bold text-neutral-900">Search the collection</label>
             <div className="mt-3 flex overflow-hidden rounded-xl border border-neutral-300 bg-white focus-within:border-neutral-600">
               <input id="shop-search" type="search" name="q" defaultValue={q ?? ''} maxLength={120} placeholder="Search products" className="min-w-0 flex-1 bg-transparent px-4 py-3 text-sm outline-none" />
@@ -61,15 +69,13 @@ export default async function ShopPage({
           </form>
 
           {categoryList.length > 0 ? (
-            <nav aria-label="Categories" className="mt-7">
-              <h2 className="text-sm font-bold text-neutral-900">Categories</h2>
-              <div className="mt-3 flex flex-wrap gap-2 lg:flex-col lg:gap-1">
-                <Link href={shopHref({ ...(q ? { q } : {}) })} aria-current={categoryId ? undefined : 'page'} className={`rounded-lg px-3 py-2.5 text-sm ${categoryId ? 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100' : 'bg-red-50 font-bold text-brand-red'}`}>All products</Link>
-                {categoryList.map(category => (
-                  <Link key={category.id} href={shopHref({ categoryId: category.id, ...(q ? { q } : {}) })} aria-current={categoryId === category.id ? 'page' : undefined} className={`rounded-lg px-3 py-2.5 text-sm ${categoryId === category.id ? 'bg-red-50 font-bold text-brand-red' : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100'}`}>{category.name}</Link>
-                ))}
-              </div>
-            </nav>
+            <>
+              <details className="group mt-6 rounded-xl border border-neutral-200 bg-white lg:hidden">
+                <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold [&::-webkit-details-marker]:hidden"><span className="min-w-0 break-words [overflow-wrap:anywhere]">Categories <span className="ml-1 font-normal text-neutral-600">· {activeCategory?.name ?? (categoryId ? 'Selected category' : 'All categories')}</span></span><span aria-hidden="true" className="shrink-0 text-xs text-neutral-600 group-open:hidden">Open</span><span aria-hidden="true" className="hidden shrink-0 text-xs text-neutral-600 group-open:inline">Close</span></summary>
+                <nav aria-label="Categories" className="border-t border-neutral-200 px-4 pb-4"><CategoryLinks categories={categoryList} q={q} categoryId={categoryId} /></nav>
+              </details>
+              <nav aria-label="Categories" className="mt-7 hidden lg:block"><h2 className="text-sm font-bold text-neutral-900">Categories</h2><CategoryLinks categories={categoryList} q={q} categoryId={categoryId} /></nav>
+            </>
           ) : categories.state === 'unavailable' || categories.state === 'not-found' ? (
             <p className="mt-6 text-sm leading-6 text-neutral-600">Categories are temporarily unavailable.</p>
           ) : null}
@@ -77,9 +83,10 @@ export default async function ShopPage({
 
         <section aria-labelledby="products-heading" className="min-w-0">
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-neutral-200 pb-5">
-            <div><p className="section-eyebrow">Our collection</p><h2 id="products-heading" className="mt-1 text-2xl font-black tracking-tight text-neutral-950">{activeCategory?.name ?? (categoryId ? 'Selected category' : 'All products')}</h2>{q ? <p className="mt-1 text-sm text-neutral-600">Search: “{q}”</p> : null}</div>
+            <div className="min-w-0"><p className="section-eyebrow">Our collection</p><h2 id="products-heading" className="mt-1 break-words text-2xl font-black tracking-tight text-neutral-950 [overflow-wrap:anywhere]">{activeCategory?.name ?? (categoryId ? 'Selected category' : 'All products')}</h2>{q ? <p className="mt-1 break-words text-sm text-neutral-600 [overflow-wrap:anywhere]">Search: “{q}”</p> : null}</div>
             {q || categoryId ? <Link href="/shop" className="text-sm font-bold text-brand-red hover:underline">Clear filters</Link> : null}
           </div>
+          {q || categoryId ? <div aria-label="Applied filters" className="mb-5 flex flex-wrap items-center gap-2 text-sm"><span className="font-semibold text-neutral-700">Applied filters:</span>{q ? <Link href={shopHref({ categoryId })} aria-label="Remove search filter" className="inline-flex min-h-11 items-center rounded-full border border-neutral-300 px-4 py-2 font-semibold hover:border-neutral-900">Remove search <span aria-hidden="true" className="ml-2">×</span></Link> : null}{categoryId ? <Link href={shopHref({ q })} aria-label="Remove category filter" className="inline-flex min-h-11 items-center rounded-full border border-neutral-300 px-4 py-2 font-semibold hover:border-neutral-900">Remove category <span aria-hidden="true" className="ml-2">×</span></Link> : null}</div> : null}
           <div aria-live="polite">
             {products.state === 'not-configured' ? (
               <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-8">
@@ -89,7 +96,7 @@ export default async function ShopPage({
             ) : products.state === 'unavailable' || products.state === 'not-found' ? (
               <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-8"><PackageSearch size={28} className="text-brand-red" aria-hidden="true" /><h3 className="mt-4 text-lg font-bold">Catalog unavailable</h3><p className="mt-2 text-sm leading-6 text-neutral-700">The catalog service could not be reached. Please try again shortly.</p><Link href={shopHref({ ...(q ? { q } : {}), ...(categoryId ? { categoryId } : {}), ...(cursor ? { cursor } : {}) })} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-brand-red hover:underline">Retry <ArrowRight size={15} /></Link></div>
             ) : products.data.items.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-8"><PackageSearch size={28} className="text-brand-red" aria-hidden="true" /><h3 className="mt-4 text-lg font-bold">No products found</h3><p className="mt-2 text-sm leading-6 text-neutral-700">{cursor ? 'There are no products on this page.' : q ? `Nothing matched “${q}”.` : categoryId ? 'No published products were found in this category.' : 'No published products are available in this market yet.'}</p>{cursor ? <Link href={shopHref({ ...(q ? { q } : {}), ...(categoryId ? { categoryId } : {}) })} className="mt-4 inline-block text-sm font-bold text-brand-red hover:underline">Back to first page</Link> : q || categoryId ? <Link href="/shop" className="mt-4 inline-block text-sm font-bold text-brand-red hover:underline">Clear filters</Link> : null}</div>
+              <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-8"><PackageSearch size={28} className="text-brand-red" aria-hidden="true" /><h3 className="mt-4 text-lg font-bold">No products found</h3><p className="mt-2 break-words text-sm leading-6 text-neutral-700 [overflow-wrap:anywhere]">{cursor ? 'There are no products on this page.' : q ? `Nothing matched “${q}”.` : categoryId ? 'No published products were found in this category.' : 'No published products are available in this market yet.'}</p>{cursor ? <Link href={shopHref({ ...(q ? { q } : {}), ...(categoryId ? { categoryId } : {}) })} className="mt-4 inline-block text-sm font-bold text-brand-red hover:underline">Back to first page</Link> : q || categoryId ? <Link href="/shop" className="mt-4 inline-block text-sm font-bold text-brand-red hover:underline">Clear filters</Link> : null}</div>
             ) : (
               <><p className="mb-4 text-sm text-neutral-600">Showing {products.data.items.length} {products.data.items.length === 1 ? 'product' : 'products'} on this page.</p><ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">{products.data.items.map(product => <ProductCard key={product.id} product={product} />)}</ul>
                 {cursor || products.data.nextCursor ? <nav aria-label="Product pages" className="mt-8 flex flex-wrap items-center gap-3">{cursor ? <Link href={shopHref({ ...(q ? { q } : {}), ...(categoryId ? { categoryId } : {}) })} className="inline-flex min-h-12 items-center rounded-full border border-neutral-300 px-6 py-3 text-sm font-bold hover:border-neutral-900">First page</Link> : null}{products.data.nextCursor && isValidShopCursor(products.data.nextCursor) ? <Link href={shopHref({ ...(q ? { q } : {}), ...(categoryId ? { categoryId } : {}), cursor: products.data.nextCursor })} className="inline-flex min-h-12 items-center gap-2 rounded-full border border-neutral-300 px-6 py-3 text-sm font-bold hover:border-neutral-900" rel="next">Next page <ArrowRight size={16} /></Link> : null}{products.data.nextCursor && !isValidShopCursor(products.data.nextCursor) ? <p role="status" className="text-sm text-neutral-700">The next page is temporarily unavailable. Please try again later.</p> : null}</nav> : null}

@@ -28,8 +28,8 @@ export function ProductCard({ product }: { product: PublicProduct }) {
         </div>
         <div className="flex flex-1 flex-col gap-1 p-4">
           {product.brand ? <p className="text-xs uppercase tracking-wide text-neutral-500">{product.brand}</p> : null}
-          <h3 className="font-semibold leading-snug group-hover:text-brand-red">{product.title}</h3>
-          {product.store ? <p className="text-sm text-neutral-600">{product.store.name}</p> : null}
+          <h3 className="break-words font-semibold leading-snug [overflow-wrap:anywhere] group-hover:text-brand-red">{product.title}</h3>
+          {product.store ? <p className="break-words text-sm text-neutral-600 [overflow-wrap:anywhere]">{product.store.name}</p> : null}
           <div className="mt-auto pt-3">
             {anyInStock && lowest ? (
               <p className="font-bold">
