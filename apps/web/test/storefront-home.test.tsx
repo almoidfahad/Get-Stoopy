@@ -35,5 +35,13 @@ describe('storefront UI', () => {
     expect(html).toContain('/api/auth/login');
     expect(html).toContain('role="alert"');
     expect(html).not.toContain('Continue with Google');
+    expect(html.indexOf('id="login-heading"')).toBeLessThan(html.indexOf('aria-label="Welcome to Get Stoopy"'));
+    expect(html).toContain('Continue browsing');
+  });
+  it('shows a safe recovery message when sign-in cannot start', async () => {
+    const html = renderToStaticMarkup(await Login({ searchParams: Promise.resolve({ error: 'unavailable' }) }));
+    expect(html).toContain('Sign-in service unavailable');
+    expect(html).toContain('not configured');
+    expect(html).toContain('href="/shop"');
   });
 });
