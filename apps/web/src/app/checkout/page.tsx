@@ -49,11 +49,22 @@ export default async function CheckoutPage() {
   const cart = result.cart;
   const summary = summarizeCart(cart.items);
 
-  if (cart.items.length === 0) {
+  // Recovery must not depend on today's cart validity or serviceability: an
+  // existing reservation can outlive either of them.
+  let initialQuote: QuoteInput | null = null;
+  if (cart.activeQuoteId) {
+    const existing = await readQuote(cart.activeQuoteId);
+    if (existing.status !== 200) {
+      return <Notice title="Reserved quote unavailable" body="Your cart may still have reserved stock, but the quote could not be loaded. Please reload this page and try again; the reservation may still be active." />;
+    }
+    initialQuote = existing.body as QuoteInput;
+  }
+
+  if (!initialQuote && cart.items.length === 0) {
     return <Notice title="Your cart is empty" body="Add something to your cart before requesting a delivery quote." />;
   }
 
-  if (!summary.readyForCheckout) {
+  if (!initialQuote && !summary.readyForCheckout) {
     return (
       <Shell>
         <h1 className="text-3xl font-bold">Checkout</h1>
@@ -74,13 +85,13 @@ export default async function CheckoutPage() {
 
   const cities = await fetchServiceableCities();
 
-  if (cities.state === 'not-configured') {
+  if (!initialQuote && cities.state === 'not-configured') {
     return <Notice title="Market not configured" body="This deployment has no market country set, so delivery cities cannot be listed." />;
   }
-  if (cities.state === 'unavailable') {
+  if (!initialQuote && cities.state === 'unavailable') {
     return <Notice title="Delivery cities unavailable" body="The list of serviceable cities could not be loaded. Please try again shortly." />;
   }
-  if (cities.data.items.length === 0) {
+  if (!initialQuote && cities.state === 'ok' && cities.data.items.length === 0) {
     return (
       <Notice
         title="No delivery cities yet"
@@ -89,13 +100,13 @@ export default async function CheckoutPage() {
     );
   }
 
-  // Recover a quote that is already holding this cart's stock, so a reload never
-  // strands a reservation the buyer cannot see or release.
-  let initialQuote: QuoteInput | null = null;
-  if (cart.activeQuoteId) {
-    const existing = await readQuote(cart.activeQuoteId);
-    if (existing.status === 200) initialQuote = existing.body as QuoteInput;
-  }
+  const reservationUnavailable = !summary.readyForCheckout || cart.items.length === 0
+    ? 'Your cart is not ready for a new quote. Return to the cart to resolve its issues.'
+    : cities.state !== 'ok'
+      ? 'Delivery cities could not be loaded. Reload the page before requesting a new quote.'
+      : cities.data.items.length === 0
+        ? 'No delivery cities are currently available for a new quote.'
+        : null;
 
   return (
     <Shell>
@@ -107,8 +118,9 @@ export default async function CheckoutPage() {
       <CheckoutPanel
         cartVersion={cart.version}
         currency={summary.currency ?? cart.currency}
-        cities={cities.data.items}
-        truncated={cities.data.truncated}
+        cities={cities.state === 'ok' ? cities.data.items : []}
+        truncated={cities.state === 'ok' && cities.data.truncated}
+        reservationUnavailable={reservationUnavailable}
         initialQuote={initialQuote}
       />
       <Link href="/cart" className="mt-6 inline-block text-sm font-semibold text-brand-red">Back to cart</Link>

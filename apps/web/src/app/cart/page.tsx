@@ -52,6 +52,13 @@ export default async function CartPage() {
         {summary.unitCount === 1 ? 'unit' : 'units'}
       </p>
 
+      {cart.activeQuoteId ? (
+        <p className="mt-5 rounded-xl border border-neutral-300 bg-neutral-50 p-4 text-sm">
+          This cart has a reserved quote. Stock availability may reflect that reservation.{' '}
+          <Link href="/checkout" className="font-semibold text-brand-red underline">View or release the quote</Link>.
+        </p>
+      ) : null}
+
       {cartWide.length > 0 ? (
         <ul role="alert" className="mt-5 space-y-1 rounded-xl border border-brand-red bg-red-50 p-4 text-sm font-medium text-brand-red">
           {cartWide.map(message => <li key={message}>{message}</li>)}
@@ -115,12 +122,12 @@ export default async function CartPage() {
               Checkout can reserve your items and quote a delivery city. Delivery charges, taxes and payment
               are not implemented yet, so no grand total is shown and no money is taken.
             </p>
-            {summary.readyForCheckout ? (
+            {summary.readyForCheckout || cart.activeQuoteId ? (
               <Link
                 href="/checkout"
                 className="mt-5 block w-full rounded-lg bg-brand-red px-5 py-3 text-center font-semibold text-white"
               >
-                Continue to checkout
+                {cart.activeQuoteId ? 'View reserved quote' : 'Continue to checkout'}
               </Link>
             ) : (
               <button
@@ -134,7 +141,7 @@ export default async function CartPage() {
             )}
             {summary.issues.length > 0 ? (
               <p className="mt-3 text-sm font-medium text-brand-red">
-                Resolve the items flagged above before checkout can be offered.
+                {cart.activeQuoteId ? 'Review or release your quote before requesting another.' : 'Resolve the items flagged above before checkout can be offered.'}
               </p>
             ) : null}
             <Link href="/shop" className="mt-4 inline-block text-sm font-semibold text-brand-red">Continue shopping</Link>

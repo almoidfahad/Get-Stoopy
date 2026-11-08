@@ -24,6 +24,7 @@ interface Props {
   currency: string;
   cities: ServiceableCity[];
   truncated: boolean;
+  reservationUnavailable: string | null;
   /** A quote already holding this cart's stock, recovered after a reload. */
   initialQuote: QuoteInput | null;
 }
@@ -32,7 +33,7 @@ function newAttemptId(): string {
   return crypto.randomUUID();
 }
 
-export function CheckoutPanel({ cartVersion, currency, cities, truncated, initialQuote }: Props) {
+export function CheckoutPanel({ cartVersion, currency, cities, truncated, initialQuote, reservationUnavailable }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [cityId, setCityId] = useState('');
@@ -68,6 +69,7 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
   }
 
   async function reserve(): Promise<void> {
+    if (reservationUnavailable || quote?.state === 'RESERVED') return;
     if (!cityId) {
       setError('Choose a delivery city first.');
       return;
@@ -145,7 +147,7 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
         <select
           id="destination-city"
           value={cityId}
-          disabled={busy || summary?.canRelease === true}
+          disabled={busy || !!reservationUnavailable || quote?.state === 'RESERVED'}
           onChange={event => {
             setCityId(event.target.value);
             attemptId.current = null;
@@ -168,7 +170,7 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
         <button
           type="button"
           onClick={reserve}
-          disabled={busy || !cityId || summary?.canRelease === true}
+          disabled={busy || !!reservationUnavailable || !cityId || quote?.state === 'RESERVED'}
           className="mt-4 rounded-lg bg-brand-red px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-600"
         >
           {busy ? 'Working…' : 'Reserve stock and get quote'}
@@ -176,6 +178,10 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
         <p className="mt-2 text-sm text-neutral-600">
           This holds the items for a short time. It is not an order and no payment is taken.
         </p>
+
+        {reservationUnavailable ? (
+          <p role="status" className="mt-4 text-sm text-neutral-700">{reservationUnavailable}</p>
+        ) : null}
 
         {error ? (
           <p role="alert" className="mt-4 rounded-lg border border-brand-red bg-red-50 p-3 text-sm font-medium text-brand-red">
