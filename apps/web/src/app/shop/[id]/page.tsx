@@ -1,8 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { formatMinorUnits, summarizeVariantPrices } from '@getstoopy/core';
+import { ArrowLeft, PackageSearch } from 'lucide-react';
+import { summarizeVariantPrices } from '@getstoopy/core';
+import { formatCatalogPrice } from '@/lib/catalog-price';
 import { Shell } from '@/components/shell';
-import { fetchProduct, imageProxyUrl } from '@/lib/catalog';
+import { fetchProduct } from '@/lib/catalog';
+import { ProductGallery } from '@/components/product-gallery';
 import { hasSessionCookie } from '@/lib/cart';
 import { AddToCart } from '@/components/cart-controls';
 
@@ -17,137 +20,70 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   if (result.state !== 'ok') {
     return (
       <Shell>
-        <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-8">
-          <h1 className="text-2xl font-bold">
-            {result.state === 'not-configured' ? 'Market not configured' : 'Product unavailable'}
-          </h1>
-          <p className="mt-2 text-neutral-700">
-            {result.state === 'not-configured'
-              ? 'This deployment has no market country set, so no catalog can be shown.'
-              : 'The catalog service could not be reached. Please try again shortly.'}
-          </p>
-          <Link href="/shop" className="mt-4 inline-block font-semibold text-brand-red">Back to shop</Link>
+        <div className="max-w-2xl rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-8 sm:p-10">
+          <PackageSearch size={30} className="text-brand-red" aria-hidden="true" />
+          <h1 className="mt-4 text-2xl font-black tracking-tight">{result.state === 'not-configured' ? 'Market not configured' : 'Product unavailable'}</h1>
+          <p className="mt-2 text-sm leading-6 text-neutral-700">{result.state === 'not-configured' ? 'This deployment has no market country set, so no catalog can be shown.' : 'The catalog service could not be reached. Please try again shortly.'}</p>
+          <Link href="/shop" className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-brand-red hover:underline"><ArrowLeft size={16} /> Back to shop</Link>
         </div>
       </Shell>
     );
   }
 
   const product = result.data;
-  const currency = product.currency || 'BDT';
-  const summary = summarizeVariantPrices(product.variants);
+  const currency = product.currency;
+  const summary = summarizeVariantPrices(product.variants.filter(v => formatCatalogPrice(v.priceAmountMinor, currency) !== null));
   const signedIn = await hasSessionCookie();
+  const anyAvailable = product.variants.some(v => v.inStock && v.availableToPromise > 0);
   const orderable = product.variants
-    .filter(v => v.inStock && v.availableToPromise > 0)
+    .filter(v => v.inStock && v.availableToPromise > 0 && formatCatalogPrice(v.priceAmountMinor, currency) !== null)
     .map(v => ({ id: v.id, label: v.title ?? v.id.slice(0, 8) }));
+
+  const lowestPrice = summary.lowestMinor === null ? null : formatCatalogPrice(summary.lowestMinor.toString(), currency);
+  const highestPrice = summary.highestMinor === null ? null : formatCatalogPrice(summary.highestMinor.toString(), currency);
 
   return (
     <Shell>
-      <nav aria-label="Breadcrumb" className="text-sm text-neutral-600">
+      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-neutral-600">
         <Link href="/shop" className="hover:text-brand-red">Shop</Link>
-        {product.category ? (
-          <>
-            <span aria-hidden="true"> / </span>
-            <Link href={`/shop?categoryId=${product.category.id}`} className="hover:text-brand-red">
-              {product.category.name}
-            </Link>
-          </>
-        ) : null}
+        {product.category ? <><span aria-hidden="true" className="text-neutral-400">/</span><Link href={`/shop?${new URLSearchParams({ categoryId: product.category.id }).toString()}`} className="hover:text-brand-red">{product.category.name}</Link></> : null}
+        <span aria-hidden="true" className="text-neutral-400">/</span><span aria-current="page" className="font-semibold text-neutral-900">{product.title}</span>
       </nav>
 
-      <div className="mt-6 grid gap-8 lg:grid-cols-2">
-        <div>
-          <div className="aspect-square w-full overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-100">
-            {product.images[0] ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={imageProxyUrl(product.id, product.images[0].id)}
-                alt={product.images[0].altText ?? product.title}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-neutral-500">No image</div>
+      <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-14">
+        <ProductGallery productId={product.id} productTitle={product.title} images={product.images} />
+
+        <div className="min-w-0">
+          <p className="section-eyebrow">The collection</p>
+          {product.brand ? <p className="mt-3 text-sm font-semibold text-neutral-600">{product.brand}</p> : null}
+          <h1 className="mt-2 text-3xl font-black leading-tight tracking-[-.035em] text-neutral-950 sm:text-4xl">{product.title}</h1>
+          {product.store ? <p className="mt-3 text-sm text-neutral-600">Sold by <span className="font-bold text-neutral-900">{product.store.name}</span></p> : null}
+
+          <div className="mt-6 border-y border-neutral-200 py-5">
+            {lowestPrice !== null && highestPrice !== null ? (
+              <p className="text-2xl font-black text-neutral-950">{summary.singlePrice ? lowestPrice : `${lowestPrice} – ${highestPrice}`}</p>
+            ) : <p className="text-lg font-semibold text-neutral-600">{anyAvailable ? 'Price unavailable' : 'Out of stock'}</p>}
+          </div>
+
+          <section aria-labelledby="options-heading" className="mt-7">
+            <h2 id="options-heading" className="text-lg font-bold text-neutral-950">Product options</h2>
+            {product.variants.length === 0 ? <p className="mt-3 text-sm text-neutral-600">This product has no available options.</p> : (
+              <ul className="mt-3 divide-y divide-neutral-200 overflow-hidden rounded-2xl border border-neutral-200">
+                {product.variants.map(variant => {
+                  const available = variant.inStock && variant.availableToPromise > 0;
+                  const price = formatCatalogPrice(variant.priceAmountMinor, currency);
+                  return <li key={variant.id} className="flex items-center justify-between gap-4 bg-white p-4"><div className="min-w-0"><p className="break-words text-sm font-bold text-neutral-900">{variant.title ?? variant.id.slice(0, 8)}</p><p className="mt-1 text-sm text-neutral-600">{available ? `${variant.availableToPromise} available` : 'Out of stock'}</p></div><p className="shrink-0 text-sm font-bold text-neutral-900">{price ?? 'Price unavailable'}</p></li>;
+                })}
+              </ul>
             )}
-          </div>
-          {product.images.length > 1 ? (
-            <ul className="mt-3 flex gap-3">
-              {product.images.slice(1, 5).map(image => (
-                <li key={image.id} className="h-20 w-20 overflow-hidden rounded-lg border border-neutral-200 bg-neutral-100">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={imageProxyUrl(product.id, image.id)}
-                    alt={image.altText ?? product.title}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                  />
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
+          </section>
 
-        <div>
-          {product.brand ? <p className="text-sm uppercase tracking-wide text-neutral-500">{product.brand}</p> : null}
-          <h1 className="mt-1 text-3xl font-bold">{product.title}</h1>
-          {product.store ? (
-            <p className="mt-2 text-neutral-700">
-              Sold by <span className="font-semibold">{product.store.name}</span>
-            </p>
-          ) : null}
-
-          <div className="mt-6">
-            {summary.anyInStock && summary.lowestMinor !== null ? (
-              <p className="text-2xl font-bold">
-                {summary.singlePrice
-                  ? formatMinorUnits(summary.lowestMinor.toString(), currency)
-                  : `${formatMinorUnits(summary.lowestMinor.toString(), currency)} – ${formatMinorUnits((summary.highestMinor as bigint).toString(), currency)}`}
-              </p>
-            ) : (
-              <p className="text-xl font-semibold text-neutral-600">Out of stock</p>
-            )}
+          <div className="mt-6 rounded-2xl bg-[#faf5ee] p-5 sm:p-6">
+            {orderable.length ? <AddToCart variants={orderable} signedIn={signedIn} /> : <p className="text-sm font-medium text-neutral-700">{anyAvailable ? 'Pricing is unavailable for the available options. Please try again later.' : 'Nothing is currently available to order.'}</p>}
+            <p className="mt-4 text-xs leading-5 text-neutral-600">Checkout may reserve stock where available. Delivery fees, payment and order confirmation are not yet available.</p>
           </div>
 
-          <h2 className="mt-8 text-lg font-semibold">Options</h2>
-          {product.variants.length === 0 ? (
-            <p className="mt-2 text-neutral-600">This product has no available options.</p>
-          ) : (
-            <ul className="mt-3 divide-y divide-neutral-200 rounded-xl border border-neutral-200">
-              {product.variants.map(variant => {
-                const orderable = variant.inStock && variant.availableToPromise > 0;
-                const price = formatMinorUnits(variant.priceAmountMinor, currency);
-                return (
-                  <li key={variant.id} className="flex items-center justify-between gap-4 p-4">
-                    <div>
-                      <p className="font-medium">{variant.title ?? variant.id.slice(0, 8)}</p>
-                      <p className={`text-sm ${orderable ? 'text-neutral-600' : 'text-neutral-500'}`}>
-                        {orderable ? `${variant.availableToPromise} available` : 'Out of stock'}
-                      </p>
-                    </div>
-                    <p className="font-semibold">{price ?? 'Price unavailable'}</p>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-
-          <div className="mt-8">
-            {orderable.length > 0 ? (
-              <AddToCart variants={orderable} signedIn={signedIn} />
-            ) : (
-              <p className="text-sm font-medium text-neutral-600">Nothing is currently available to order.</p>
-            )}
-          </div>
-
-          <div className="mt-6 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
-            You can build a cart, but checkout is not enabled in this environment. Prices and stock come from
-            the live catalog service; no payment is taken.
-          </div>
-
-          {product.description ? (
-            <section className="mt-8">
-              <h2 className="text-lg font-semibold">Description</h2>
-              <p className="mt-2 whitespace-pre-line text-neutral-700">{product.description}</p>
-            </section>
-          ) : null}
+          {product.description ? <section aria-labelledby="description-heading" className="mt-8 border-t border-neutral-200 pt-6"><h2 id="description-heading" className="text-lg font-bold text-neutral-950">Description</h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-neutral-700">{product.description}</p></section> : null}
         </div>
       </div>
     </Shell>

@@ -23,8 +23,8 @@ export class NotificationService {
     @Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService,
   ) {}
 
-  private requireOwner(ctx: AccessContext, userId: string) {
-    if (!hasPermission(ctx, 'notification.create') && !hasPermission(ctx, 'notification.read') && !hasPermission(ctx, 'notification.update')) {
+  private requireOwner(ctx: AccessContext, userId: string, permission: 'notification.create' | 'notification.read' | 'notification.update') {
+    if (!hasPermission(ctx, permission)) {
       throw new ForbiddenException({ code: 'PERMISSION_DENIED', message: 'Notification permission denied' });
     }
     if (ctx.userId !== userId) {
@@ -73,7 +73,7 @@ export class NotificationService {
   }
 
   async createNotification(ctx: AccessContext, input: NotificationInput) {
-    this.requireOwner(ctx, input.userId);
+    this.requireOwner(ctx, input.userId, 'notification.create');
 
     return this.privileged.$transaction(async tx => {
       await setRls(tx, {
@@ -130,7 +130,7 @@ export class NotificationService {
     userId: string,
     { status, channel, limit, cursor }: { status?: string; channel?: string; limit: number; cursor?: string },
   ) {
-    this.requireOwner(ctx, userId);
+    this.requireOwner(ctx, userId, 'notification.read');
 
     return this.db.$transaction(async tx => {
       await setRls(tx, {
@@ -163,7 +163,7 @@ export class NotificationService {
   }
 
   async getNotification(ctx: AccessContext, notificationId: string, userId: string) {
-    this.requireOwner(ctx, userId);
+    this.requireOwner(ctx, userId, 'notification.read');
 
     return this.db.$transaction(async tx => {
       await setRls(tx, {
@@ -186,7 +186,7 @@ export class NotificationService {
   }
 
   async markRead(ctx: AccessContext, notificationId: string, userId: string) {
-    this.requireOwner(ctx, userId);
+    this.requireOwner(ctx, userId, 'notification.update');
 
     return this.privileged.$transaction(async tx => {
       await setRls(tx, {
@@ -220,7 +220,7 @@ export class NotificationService {
   }
 
   async getPreferences(ctx: AccessContext, userId: string) {
-    this.requireOwner(ctx, userId);
+    this.requireOwner(ctx, userId, 'notification.read');
 
     return this.db.$transaction(async tx => {
       await setRls(tx, {
@@ -242,7 +242,7 @@ export class NotificationService {
     channel: string,
     enabled: boolean,
   ) {
-    this.requireOwner(ctx, userId);
+    this.requireOwner(ctx, userId, 'notification.update');
 
     return this.privileged.$transaction(async tx => {
       await setRls(tx, {

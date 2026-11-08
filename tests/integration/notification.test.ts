@@ -12,7 +12,7 @@ let privilegedPool: pg.Pool;
 let customer: any;
 let stranger: any;
 
-async function makeUser(label: string) {
+async function makeUser(label: string, permissions: readonly string[] = ['notification.create', 'notification.read', 'notification.update']) {
   const userId = randomUUID();
   const token = `notif-${label}-${randomUUID()}`;
   const tokenHash = createHash('sha256').update(token).digest('hex');
@@ -20,20 +20,19 @@ async function makeUser(label: string) {
   await asSuper(u.privileged, async c => {
     await c.query(`INSERT INTO "User"(id,"displayName","updatedAt") VALUES ($1,$2,now())`, [userId, `Notif ${label}`]);
 
-    // Grant notification.create/read/update permissions to the test user via a dedicated role.
-    // ON CONFLICT keeps existing permission rows (idempotent re-runs) and assigns their id to our vars.
-    const permCreate = randomUUID();
-    const permRead = randomUUID();
-    const permUpdate = randomUUID();
-    await c.query(`INSERT INTO "Permission"(id,key,resource,action,sensitivity) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (key) DO UPDATE SET id = EXCLUDED.id`, [permCreate, 'notification.create', 'Notification', 'create', 'LOW']);
-    await c.query(`INSERT INTO "Permission"(id,key,resource,action,sensitivity) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (key) DO UPDATE SET id = EXCLUDED.id`, [permRead, 'notification.read', 'Notification', 'read', 'LOW']);
-    await c.query(`INSERT INTO "Permission"(id,key,resource,action,sensitivity) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (key) DO UPDATE SET id = EXCLUDED.id`, [permUpdate, 'notification.update', 'Notification', 'update', 'LOW']);
+    // Reuse existing permission IDs; don't rewrite shared primary keys when
+    // other fixtures have already granted the same permission.
     const roleId = randomUUID();
-    await c.query(`INSERT INTO "Role"(id,key,name,description) VALUES ($1,$2,$3,$4) ON CONFLICT (key) DO UPDATE SET id = EXCLUDED.id`, [roleId, `notification-role-${label}`, `Notification Role ${label}`, 'Test role for notification permissions']);
-    await c.query(`INSERT INTO "RolePermission"("roleId","permissionId") VALUES ($1,$2) ON CONFLICT ("roleId","permissionId") DO NOTHING`, [roleId, permCreate]);
-    await c.query(`INSERT INTO "RolePermission"("roleId","permissionId") VALUES ($1,$2) ON CONFLICT ("roleId","permissionId") DO NOTHING`, [roleId, permRead]);
-    await c.query(`INSERT INTO "RolePermission"("roleId","permissionId") VALUES ($1,$2) ON CONFLICT ("roleId","permissionId") DO NOTHING`, [roleId, permUpdate]);
-    await c.query(`INSERT INTO "UserRole"("id","userId","roleId","grantedBy","expiresAt","revokedAt") VALUES ($1,$2,$3,$3,null,null)`, [randomUUID(), userId, roleId]);
+    await c.query(`INSERT INTO "Role"(id,key,name,description) VALUES ($1,$2,$3,$4)`, [roleId, `notification-role-${randomUUID()}`, `Notification Role ${label}`, 'Test role for notification permissions']);
+    for (const key of permissions) {
+      const action = key.split('.')[1];
+      const permission = await c.query(
+        `INSERT INTO "Permission"(id,key,resource,action,sensitivity) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (key) DO UPDATE SET key = EXCLUDED.key RETURNING id`,
+        [randomUUID(), key, 'Notification', action, 'LOW'],
+      );
+      await c.query(`INSERT INTO "RolePermission"("roleId","permissionId") VALUES ($1,$2)`, [roleId, permission.rows[0].id]);
+    }
+    await c.query(`INSERT INTO "UserRole"("id","userId","roleId","grantedBy","expiresAt","revokedAt") VALUES ($1,$2,$3,$4,null,null)`, [randomUUID(), userId, roleId, userId]);
 
     await c.query(`INSERT INTO "Session"(id,"userId","tokenHash","expiresAt","idleExpiresAt","authVersion") VALUES ($1,$2,$3,now()+interval '1 hour',now()+interval '15 minutes',1)`, [sessionId, userId, tokenHash]);
   });
@@ -55,6 +54,20 @@ function patch(path: string, user: { token: string; csrf: string }, body: unknow
 
 describe('notification lifecycle', () => {
   beforeAll(async () => {
+    // Each integration file must bootstrap its own test environment. CI does
+    // not provide the local developer's .env, and Vitest isolates test files.
+    process.env['NODE_ENV'] = 'test';
+    process.env['WEB_ORIGIN'] = origin;
+    process.env['DATABASE_URL'] = u.runtime;
+    process.env['DATABASE_PRIVILEGED_URL'] = u.privileged;
+    process.env['REDIS_URL'] = process.env['TEST_REDIS_URL'] ?? 'redis://localhost:6379';
+    process.env['KEYCLOAK_ISSUER'] = 'http://localhost:8080/realms/get-stoopy';
+    process.env['KEYCLOAK_CLIENT_ID'] = 'get-stoopy-web';
+    process.env['KEYCLOAK_CLIENT_SECRET'] = 'test-secret';
+    process.env['BFF_API_SHARED_SECRET'] = 'test-bff-secret-000000000000000000000000';
+    process.env['SESSION_TOKEN_ENCRYPTION_KEY'] = 'c'.repeat(64);
+    process.env['STORAGE_ENCRYPTION_KEY'] = 'e'.repeat(64);
+    process.env['SESSION_COOKIE_NAME'] = 'gs_session_dev';
     const { createApp } = await import('../../apps/api/src/main');
     app = await createApp();
     await app.init();
@@ -65,9 +78,9 @@ describe('notification lifecycle', () => {
   });
 
   afterAll(async () => {
-    await app.close();
-    await pool.end();
-    await privilegedPool.end();
+    if (app) await app.close();
+    if (pool) await pool.end();
+    if (privilegedPool) await privilegedPool.end();
   });
 
   it('creates a notification and returns it', async () => {
@@ -188,6 +201,21 @@ describe('notification lifecycle', () => {
 
     await get(`/api/v1/notifications/${notificationId}?userId=${stranger.userId}`, stranger).expect(404);
     await patch(`/api/v1/notifications/${notificationId}/read?userId=${stranger.userId}`, stranger, {}).expect(404);
+  });
+
+  it('enforces the permission for each operation, not merely any notification permission', async () => {
+    const readOnly = await makeUser('read-only', ['notification.read']);
+    await get(`/api/v1/notifications?userId=${readOnly.userId}`, readOnly).expect(200);
+    await post('/api/v1/notifications', readOnly, {
+      userId: readOnly.userId, type: 'SYSTEM_ALERT', channel: 'IN_APP', subject: 'Test', body: 'Test',
+      commandKey: `notif-test-${randomUUID()}`,
+    }).expect(403);
+    await post(`/api/v1/notifications/preferences?userId=${readOnly.userId}`, readOnly, { channel: 'EMAIL', enabled: true }).expect(403);
+    await patch(`/api/v1/notifications/${randomUUID()}/read?userId=${readOnly.userId}`, readOnly).expect(403);
+
+    const updateOnly = await makeUser('update-only', ['notification.update']);
+    await get(`/api/v1/notifications?userId=${updateOnly.userId}`, updateOnly).expect(403);
+    await get(`/api/v1/notifications/preferences?userId=${updateOnly.userId}`, updateOnly).expect(403);
   });
 
   it('rejects notification creation for another user', async () => {

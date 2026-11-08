@@ -24,6 +24,7 @@ interface Props {
   currency: string;
   cities: ServiceableCity[];
   truncated: boolean;
+  reservationUnavailable: string | null;
   /** A quote already holding this cart's stock, recovered after a reload. */
   initialQuote: QuoteInput | null;
 }
@@ -32,7 +33,7 @@ function newAttemptId(): string {
   return crypto.randomUUID();
 }
 
-export function CheckoutPanel({ cartVersion, currency, cities, truncated, initialQuote }: Props) {
+export function CheckoutPanel({ cartVersion, currency, cities, truncated, initialQuote, reservationUnavailable }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [cityId, setCityId] = useState('');
@@ -68,6 +69,7 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
   }
 
   async function reserve(): Promise<void> {
+    if (reservationUnavailable || quote?.state === 'RESERVED') return;
     if (!cityId) {
       setError('Choose a delivery city first.');
       return;
@@ -130,29 +132,38 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
   const subtotal = summary?.subtotalMinor != null ? formatMinorUnits(summary.subtotalMinor.toString(), quote?.currency ?? currency) : null;
   const minutes = summary ? Math.floor(summary.secondsRemaining / 60) : 0;
   const seconds = summary ? summary.secondsRemaining % 60 : 0;
+  // A recovered reservation belongs to its original city, even if this tab
+  // never selected it or the current city list no longer includes it.
+  const reservedCityId = quote?.state === 'RESERVED' ? quote.destinationCityId : null;
+  const selectedCityId = reservedCityId ?? cityId;
+  const quoteCity = quote ? cities.find(city => city.cityId === quote.destinationCityId) : undefined;
 
   return (
-    <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_20rem]">
-      <section className="rounded-2xl border border-neutral-200 p-6">
-        <h2 className="text-lg font-semibold">Delivery city</h2>
+    <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
+      <section className="rounded-2xl border border-neutral-200 bg-white p-6 sm:p-8">
+        <p className="section-eyebrow">Delivery destination</p>
+        <h2 className="mt-2 text-xl font-bold">Delivery city</h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Only cities where a store can actually deliver are listed.
+          Choose the recipient’s city, whether the delivery is for you or someone else. Cities with reported store coverage are listed; availability for your cart is checked when you request a quote.
         </p>
+
+        <p className="mt-3 text-sm leading-6 text-neutral-600">This quote only uses the city. Recipient details and delivery addresses are not collected yet, and placing an order is not available.</p>
 
         <label htmlFor="destination-city" className="mt-4 block text-sm font-semibold">
           City
         </label>
         <select
           id="destination-city"
-          value={cityId}
-          disabled={busy || summary?.canRelease === true}
+          value={selectedCityId}
+          disabled={busy || !!reservationUnavailable || quote?.state === 'RESERVED'}
           onChange={event => {
             setCityId(event.target.value);
             attemptId.current = null;
           }}
-          className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 disabled:bg-neutral-100"
+          className="mt-2 min-h-12 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 disabled:bg-neutral-100"
         >
           <option value="">Choose a city</option>
+          {reservedCityId && !quoteCity ? <option value={reservedCityId}>City details unavailable for this quote</option> : null}
           {cities.map(city => (
             <option key={city.cityId} value={city.cityId}>
               {city.name} — {city.storeCount} {city.storeCount === 1 ? 'store' : 'stores'}
@@ -168,14 +179,18 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
         <button
           type="button"
           onClick={reserve}
-          disabled={busy || !cityId || summary?.canRelease === true}
-          className="mt-4 rounded-lg bg-brand-red px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-600"
+          disabled={busy || !!reservationUnavailable || !cityId || quote?.state === 'RESERVED'}
+          className="mt-5 min-h-12 rounded-full bg-brand-red px-6 py-3 font-bold text-white hover:bg-brand-red-hover disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-700"
         >
           {busy ? 'Working…' : 'Reserve stock and get quote'}
         </button>
         <p className="mt-2 text-sm text-neutral-600">
           This holds the items for a short time. It is not an order and no payment is taken.
         </p>
+
+        {reservationUnavailable ? (
+          <p role="status" className="mt-4 text-sm text-neutral-700">{reservationUnavailable}</p>
+        ) : null}
 
         {error ? (
           <p role="alert" className="mt-4 rounded-lg border border-brand-red bg-red-50 p-3 text-sm font-medium text-brand-red">
@@ -192,6 +207,8 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
               </span>
             </div>
 
+            <p className="mt-3 text-sm text-neutral-700">Quote city: <span className="font-semibold">{quoteCity?.name ?? 'City details unavailable'}</span></p>
+
             {summary.status === 'reserved' ? (
               <p className="mt-2 text-sm text-neutral-700">
                 Stock held for{' '}
@@ -202,7 +219,9 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
             ) : null}
             {summary.status === 'expired' ? (
               <p className="mt-2 text-sm text-neutral-700">
-                This quote has expired. Release it to return the stock, then request a new one.
+                {summary.canRelease
+                  ? 'This quote has expired. Release it to return the stock, then request a new one.'
+                  : 'This quote has expired. No stock is held by this quote any more.'}
               </p>
             ) : null}
 
@@ -232,7 +251,7 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
                 type="button"
                 onClick={release}
                 disabled={busy}
-                className="mt-4 rounded-lg border border-neutral-400 px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-4 min-h-11 rounded-full border border-neutral-400 bg-white px-5 py-2 text-sm font-bold hover:border-neutral-900 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Release reserved stock
               </button>
@@ -245,8 +264,8 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
         ) : null}
       </section>
 
-      <aside className="h-fit rounded-2xl border border-neutral-200 bg-neutral-50 p-6">
-        <h2 className="text-lg font-semibold">Summary</h2>
+      <aside className="h-fit rounded-2xl border border-[#eee4d8] bg-[#faf5ee] p-6">
+        <h2 className="text-lg font-bold">Quote summary</h2>
         <dl className="mt-4 space-y-2 text-sm">
           <div className="flex justify-between">
             <dt>Subtotal</dt>
@@ -269,7 +288,7 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
           type="button"
           disabled
           aria-disabled="true"
-          className="mt-5 w-full cursor-not-allowed rounded-lg bg-neutral-300 px-5 py-3 font-semibold text-neutral-600"
+          className="mt-5 min-h-12 w-full cursor-not-allowed rounded-full bg-neutral-300 px-5 py-3 font-bold text-neutral-700"
         >
           Payment not available
         </button>

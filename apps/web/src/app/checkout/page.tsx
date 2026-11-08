@@ -6,24 +6,13 @@ import { getOrCreateCart } from '@/lib/cart';
 import { readQuote } from '@/lib/checkout';
 import type { QuoteInput } from '@getstoopy/core';
 import { fetchServiceableCities } from '@/lib/serviceability';
+import { CommerceHeader, CommerceNotice } from '@/components/commerce-layout';
+import { ArrowLeft } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
 function Notice({ title, body, signIn = false }: { title: string; body: string; signIn?: boolean }) {
-  return (
-    <Shell>
-      <div className="max-w-xl rounded-2xl border border-neutral-200 bg-neutral-50 p-8">
-        <h1 className="text-2xl font-bold">{title}</h1>
-        <p className="mt-2 text-neutral-700">{body}</p>
-        <div className="mt-5 flex gap-3">
-          {signIn ? (
-            <Link href="/login" className="rounded-lg bg-brand-red px-5 py-3 font-semibold text-white">Sign in</Link>
-          ) : null}
-          <Link href="/cart" className="rounded-lg border border-neutral-300 px-5 py-3 font-semibold">Back to cart</Link>
-        </div>
-      </div>
-    </Shell>
-  );
+  return <CommerceNotice stage="Checkout" title={title} body={body} signIn={signIn} />;
 }
 
 /**
@@ -49,14 +38,25 @@ export default async function CheckoutPage() {
   const cart = result.cart;
   const summary = summarizeCart(cart.items);
 
-  if (cart.items.length === 0) {
+  // Recovery must not depend on today's cart validity or serviceability: an
+  // existing reservation can outlive either of them.
+  let initialQuote: QuoteInput | null = null;
+  if (cart.activeQuoteId) {
+    const existing = await readQuote(cart.activeQuoteId);
+    if (existing.status !== 200) {
+      return <Notice title="Reserved quote unavailable" body="Your cart may still have reserved stock, but the quote could not be loaded. Please reload this page and try again; the reservation may still be active." />;
+    }
+    initialQuote = existing.body as QuoteInput;
+  }
+
+  if (!initialQuote && cart.items.length === 0) {
     return <Notice title="Your cart is empty" body="Add something to your cart before requesting a delivery quote." />;
   }
 
-  if (!summary.readyForCheckout) {
+  if (!initialQuote && !summary.readyForCheckout) {
     return (
       <Shell>
-        <h1 className="text-3xl font-bold">Checkout</h1>
+        <CommerceHeader stage="Checkout" title="Checkout" />
         <div className="mt-6 max-w-xl rounded-2xl border border-brand-red bg-red-50 p-6">
           <h2 className="text-lg font-semibold text-brand-red">Resolve your cart first</h2>
           <ul className="mt-3 space-y-1 text-sm font-medium text-brand-red">
@@ -67,6 +67,7 @@ export default async function CheckoutPage() {
           <Link href="/cart" className="mt-4 inline-block rounded-lg border border-neutral-400 px-4 py-2 text-sm font-semibold">
             Back to cart
           </Link>
+          <p className="mt-4 text-sm leading-6 text-neutral-700">Explore the <Link href="/checkout/recipient-preview" className="font-bold text-brand-red underline">recipient details layout preview</Link>. It is not an order form.</p>
         </div>
       </Shell>
     );
@@ -74,13 +75,13 @@ export default async function CheckoutPage() {
 
   const cities = await fetchServiceableCities();
 
-  if (cities.state === 'not-configured') {
+  if (!initialQuote && cities.state === 'not-configured') {
     return <Notice title="Market not configured" body="This deployment has no market country set, so delivery cities cannot be listed." />;
   }
-  if (cities.state === 'unavailable') {
+  if (!initialQuote && cities.state === 'unavailable') {
     return <Notice title="Delivery cities unavailable" body="The list of serviceable cities could not be loaded. Please try again shortly." />;
   }
-  if (cities.data.items.length === 0) {
+  if (!initialQuote && cities.state === 'ok' && cities.data.items.length === 0) {
     return (
       <Notice
         title="No delivery cities yet"
@@ -89,29 +90,27 @@ export default async function CheckoutPage() {
     );
   }
 
-  // Recover a quote that is already holding this cart's stock, so a reload never
-  // strands a reservation the buyer cannot see or release.
-  let initialQuote: QuoteInput | null = null;
-  if (cart.activeQuoteId) {
-    const existing = await readQuote(cart.activeQuoteId);
-    if (existing.status === 200) initialQuote = existing.body as QuoteInput;
-  }
+  const reservationUnavailable = !summary.readyForCheckout || cart.items.length === 0
+    ? 'Your cart is not ready for a new quote. Return to the cart to resolve its issues.'
+    : cities.state !== 'ok'
+      ? 'Delivery cities could not be loaded. Reload the page before requesting a new quote.'
+      : cities.data.items.length === 0
+        ? 'No delivery cities are currently available for a new quote.'
+        : null;
 
   return (
     <Shell>
-      <h1 className="text-3xl font-bold">Checkout</h1>
-      <p className="mt-1 text-neutral-600">
-        {summary.lineCount} {summary.lineCount === 1 ? 'item' : 'items'} · {summary.unitCount}{' '}
-        {summary.unitCount === 1 ? 'unit' : 'units'}
-      </p>
+      <CommerceHeader stage="Checkout" title="Checkout" description={`${summary.lineCount} ${summary.lineCount === 1 ? 'item' : 'items'} · ${summary.unitCount} ${summary.unitCount === 1 ? 'unit' : 'units'}`} />
       <CheckoutPanel
         cartVersion={cart.version}
         currency={summary.currency ?? cart.currency}
-        cities={cities.data.items}
-        truncated={cities.data.truncated}
+        cities={cities.state === 'ok' ? cities.data.items : []}
+        truncated={cities.state === 'ok' && cities.data.truncated}
+        reservationUnavailable={reservationUnavailable}
         initialQuote={initialQuote}
       />
-      <Link href="/cart" className="mt-6 inline-block text-sm font-semibold text-brand-red">Back to cart</Link>
+      <p className="mt-6 text-sm leading-6 text-neutral-700">Explore the <Link href="/checkout/recipient-preview" className="font-bold text-brand-red underline">recipient details layout preview</Link>. It is not an order form and does not change this quote.</p>
+      <Link href="/cart" className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-brand-red hover:underline"><ArrowLeft size={15} />Back to cart</Link>
     </Shell>
   );
 }

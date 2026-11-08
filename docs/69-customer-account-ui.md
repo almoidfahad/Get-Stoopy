@@ -1,0 +1,7 @@
+# Customer account UI increment
+
+The account page now follows the storefront's responsive visual language, with an overview, actual session information, expandable permission details, existing sign-out action, and links to the shop and cart. It uses only fields returned by the existing authenticated `/auth/me` endpoint. Profile editing and order history are not presented as working functions; the supplied reference inventory has no standalone customer account mockup, so this is an interpretation awaiting review.
+
+A 401 response is shown as signed out. Service/configuration errors, other HTTP failures, invalid JSON and invalid response shape are shown as unavailable instead of incorrectly claiming the visitor is signed out. No session, user, orders, profile data or security claims are fabricated; the API's CSRF token is not rendered. No authentication, database, production or payment configuration was changed.
+
+Server-rendered tests exercise signed-in, signed-out, unavailable, malformed response and empty-permission states, plus sign-out action and absence of a rendered CSRF token. These tests mock the session service: they do not verify browser interactions, real sign-in/sign-out, device accessibility or an end-to-end identity deployment. The current Vercel preview lacks identity/backend configuration, so it should show account unavailable, not a populated account. Desktop/mobile visual review remains open.

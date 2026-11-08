@@ -1,0 +1,7 @@
+# Shop search, filter and pagination consistency
+
+The shop now uses the same query builder to determine both applied filters and what is sent to the public catalog API. Previously an overlong search or invalid category/cursor could be silently dropped by the API request while still being shown as if applied in the UI. Invalid values are now omitted from displayed filters and accompanied by an explicit notice. Search is trimmed, multiple URL values use the first, and the existing 120-character/UUID limits are unchanged.
+
+A product count describes only the current page, never an assumed total. Later pages now offer a first-page link preserving the applied search/category; an empty later page offers the same recovery. If the API returns a malformed next cursor, the page explains that the next page is unavailable rather than linking to a URL that would silently fall back to page one. No new backend endpoint, invented category, product, sort order, or total has been introduced.
+
+Unit and server-render tests cover normalization, repeated values, invalid filters, pagination, empty states and request parameters. They mock catalog results and do not prove a live catalog, real-browser navigation, keyboard/assistive technology or desktop/mobile visuals. The current preview has no configured market or catalog; populated search and category states cannot be reviewed there. No database or production settings changed.

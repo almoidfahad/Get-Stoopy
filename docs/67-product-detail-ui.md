@@ -1,0 +1,7 @@
+# Product detail UI increment
+
+The product detail route now shares the storefront visual language and provides a responsive image and information layout, clear product options, cart entry, and a concise statement of checkout's current limits. The supplied design inventory does not include an approved product detail mockup; this is an interpretation to be reviewed, not a pixel-matched approved screen.
+
+The page continues to use the public catalog API and the existing session/cart mutation flow. Prices, variants, availability, descriptions, vendor names and images come from the API; no demo catalog data or unsupported payment features were added. A malformed price is now distinguished from out-of-stock on both product detail and product cards. Missing, unconfigured, unavailable, and out-of-stock states remain explicit. Checkout can create a stock reservation when prerequisites are met, but payment, delivery fees and order confirmation are not implemented.
+
+Server-rendered tests cover available and unavailable states, actual catalog fields, images, sign-in/cart control visibility, stock, and invalid prices. These tests do not verify browser interaction or a configured live catalog. The current preview has no market configured, so the complete populated product detail requires a real catalog to be reviewed; only the unconfigured state can be seen there. Desktop/mobile visual and accessibility reviews remain outstanding.

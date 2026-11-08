@@ -92,7 +92,4 @@ export async function fetchProduct(id: string): Promise<CatalogResult<PublicProd
   return readJson<PublicProduct>(`/public/catalog/products/${id}?countryId=${countryId}`);
 }
 
-/** Rewrite an API image path to the same-origin proxy the browser can load. */
-export function imageProxyUrl(productId: string, imageId: string): string {
-  return `/api/catalog/products/${productId}/images/${imageId}`;
-}
+export { imageProxyUrl } from './catalog-image';
