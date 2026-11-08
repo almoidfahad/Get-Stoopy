@@ -1,0 +1,5 @@
+# Admin review layout preview
+
+The admin dashboard links to a public, data-free layout preview of product moderation and identity review (UI-A08/A14). Viewers can switch between the two layout states. It has no real records, evidence, geographic data, status, metrics or decisions; the reason field and approval/rejection buttons are disabled. An unavailable record is not described as an empty queue. The preview does not verify or grant admin access or geographic scope and cannot submit a decision or access KYC documents.
+
+Real review flows still need independent backend authorization, geographic scoping, step-up/independent approval where required, audited decisions, secure evidence handling, validation and conflict/error handling. DOM tests check the boundary and disabled actions. A limited headless-browser and automated accessibility audit is recorded in `docs/88-ui-browser-audit.md`; it does not validate authorization, real data access, screen-reader behavior or visual design fidelity. The supplied admin reference has no dedicated review screen; this interpretation awaits review. No backend, database or production deployment was changed.

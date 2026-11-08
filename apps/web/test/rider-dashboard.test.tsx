@@ -17,6 +17,8 @@ describe('rider dashboard layout', () => {
     expect(html).toContain('Recent deliveries');
     expect(html).toContain('Dashboard metrics are not connected');
     expect(html).toContain('Modules not yet available');
+    expect(html).toContain('href="/rider/delivery-preview"');
+    expect(html).toContain('Explore delivery layout preview');
     expect(html).not.toContain('Fahim');
     expect(html).not.toContain('$142.50');
     expect(html).not.toContain('href="/rider/deliveries"');

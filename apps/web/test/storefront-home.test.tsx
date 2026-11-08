@@ -19,6 +19,7 @@ describe('storefront UI', () => {
     expect(html).toContain('Skip to content');
     expect(html).toContain('aria-label="Account"');
     expect(html).toContain('aria-label="Cart"');
+    expect(html).toContain('<span class="text-red-300">Stoopy</span>');
   });
 
   it('renders real catalog items instead of placeholder products', async () => {

@@ -11,7 +11,7 @@ function Brand({ inverse = false }: { inverse?: boolean }) {
       </span>
       <span className="leading-none">
         <span className={`block text-[21px] font-black tracking-[-.045em] sm:text-[24px] ${inverse ? 'text-white' : 'text-neutral-950'}`}>
-          Get <span className="text-brand-red">Stoopy</span>
+          Get <span className={inverse ? 'text-red-300' : 'text-brand-red'}>Stoopy</span>
         </span>
         <span className={`mt-1 block text-[10px] font-semibold tracking-[.01em] ${inverse ? 'text-neutral-300' : 'text-neutral-600'}`}>Shop Smart. Live Better.</span>
       </span>

@@ -18,6 +18,8 @@ describe('admin dashboard layout', () => {
     expect(html).toContain('System health');
     expect(html).toContain('Dashboard metrics are not connected');
     expect(html).toContain('Modules not yet available');
+    expect(html).toContain('href="/admin/review-preview"');
+    expect(html).toContain('Explore review layout preview');
     expect(html).not.toContain('Rahman Hossain');
     expect(html).not.toContain('$48,750');
     expect(html).not.toContain('All Systems Operational');
