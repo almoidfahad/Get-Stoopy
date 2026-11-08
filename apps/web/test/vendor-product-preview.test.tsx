@@ -10,6 +10,8 @@ describe('vendor product layout preview', () => {
     expect(html).toContain('lost when you reload or leave');
     expect(html).toContain('Do not enter sensitive information');
     expect(html).toContain('href="/vendor"');
+    expect(html).toContain('href="/vendor/variants-preview"');
+    expect(html).toContain('does not create catalog variants');
   });
   it('renders labeled fields with the catalog detail length limits', () => {
     const html = renderToStaticMarkup(<ProductPreviewEditor />);
