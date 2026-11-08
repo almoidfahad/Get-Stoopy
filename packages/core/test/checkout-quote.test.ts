@@ -97,6 +97,20 @@ describe('quote summary', () => {
     expect(summary.canRelease).toBe(true);
   });
 
+  it('does not claim a countdown when a reserved quote has no valid expiry', () => {
+    const summary = summarizeQuote(quote({ expiresAt: 'invalid' }), NOW);
+    expect(summary.status).toBe('unknown');
+    expect(summary.canRelease).toBe(true);
+  });
+
+  it('blocks a malformed quote, item or group currency', () => {
+    for (const input of [quote({ currency: '' }), quote({ items: [item({ currency: 'bdt' })] }), quote({ groups: [{ groupId: 'g1', storeId: 's1', subtotalMinor: '100000', currency: 'BD' }] })]) {
+      const summary = summarizeQuote(input, NOW);
+      expect(summary.subtotalMinor).toBeNull();
+      expect(summary.issues.map(i => i.kind)).toContain('currency-invalid');
+    }
+  });
+
   it('maps closed states and stops offering release for them', () => {
     expect(summarizeQuote(quote({ state: 'RELEASED' }), NOW).status).toBe('released');
     expect(summarizeQuote(quote({ state: 'CONSUMED' }), NOW).status).toBe('consumed');
@@ -142,7 +156,7 @@ describe('quote summary', () => {
   });
 
   it('has copy for every issue kind it can raise', () => {
-    const kinds = ['price-invalid', 'line-total-mismatch', 'group-subtotal-mismatch', 'subtotal-mismatch', 'currency-mismatch'] as const;
+    const kinds = ['price-invalid', 'line-total-mismatch', 'group-subtotal-mismatch', 'subtotal-mismatch', 'currency-mismatch', 'currency-invalid'] as const;
     for (const kind of kinds) expect(QUOTE_ISSUE_MESSAGES[kind].length).toBeGreaterThan(10);
   });
 });

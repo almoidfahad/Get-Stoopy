@@ -40,6 +40,23 @@ describe('cart and checkout UI', () => {
     expect(html).toContain('Not calculated yet');
     expect(html).toContain('no money is taken');
   });
+  it('withholds inconsistent line and subtotal amounts without hiding the issue', async () => {
+    mocks.cart.mockResolvedValue({ state: 'ok', cart: { ...cart, items: [{ ...item, lineTotalMinor: '99999' }] } });
+    const html = renderToStaticMarkup(await CartPage());
+    expect(html).toContain('Line total unavailable');
+    expect(html).toContain('The price changed while you were shopping');
+    expect(html).toMatch(/Subtotal<\/dt><dd[^>]*>Unavailable/);
+    expect(html).not.toContain('999.99');
+    expect(html).toContain('Checkout unavailable');
+  });
+  it('fails safely when an item currency is malformed', async () => {
+    mocks.cart.mockResolvedValue({ state: 'ok', cart: { ...cart, items: [{ ...item, currency: '' }] } });
+    const html = renderToStaticMarkup(await CartPage());
+    expect(html).toContain('currency for this item is unavailable');
+    expect(html).toContain('Unit price unavailable');
+    expect(html).toContain('Line total unavailable');
+    expect(html).toContain('Checkout unavailable');
+  });
   it('blocks new checkout when an item is unavailable', async () => {
     mocks.cart.mockResolvedValue({ state: 'ok', cart: { ...cart, items: [{ ...item, availableToPromise: 0 }] } });
     const html = renderToStaticMarkup(await CartPage());

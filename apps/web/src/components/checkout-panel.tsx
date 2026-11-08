@@ -33,7 +33,7 @@ function newAttemptId(): string {
   return crypto.randomUUID();
 }
 
-export function CheckoutPanel({ cartVersion, currency, cities, truncated, initialQuote, reservationUnavailable }: Props) {
+export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, reservationUnavailable }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [cityId, setCityId] = useState('');
@@ -44,6 +44,7 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
   // One key per attempt: a double click or a network retry reuses it, so the API
   // returns the same quote instead of reserving the stock twice.
   const attemptId = useRef<string | null>(null);
+  const inFlight = useRef(false);
 
   useEffect(() => {
     setNow(Date.now());
@@ -69,15 +70,16 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
   }
 
   async function reserve(): Promise<void> {
-    if (reservationUnavailable || quote?.state === 'RESERVED') return;
+    if (inFlight.current || reservationUnavailable || quote?.state === 'RESERVED') return;
     if (!cityId) {
       setError('Choose a delivery city first.');
       return;
     }
+    inFlight.current = true;
     setBusy(true);
     setError(null);
-    attemptId.current ??= newAttemptId();
     try {
+      attemptId.current ??= newAttemptId();
       const res = await fetch('/api/checkout/quotes', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -99,12 +101,14 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
     } catch {
       setError(quoteErrorMessage('QUOTE_UNAVAILABLE', 502));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
 
   async function release(): Promise<void> {
-    if (!quote) return;
+    if (!quote || inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -124,12 +128,14 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
     } catch {
       setError(quoteErrorMessage('QUOTE_UNAVAILABLE', 502));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
 
   const summary = quote && now !== null ? summarizeQuote(quote, new Date(now)) : null;
-  const subtotal = summary?.subtotalMinor != null ? formatMinorUnits(summary.subtotalMinor.toString(), quote?.currency ?? currency) : null;
+  const subtotal = summary?.subtotalMinor != null && summary.issues.length === 0 && summary.currency
+    ? formatMinorUnits(summary.subtotalMinor.toString(), summary.currency) : null;
   const minutes = summary ? Math.floor(summary.secondsRemaining / 60) : 0;
   const seconds = summary ? summary.secondsRemaining % 60 : 0;
   // A recovered reservation belongs to its original city, even if this tab
@@ -217,6 +223,9 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
                 </span>
               </p>
             ) : null}
+            {summary.status === 'unknown' ? (
+              <p className="mt-2 text-sm text-neutral-700">{summary.canRelease ? 'Reservation expiry is unavailable. Stock may still be held; you can release it below.' : 'The stock-hold status is unavailable. Refresh this page and try again.'}</p>
+            ) : null}
             {summary.status === 'expired' ? (
               <p className="mt-2 text-sm text-neutral-700">
                 {summary.canRelease
@@ -232,7 +241,7 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
                     {item.productTitle} × {item.quantity}
                   </span>
                   <span className="font-semibold">
-                    {formatMinorUnits(item.lineTotalMinor, item.currency) ?? '—'}
+                    {summary.issues.some(issue => issue.itemId === item.itemId && ['price-invalid', 'line-total-mismatch', 'currency-invalid'].includes(issue.kind)) ? 'Line total unavailable' : formatMinorUnits(item.lineTotalMinor, item.currency) ?? 'Line total unavailable'}
                   </span>
                 </li>
               ))}
@@ -255,11 +264,11 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
               >
                 Release reserved stock
               </button>
-            ) : (
+            ) : summary.status !== 'unknown' ? (
               <p className="mt-4 text-sm text-neutral-700">
                 No stock is held by this quote any more.
               </p>
-            )}
+            ) : null}
           </div>
         ) : null}
       </section>
@@ -269,7 +278,7 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
         <dl className="mt-4 space-y-2 text-sm">
           <div className="flex justify-between">
             <dt>Subtotal</dt>
-            <dd className="font-bold">{subtotal ?? 'Not quoted yet'}</dd>
+            <dd className="font-bold">{subtotal ?? (summary?.issues.length ? 'Unavailable' : 'Not quoted yet')}</dd>
           </div>
           <div className="flex justify-between text-neutral-600">
             <dt>Delivery</dt>

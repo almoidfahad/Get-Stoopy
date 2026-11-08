@@ -59,3 +59,59 @@ describe('checkout destination and quote recovery interactions', () => {
     expect(screen.getByText('City A')).toBeTruthy();
   });
 });
+
+describe('quote safety and recovery', () => {
+  const item = { itemId: 'item', groupId: 'group', variantId: 'variant', productTitle: 'Item', quantity: 2, unitPriceMinor: '100', lineTotalMinor: '99999', currency: 'BDT' };
+  it('withholds an inconsistent line amount and subtotal while keeping release available', () => {
+    render(<CheckoutPanel {...props} initialQuote={{ ...quote, subtotalMinor: '99999', items: [item], groups: [{ groupId: 'group', storeId: 'store', subtotalMinor: '99999', currency: 'BDT' }] }} />);
+    expect(screen.getByText('Line total unavailable')).toBeTruthy();
+    expect(screen.getByText('Unavailable')).toBeTruthy();
+    expect(screen.getByText(/A line total no longer matches/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Release reserved stock' })).toBeTruthy();
+  });
+  it('renders malformed item currency as unavailable, not an exception', () => {
+    render(<CheckoutPanel {...props} initialQuote={{ ...quote, currency: '', items: [{ ...item, currency: '', lineTotalMinor: '200' }], subtotalMinor: '200' }} />);
+    expect(screen.getByText('Line total unavailable')).toBeTruthy();
+    expect(screen.getAllByText(/currency in this quote is unavailable/).length).toBeGreaterThan(0);
+  });
+  it('withholds the subtotal when a store subtotal is inconsistent', () => {
+    render(<CheckoutPanel {...props} initialQuote={{ ...quote, subtotalMinor: '200', items: [{ ...item, lineTotalMinor: '200' }], groups: [{ groupId: 'group', storeId: 'store', subtotalMinor: '100', currency: 'BDT' }] }} />);
+    expect(screen.getByText('Unavailable')).toBeTruthy();
+    expect(screen.getByText(/A store subtotal no longer matches/)).toBeTruthy();
+    expect(screen.queryByText('Line total unavailable')).toBeNull();
+  });
+  it('keeps an invalid-expiry reservation releasable without a false timer', () => {
+    render(<CheckoutPanel {...props} initialQuote={{ ...quote, expiresAt: 'bad date' }} />);
+    expect(screen.getByText(/Reservation expiry is unavailable/)).toBeTruthy();
+    expect(screen.queryByText(/Stock held for/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Release reserved stock' })).toBeTruthy();
+  });
+  it('does not claim that an unknown state holds no stock', () => {
+    render(<CheckoutPanel {...props} initialQuote={{ ...quote, state: 'NEW_STATE' }} />);
+    expect(screen.getByText(/stock-hold status is unavailable/)).toBeTruthy();
+    expect(screen.queryByText(/No stock is held/)).toBeNull();
+  });
+  it('sends only one release request while one is in flight', async () => {
+    let finish!: (value: Response) => void;
+    const fetchMock = vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<CheckoutPanel {...props} initialQuote={quote} />);
+    const button = screen.getByRole('button', { name: 'Release reserved stock' });
+    fireEvent.click(button); fireEvent.click(button);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    finish(new Response(JSON.stringify({ ...quote, state: 'RELEASED', version: 2 }), { status: 200 }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Release reserved stock' })).toBeNull());
+  });
+  it('sends only one reservation request while one is in flight', async () => {
+    let finish!: (value: Response) => void;
+    const fetchMock = vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<CheckoutPanel {...props} initialQuote={null} />);
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: 'city-a' } });
+    const button = screen.getByRole('button', { name: 'Reserve stock and get quote' });
+    fireEvent.click(button); fireEvent.click(button);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    finish(new Response(JSON.stringify({ ...quote, destinationCityId: 'city-a' }), { status: 200 }));
+    await waitFor(() => expect(screen.getByText('City A')).toBeTruthy());
+  });
+});

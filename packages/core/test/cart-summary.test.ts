@@ -80,6 +80,13 @@ describe('cart problems are surfaced, not hidden', () => {
     expect(summary.readyForCheckout).toBe(false);
   });
 
+  it.each(['', 'bdt', 'BD', 'BDTT'])('blocks an invalid currency %s', currency => {
+    const summary = summarizeCart([line({ currency })]);
+    expect(summary.issues.map(i => i.kind)).toContain('currency-invalid');
+    expect(summary.subtotalMinor).toBeNull();
+    expect(summary.readyForCheckout).toBe(false);
+  });
+
   it('rejects an out-of-range quantity instead of pricing it', () => {
     for (const quantity of [0, -1, 101, 1.5]) {
       const summary = summarizeCart([line({ quantity })]);

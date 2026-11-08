@@ -63,7 +63,8 @@ export type QuoteIssueKind =
   | 'line-total-mismatch'
   | 'group-subtotal-mismatch'
   | 'subtotal-mismatch'
-  | 'currency-mismatch';
+  | 'currency-mismatch'
+  | 'currency-invalid';
 
 export interface QuoteIssue {
   readonly kind: QuoteIssueKind;
@@ -102,7 +103,8 @@ function statusOf(state: string, expiresAt: number, now: number): QuoteStatus {
   if (state !== 'RESERVED') return 'unknown';
   // A RESERVED row past its deadline is expired for the buyer even before the
   // sweeper updates the column.
-  return Number.isFinite(expiresAt) && expiresAt <= now ? 'expired' : 'reserved';
+  if (!Number.isFinite(expiresAt)) return 'unknown';
+  return expiresAt <= now ? 'expired' : 'reserved';
 }
 
 export function summarizeQuote(quote: QuoteInput, now: Date = new Date()): QuoteSummary {
@@ -116,9 +118,17 @@ export function summarizeQuote(quote: QuoteInput, now: Date = new Date()): Quote
   let subtotal = 0n;
   let priceable = true;
   let currency: string | null = quote.currency;
+  if (typeof quote.currency !== 'string' || !/^[A-Z]{3}$/.test(quote.currency)) {
+    issues.push({ kind: 'currency-invalid', itemId: null });
+    currency = null;
+  }
   const groupTotals = new Map<string, bigint>();
 
   for (const item of quote.items) {
+    if (typeof item.currency !== 'string' || !/^[A-Z]{3}$/.test(item.currency)) {
+      issues.push({ kind: 'currency-invalid', itemId: item.itemId });
+      currency = null;
+    }
     if (item.currency !== quote.currency) {
       issues.push({ kind: 'currency-mismatch', itemId: item.itemId });
       currency = null;
@@ -142,6 +152,10 @@ export function summarizeQuote(quote: QuoteInput, now: Date = new Date()): Quote
   }
 
   for (const group of quote.groups) {
+    if (typeof group.currency !== 'string' || !/^[A-Z]{3}$/.test(group.currency)) {
+      issues.push({ kind: 'currency-invalid', itemId: null });
+      currency = null;
+    }
     if (group.currency !== quote.currency) {
       issues.push({ kind: 'currency-mismatch', itemId: null });
       currency = null;
@@ -187,6 +201,7 @@ export const QUOTE_ISSUE_MESSAGES: Record<QuoteIssueKind, string> = {
   'group-subtotal-mismatch': 'A store subtotal no longer matches its items. Release this quote and request a new one.',
   'subtotal-mismatch': 'The quote subtotal no longer matches its items. Release this quote and request a new one.',
   'currency-mismatch': 'This quote mixes currencies, so no total can be shown.',
+  'currency-invalid': 'A currency in this quote is unavailable. Release it and request a new one.',
 };
 
 /** Buyer-facing copy for the codes the quote endpoints actually return. */
