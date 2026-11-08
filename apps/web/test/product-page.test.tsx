@@ -24,8 +24,8 @@ describe('product detail', () => {
     expect(html).toContain('Real item');
     expect(html).toContain('Real store');
     expect(html).toContain('Actual description');
-    expect(html).toContain('/api/catalog/product-1/image-1');
-    expect(html).toContain('alt="Side view"');
+    expect(html).toContain('/api/catalog/products/product-1/images/image-1');
+    expect(html).toContain('View photo 2: Side view');
     expect(html).toContain('3 available');
     expect(html).toContain('Out of stock');
     expect(html).toContain('Sign in</a> to add this item');

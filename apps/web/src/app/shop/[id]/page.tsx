@@ -4,7 +4,8 @@ import { ArrowLeft, PackageSearch } from 'lucide-react';
 import { summarizeVariantPrices } from '@getstoopy/core';
 import { formatCatalogPrice } from '@/lib/catalog-price';
 import { Shell } from '@/components/shell';
-import { fetchProduct, imageProxyUrl } from '@/lib/catalog';
+import { fetchProduct } from '@/lib/catalog';
+import { ProductGallery } from '@/components/product-gallery';
 import { hasSessionCookie } from '@/lib/cart';
 import { AddToCart } from '@/components/cart-controls';
 
@@ -50,21 +51,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       </nav>
 
       <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-14">
-        <div className="min-w-0">
-          <div className="aspect-square w-full overflow-hidden rounded-2xl border border-neutral-200 bg-[#f8f5f1]">
-            {product.images[0] ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={imageProxyUrl(product.id, product.images[0].id)} alt={product.images[0].altText ?? product.title} className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-neutral-500"><PackageSearch size={36} strokeWidth={1.5} aria-hidden="true" /><span className="text-sm">No image available</span></div>
-            )}
-          </div>
-          {product.images.length > 1 ? (
-            <section aria-labelledby="more-images" className="mt-5"><h2 id="more-images" className="text-sm font-bold text-neutral-800">More product photos</h2><ul className="mt-3 grid grid-cols-4 gap-3">
-              {product.images.slice(1, 5).map(image => <li key={image.id} className="aspect-square overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={imageProxyUrl(product.id, image.id)} alt={image.altText ?? product.title} className="h-full w-full object-cover" loading="lazy" /></li>)}
-            </ul></section>
-          ) : null}
-        </div>
+        <ProductGallery productId={product.id} productTitle={product.title} images={product.images} />
 
         <div className="min-w-0">
           <p className="section-eyebrow">The collection</p>
