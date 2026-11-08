@@ -19,6 +19,8 @@ import type { ServiceableCity } from '@/lib/serviceability';
  * rather than filled in with the subtotal. There is deliberately no "Pay" button.
  */
 
+interface ReservationAttempt { destinationCityId: string; expectedVersion: number; attemptId: string }
+
 interface Props {
   cartVersion: number;
   currency: string;
@@ -41,9 +43,10 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState<number | null>(null);
-  // One key per attempt: a double click or a network retry reuses it, so the API
-  // returns the same quote instead of reserving the stock twice.
-  const attemptId = useRef<string | null>(null);
+  // An uncertain response must be retried with the *entire* original payload,
+  // not just its key: a refresh can change cartVersion in this same component.
+  const attempt = useRef<ReservationAttempt | null>(null);
+  const [uncertain, setUncertain] = useState(false);
   const inFlight = useRef(false);
 
   useEffect(() => {
@@ -57,6 +60,8 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
   // showing, and never move backwards to an older version of the same quote.
   useEffect(() => {
     if (!initialQuote) return;
+    // A recovered quote may belong to a different attempt. Keep any uncertain
+    // attempt until its own result is resolved; the recovered hold can be released.
     setQuote(current =>
       current && current.quoteId === initialQuote.quoteId && current.version >= initialQuote.version
         ? current
@@ -70,8 +75,8 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
   }
 
   async function reserve(): Promise<void> {
-    if (inFlight.current || reservationUnavailable || quote?.state === 'RESERVED') return;
-    if (!cityId) {
+    if (inFlight.current || (reservationUnavailable && !attempt.current) || quote?.state === 'RESERVED') return;
+    if (!cityId && !attempt.current) {
       setError('Choose a delivery city first.');
       return;
     }
@@ -79,15 +84,26 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
     setBusy(true);
     setError(null);
     try {
-      attemptId.current ??= newAttemptId();
+      attempt.current ??= { destinationCityId: cityId, expectedVersion: cartVersion, attemptId: newAttemptId() };
+      const request = attempt.current;
       const res = await fetch('/api/checkout/quotes', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ destinationCityId: cityId, expectedVersion: cartVersion, attemptId: attemptId.current }),
+        body: JSON.stringify(request),
       });
       const payload = (await res.json().catch(() => ({}))) as QuoteInput & { code?: string };
       if (!res.ok) {
-        setError(quoteErrorMessage(payload.code, res.status));
+        // Only a first, explicit rejection resolves the attempt. After an
+        // uncertain response the earlier request may still be in flight even if
+        // a retry receives a conflict, so keep the original payload in that case.
+        const rejected = !uncertain && res.status >= 400 && res.status < 500 && [
+          'CHECKOUT_CART_VERSION_CONFLICT', 'CHECKOUT_DESTINATION_NOT_SERVICEABLE',
+          'CHECKOUT_ACTIVE_QUOTE_LIMIT', 'CART_EMPTY', 'CART_ITEM_LIMIT',
+        ].includes(payload.code ?? '');
+        if (rejected) { attempt.current = null; setUncertain(false); }
+        else setUncertain(true);
+        setError(rejected ? quoteErrorMessage(payload.code, res.status) :
+          `${payload.code === 'SIGN_IN_REQUIRED' || payload.code === 'CHECKOUT_QUOTE_ALREADY_RESERVED' ? `${quoteErrorMessage(payload.code, res.status)} ` : ''}The reservation result is unknown. Stock may be held. Retry the same request or reload checkout to check for a quote.`);
         // A quote from an earlier visit is still holding stock. Refreshing reloads
         // the cart, which names the active quote so it can be released here.
         if (payload.code === 'CHECKOUT_QUOTE_ALREADY_RESERVED' || payload.code === 'CHECKOUT_CART_VERSION_CONFLICT') {
@@ -96,10 +112,12 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
         return;
       }
       setQuote(payload);
-      attemptId.current = null;
+      attempt.current = null;
+      setUncertain(false);
       startTransition(() => router.refresh());
     } catch {
-      setError(quoteErrorMessage('QUOTE_UNAVAILABLE', 502));
+      setUncertain(true);
+      setError('The reservation result is unknown. Stock may be held. Retry the same request or reload checkout to check for a quote.');
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -141,7 +159,7 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
   // A recovered reservation belongs to its original city, even if this tab
   // never selected it or the current city list no longer includes it.
   const reservedCityId = quote?.state === 'RESERVED' ? quote.destinationCityId : null;
-  const selectedCityId = reservedCityId ?? cityId;
+  const selectedCityId = reservedCityId ?? (uncertain ? attempt.current?.destinationCityId : undefined) ?? cityId;
   const quoteCity = quote ? cities.find(city => city.cityId === quote.destinationCityId) : undefined;
 
   return (
@@ -161,15 +179,14 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
         <select
           id="destination-city"
           value={selectedCityId}
-          disabled={busy || !!reservationUnavailable || quote?.state === 'RESERVED'}
+          disabled={busy || uncertain || !!reservationUnavailable || quote?.state === 'RESERVED'}
           onChange={event => {
             setCityId(event.target.value);
-            attemptId.current = null;
           }}
           className="mt-2 min-h-12 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 disabled:bg-neutral-100"
         >
           <option value="">Choose a city</option>
-          {reservedCityId && !quoteCity ? <option value={reservedCityId}>City details unavailable for this quote</option> : null}
+          {selectedCityId && !cities.some(city => city.cityId === selectedCityId) ? <option value={selectedCityId}>City details unavailable for this {reservedCityId ? 'quote' : 'request'}</option> : null}
           {cities.map(city => (
             <option key={city.cityId} value={city.cityId}>
               {city.name} — {city.storeCount} {city.storeCount === 1 ? 'store' : 'stores'}
@@ -185,10 +202,10 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
         <button
           type="button"
           onClick={reserve}
-          disabled={busy || !!reservationUnavailable || !cityId || quote?.state === 'RESERVED'}
+          disabled={busy || (!uncertain && (!!reservationUnavailable || !cityId)) || quote?.state === 'RESERVED'}
           className="mt-5 min-h-12 rounded-full bg-brand-red px-6 py-3 font-bold text-white hover:bg-brand-red-hover disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-700"
         >
-          {busy ? 'Working…' : 'Reserve stock and get quote'}
+          {busy ? 'Working…' : uncertain ? 'Retry same reservation request' : 'Reserve stock and get quote'}
         </button>
         <p className="mt-2 text-sm text-neutral-600">
           This holds the items for a short time. It is not an order and no payment is taken.

@@ -115,3 +115,91 @@ describe('quote safety and recovery', () => {
     await waitFor(() => expect(screen.getByText('City A')).toBeTruthy());
   });
 });
+
+describe('uncertain reservation requests', () => {
+  it('retries the original payload after a network failure even when the cart version and city list change', async () => {
+    const fetchMock = vi.fn().mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce(
+      new Response(JSON.stringify({ ...quote, destinationCityId: 'city-a' }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { rerender } = render(<CheckoutPanel {...props} initialQuote={null} />);
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: 'city-a' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reserve stock and get quote' }));
+    await screen.findByRole('button', { name: 'Retry same reservation request' });
+    expect(screen.getByRole('alert').textContent).toMatch(/Stock may be held/);
+    rerender(<CheckoutPanel {...props} cartVersion={2} cities={[cities[1]!]} reservationUnavailable="Cart not ready" initialQuote={null} />);
+    const city = screen.getByLabelText('City') as HTMLSelectElement;
+    expect(city.disabled).toBe(true);
+    expect(city.value).toBe('city-a');
+    expect(city.selectedOptions[0]?.textContent).toBe('City details unavailable for this request');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry same reservation request' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toEqual(JSON.parse(fetchMock.mock.calls[0]![1].body));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Release reserved stock' })).toBeTruthy());
+  });
+
+  it('allows a new attempt after an authoritative cart version conflict', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ code: 'CHECKOUT_CART_VERSION_CONFLICT' }), { status: 409 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(quote), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { rerender } = render(<CheckoutPanel {...props} initialQuote={null} />);
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: 'city-a' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reserve stock and get quote' }));
+    await screen.findByRole('alert');
+    expect(mocks.refresh).toHaveBeenCalled();
+    rerender(<CheckoutPanel {...props} cartVersion={2} initialQuote={null} />);
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: 'city-b' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reserve stock and get quote' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const first = JSON.parse(fetchMock.mock.calls[0]![1].body);
+    const second = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    expect(second).toMatchObject({ destinationCityId: 'city-b', expectedVersion: 2 });
+    expect(second.attemptId).not.toBe(first.attemptId);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Release reserved stock' })).toBeTruthy());
+  });
+
+  it('preserves an uncertain attempt after an authentication error and while a recovered quote is displayed', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'SIGN_IN_REQUIRED' }), { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { rerender } = render(<CheckoutPanel {...props} initialQuote={null} />);
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: 'city-a' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reserve stock and get quote' }));
+    await screen.findByRole('button', { name: 'Retry same reservation request' });
+    rerender(<CheckoutPanel {...props} initialQuote={quote} />);
+    expect(await screen.findByRole('button', { name: 'Release reserved stock' })).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Retry same reservation request' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByLabelText('City') as HTMLSelectElement).value).toBe('city-b');
+  });
+});
+
+describe('reservation retry after a server failure', () => {
+  it('keeps the same key and payload after a 502 rather than creating a fresh attempt', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ code: 'QUOTE_UNAVAILABLE' }), { status: 502 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...quote, destinationCityId: 'city-a' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<CheckoutPanel {...props} initialQuote={null} />);
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: 'city-a' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reserve stock and get quote' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry same reservation request' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock.mock.calls[1]![1].body).toBe(fetchMock.mock.calls[0]![1].body);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Release reserved stock' })).toBeTruthy());
+  });
+});
+
+it('does not discard an uncertain attempt when its retry gets a version conflict', async () => {
+  const fetchMock = vi.fn().mockRejectedValueOnce(new Error('network'))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ code: 'CHECKOUT_CART_VERSION_CONFLICT' }), { status: 409 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ ...quote, destinationCityId: 'city-a' }), { status: 200 }));
+  vi.stubGlobal('fetch', fetchMock);
+  const { rerender } = render(<CheckoutPanel {...props} initialQuote={null} />);
+  fireEvent.change(screen.getByLabelText('City'), { target: { value: 'city-a' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Reserve stock and get quote' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry same reservation request' }));
+  await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
+  rerender(<CheckoutPanel {...props} cartVersion={2} initialQuote={null} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry same reservation request' }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+  expect(fetchMock.mock.calls[2]![1].body).toBe(fetchMock.mock.calls[0]![1].body);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Release reserved stock' })).toBeTruthy());
+});
