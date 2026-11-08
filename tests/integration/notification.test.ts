@@ -55,6 +55,20 @@ function patch(path: string, user: { token: string; csrf: string }, body: unknow
 
 describe('notification lifecycle', () => {
   beforeAll(async () => {
+    // Each integration file must bootstrap its own test environment. CI does
+    // not provide the local developer's .env, and Vitest isolates test files.
+    process.env['NODE_ENV'] = 'test';
+    process.env['WEB_ORIGIN'] = origin;
+    process.env['DATABASE_URL'] = u.runtime;
+    process.env['DATABASE_PRIVILEGED_URL'] = u.privileged;
+    process.env['REDIS_URL'] = process.env['TEST_REDIS_URL'] ?? 'redis://localhost:6379';
+    process.env['KEYCLOAK_ISSUER'] = 'http://localhost:8080/realms/get-stoopy';
+    process.env['KEYCLOAK_CLIENT_ID'] = 'get-stoopy-web';
+    process.env['KEYCLOAK_CLIENT_SECRET'] = 'test-secret';
+    process.env['BFF_API_SHARED_SECRET'] = 'test-bff-secret-000000000000000000000000';
+    process.env['SESSION_TOKEN_ENCRYPTION_KEY'] = 'c'.repeat(64);
+    process.env['STORAGE_ENCRYPTION_KEY'] = 'e'.repeat(64);
+    process.env['SESSION_COOKIE_NAME'] = 'gs_session_dev';
     const { createApp } = await import('../../apps/api/src/main');
     app = await createApp();
     await app.init();
@@ -65,9 +79,9 @@ describe('notification lifecycle', () => {
   });
 
   afterAll(async () => {
-    await app.close();
-    await pool.end();
-    await privilegedPool.end();
+    if (app) await app.close();
+    if (pool) await pool.end();
+    if (privilegedPool) await privilegedPool.end();
   });
 
   it('creates a notification and returns it', async () => {
