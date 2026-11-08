@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { summarizeVariantPrices } from '@getstoopy/core';
 import { formatCatalogPrice } from '@/lib/catalog-price';
 import type { PublicProduct } from '@/lib/catalog';
-import { imageProxyUrl } from '@/lib/catalog';
+import { ProductCardImage } from '@/components/product-card-image';
 
 /**
  * A catalog card. Renders no price at all when nothing is orderable, rather than
@@ -24,19 +24,7 @@ export function ProductCard({ product }: { product: PublicProduct }) {
         aria-label={`${product.title}${anyInStock ? '' : ' — out of stock'}`}
       >
         <div className="aspect-square w-full overflow-hidden bg-neutral-100">
-          {image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={imageProxyUrl(product.id, image.id)}
-              alt={image.altText ?? product.title}
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-sm text-neutral-500" aria-hidden="true">
-              No image
-            </div>
-          )}
+          <ProductCardImage productId={product.id} productTitle={product.title} {...(image ? { image } : {})} />
         </div>
         <div className="flex flex-1 flex-col gap-1 p-4">
           {product.brand ? <p className="text-xs uppercase tracking-wide text-neutral-500">{product.brand}</p> : null}

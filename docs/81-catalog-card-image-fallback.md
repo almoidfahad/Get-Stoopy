@@ -1,0 +1,5 @@
+# Catalog card image fallback
+
+The reference storefront shows product imagery in its product cards (see UI-H14–H16 in the design inventory). Catalog cards previously rendered a browser broken-image icon when a supplied public photo failed to load. They now distinguish an absent image from a failed image with a modest visual placeholder, retain the real product/link and price, use only the existing same-origin image proxy, and try a newly supplied image even if the previous one failed. Blank alt text falls back to the supplied product title. Placeholder text is supplementary to the named product link and does not create a separate live announcement for every failed card image.
+
+This does not invent products, images, prices, ratings or cart/wishlist functionality, nor does it add a backend or production deployment. DOM interaction tests simulate load failures and prop changes. Real proxy image loading, populated catalog, responsive visual comparison, keyboard and assistive-technology review still require a configured test market and browser. The Vercel preview is expected to show the unconfigured-market state, not populated card imagery.
