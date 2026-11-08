@@ -1,12 +1,13 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ products: vi.fn() }));
+const mocks = vi.hoisted(() => ({ products: vi.fn(), webConfig: vi.fn() }));
+vi.mock('@/lib/config', () => ({ webConfig: mocks.webConfig }));
 vi.mock('@/lib/catalog', () => ({ fetchProducts: mocks.products, imageProxyUrl: () => '/image' }));
 import Home from '../src/app/page';
 import Login from '../src/app/login/page';
 
-beforeEach(() => { vi.resetAllMocks(); });
+beforeEach(() => { vi.resetAllMocks(); mocks.webConfig.mockReturnValue({}); });
 
 describe('storefront UI', () => {
   it.each(['not-configured', 'unavailable'] as const)('shows an honest empty collection when the catalog is %s', async state => {
@@ -37,6 +38,15 @@ describe('storefront UI', () => {
     expect(html).not.toContain('Continue with Google');
     expect(html.indexOf('id="login-heading"')).toBeLessThan(html.indexOf('aria-label="Welcome to Get Stoopy"'));
     expect(html).toContain('Continue browsing');
+  });
+  it('does not offer a broken sign-in action when configuration is missing', async () => {
+    mocks.webConfig.mockImplementation(() => { throw new Error('secret configuration detail'); });
+    const html = renderToStaticMarkup(await Login({ searchParams: Promise.resolve({ error: 'oidc' }) }));
+    expect(html).toContain('Sign-in is not available yet');
+    expect(html).toContain('role="status"');
+    expect(html).not.toContain('href="/api/auth/login"');
+    expect(html).not.toContain('secret configuration detail');
+    expect(html).toContain('href="/shop"');
   });
   it('shows a safe recovery message when sign-in cannot start', async () => {
     const html = renderToStaticMarkup(await Login({ searchParams: Promise.resolve({ error: 'unavailable' }) }));
