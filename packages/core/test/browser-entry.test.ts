@@ -33,6 +33,7 @@ describe('browser-safe core entry', () => {
     expect(names).toContain('checkout-quote.ts');
     expect(names).toContain('cart-summary.ts');
     expect(names).toContain('catalog-display.ts');
+    expect(names).toContain('inventory.ts');
   });
 
   it('never imports a Node builtin, directly or transitively', () => {
