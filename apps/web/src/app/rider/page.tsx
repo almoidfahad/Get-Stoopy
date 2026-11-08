@@ -1,0 +1,97 @@
+import Link from 'next/link';
+import { Activity, ArrowRight, Bike, CircleDollarSign, ClipboardList, History, LayoutDashboard, MapPin, PackageCheck, Settings, ShoppingBag, Star, WalletCards } from 'lucide-react';
+import { apiFetch } from '@/lib/bff';
+
+export const dynamic = 'force-dynamic';
+
+type SessionState = 'signed-out' | 'unavailable' | 'no-rider' | 'has-rider';
+
+/** Presentation only: real rider operations must be authorized by the backend. */
+async function riderSession(): Promise<SessionState> {
+  try {
+    const response = await apiFetch('/auth/me');
+    if (response.status === 401) return 'signed-out';
+    if (!response.ok) return 'unavailable';
+    const data: unknown = await response.json();
+    if (!data || typeof data !== 'object') return 'unavailable';
+    const session = data as { user?: { id?: unknown }; riderId?: unknown };
+    if (!session.user || typeof session.user.id !== 'string' || !session.user.id) return 'unavailable';
+    if (session.riderId === null) return 'no-rider';
+    if (typeof session.riderId === 'string' && session.riderId.length > 0) return 'has-rider';
+    return 'unavailable';
+  } catch {
+    return 'unavailable';
+  }
+}
+
+const modules = [
+  { label: 'Delivery offers', Icon: ShoppingBag },
+  { label: 'My deliveries', Icon: Bike },
+  { label: 'Earnings', Icon: WalletCards },
+  { label: 'Payout history', Icon: History },
+  { label: 'Performance', Icon: Activity },
+  { label: 'Ratings & reviews', Icon: Star },
+  { label: 'Settings', Icon: Settings },
+];
+
+function SidebarContent() {
+  return (
+    <>
+      <Link href="/" className="flex items-center gap-3 px-5 py-6" aria-label="Get Stoopy home">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-red text-white"><ShoppingBag size={24} aria-hidden="true" /></span>
+        <span><span className="block text-xl font-black tracking-tight text-white">Get <span className="text-red-300">Stoopy</span></span><span className="mt-1 block text-[10px] font-semibold text-neutral-400">Shop Smart. Live Better.</span></span>
+      </Link>
+      <div className="mx-4 rounded-xl border border-white/10 bg-white/5 p-4"><p className="text-xs font-bold uppercase tracking-[.15em] text-neutral-400">Workspace</p><p className="mt-1 text-sm font-bold text-white">Rider dashboard</p></div>
+      <nav aria-label="Rider workspace" className="mt-5 px-3 pb-5">
+        <Link href="/rider" aria-current="page" className="flex min-h-11 items-center gap-3 rounded-xl bg-brand-red px-3 py-2.5 text-sm font-bold text-white"><LayoutDashboard size={18} aria-hidden="true" />Dashboard</Link>
+        <p className="px-3 pb-1 pt-5 text-[10px] font-bold uppercase tracking-[.15em] text-neutral-400">Modules not yet available</p>
+        <ul>{modules.map(({ label, Icon }) => <li key={label} className="flex min-h-10 items-center gap-3 px-3 py-2 text-sm text-neutral-400"><Icon size={18} aria-hidden="true" /><span>{label}</span></li>)}</ul>
+      </nav>
+    </>
+  );
+}
+
+const metrics = [
+  { title: 'Completed deliveries', Icon: PackageCheck },
+  { title: 'Total earnings', Icon: CircleDollarSign },
+  { title: 'Active deliveries', Icon: Bike },
+  { title: 'Rating', Icon: Star },
+];
+
+function EmptyPanel({ title, description, icon: Icon, className = '' }: { title: string; description: string; icon: typeof Activity; className?: string }) {
+  return <section className={`min-w-0 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm ${className}`}><div className="flex items-center gap-3"><Icon size={20} className="text-brand-red" aria-hidden="true" /><h2 className="text-base font-bold text-neutral-950">{title}</h2></div><div className="mt-5 flex min-h-32 flex-col items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-neutral-50 px-5 py-6 text-center"><p className="text-sm font-semibold text-neutral-700">Not available yet</p><p className="mt-1 max-w-sm text-xs leading-5 text-neutral-600">{description}</p></div></section>;
+}
+
+export default async function RiderDashboard() {
+  const state = await riderSession();
+  const message = state === 'signed-out'
+    ? { title: 'Sign in to check rider access', body: 'Sign in with your account to check whether an eligible rider profile is available.' }
+    : state === 'no-rider'
+      ? { title: 'No eligible rider profile found', body: 'This session does not currently have an eligible rider profile. Access is determined by the account service.' }
+      : state === 'has-rider'
+        ? { title: 'Rider profile found', body: 'An eligible rider profile is present in this session. Dashboard data and tools have not been connected yet.' }
+        : { title: 'Rider access could not be checked', body: 'The account service is unavailable or not configured. Please try again when it is available.' };
+
+  return (
+    <div className="min-h-screen bg-[#f5f5f7] text-neutral-900">
+      <a href="#rider-main" className="sr-only z-50 rounded bg-white p-3 text-neutral-950 focus:not-sr-only focus:absolute focus:left-4 focus:top-4">Skip to dashboard</a>
+      <div className="lg:grid lg:min-h-screen lg:grid-cols-[240px_minmax(0,1fr)]">
+        <aside className="hidden bg-neutral-950 lg:block"><SidebarContent /></aside>
+        <div className="min-w-0">
+          <header className="border-b border-neutral-200 bg-white">
+            <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-brand-red"><Bike size={20} aria-hidden="true" /></span><div><p className="text-xs font-semibold text-neutral-500">Get Stoopy</p><p className="text-sm font-bold text-neutral-950">Rider workspace</p></div></div><div className="flex items-center gap-4 text-sm font-semibold"><Link href="/account" className="text-neutral-700 hover:text-brand-red">Account</Link><Link href="/shop" className="text-brand-red hover:underline">View shop</Link></div></div>
+            <details className="border-t border-neutral-100 bg-neutral-950 text-white lg:hidden"><summary className="cursor-pointer px-4 py-3 text-sm font-bold">Workspace menu</summary><SidebarContent /></details>
+          </header>
+          <main id="rider-main" tabIndex={-1} className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-red-100 bg-[#fff3f2] px-5 py-6 sm:px-7"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-brand-red">Rider workspace</p><h1 className="mt-2 text-2xl font-black tracking-tight text-neutral-950 sm:text-3xl">Welcome to your dashboard<span className="text-brand-red">.</span></h1><p className="mt-2 text-sm leading-6 text-neutral-600">A place for your delivery activity and earnings.</p></div><Link href="/account" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-red-200 bg-white px-5 py-2 text-sm font-bold text-brand-red hover:border-brand-red">Your account <ArrowRight size={16} /></Link></div>
+            <section aria-labelledby="access-heading" className="mt-5 rounded-2xl border border-neutral-200 bg-white px-5 py-4"><div className="flex flex-wrap items-center justify-between gap-4"><div><h2 id="access-heading" className="text-sm font-bold text-neutral-950">{message.title}</h2><p className="mt-1 text-sm leading-6 text-neutral-600">{message.body}</p></div>{state === 'signed-out' ? <Link href="/login" className="inline-flex min-h-11 items-center rounded-full bg-brand-red px-5 py-2 text-sm font-bold text-white hover:bg-brand-red-hover">Sign in</Link> : state === 'unavailable' ? <Link href="/rider" className="inline-flex min-h-11 items-center rounded-full border border-neutral-300 px-5 py-2 text-sm font-bold hover:border-neutral-900">Try again</Link> : null}</div></section>
+            <section aria-labelledby="overview-heading" className="mt-7"><div className="mb-4 flex flex-wrap items-end justify-between gap-2"><h2 id="overview-heading" className="text-xl font-bold tracking-tight">Overview</h2><p className="text-xs text-neutral-600">Dashboard metrics are not connected.</p></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(({ title, Icon }) => <article key={title} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"><div className="flex items-start gap-4"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-brand-red"><Icon size={21} aria-hidden="true" /></span><div><h3 className="text-sm font-semibold text-neutral-600">{title}</h3><p className="mt-2 text-base font-bold text-neutral-800">Unavailable</p></div></div></article>)}</div></section>
+            <div className="mt-5 grid gap-4 lg:grid-cols-2 xl:grid-cols-3"><EmptyPanel title="Live delivery" description="Assignment details and navigation are not connected to this dashboard." icon={MapPin} className="xl:col-span-2" /><EmptyPanel title="Earnings" description="Earnings and payouts are not connected to this dashboard." icon={WalletCards} /><EmptyPanel title="Recent deliveries" description="Delivery history is not connected to this dashboard." icon={ClipboardList} className="xl:col-span-2" /><EmptyPanel title="Rider performance" description="Performance reporting is not connected to this dashboard." icon={Activity} /></div>
+            <section aria-labelledby="actions-heading" className="mt-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"><h2 id="actions-heading" className="text-base font-bold">Rider actions</h2><p className="mt-2 text-sm leading-6 text-neutral-600">Shift controls, delivery offers, maps and support are not available here yet.</p></section>
+            <p className="mt-6 text-xs leading-5 text-neutral-600">Dashboard layout only. It does not show a duty status, location or real-time delivery data.</p>
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+}
