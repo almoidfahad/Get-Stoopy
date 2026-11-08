@@ -222,7 +222,7 @@ describe('quote request parsing', () => {
 
 describe('quote error copy', () => {
   it('explains an unserviceable destination without blaming the buyer', () => {
-    expect(quoteErrorMessage('CHECKOUT_DESTINATION_NOT_SERVICEABLE', 409)).toContain('delivers to that city');
+    expect(quoteErrorMessage('CHECKOUT_DESTINATION_NOT_SERVICEABLE', 409)).toContain('One or more stores');
   });
 
   it('falls back by status class for unknown codes', () => {

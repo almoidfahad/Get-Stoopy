@@ -200,7 +200,7 @@ export const QUOTE_ERROR_MESSAGES: Record<string, string> = {
   CHECKOUT_QUOTE_ALREADY_RESERVED: 'You already have an active quote for this cart. Release it before requesting another.',
   CHECKOUT_ACTIVE_QUOTE_LIMIT: 'You have too many active quotes. Release one before requesting another.',
   CHECKOUT_IDEMPOTENCY_CONFLICT: 'That request was already used for a different quote. Request a new quote.',
-  CHECKOUT_DESTINATION_NOT_SERVICEABLE: 'No store in your cart delivers to that city yet. Choose another city.',
+  CHECKOUT_DESTINATION_NOT_SERVICEABLE: 'One or more stores in your cart cannot deliver to that city. Choose another city.',
   CHECKOUT_QUOTE_NOT_FOUND: 'That quote no longer exists. Request a new one.',
   DESTINATION_INVALID: 'Choose a delivery city from the list.',
   VERSION_INVALID: 'The quote version was missing or invalid. Reload the page and try again.',

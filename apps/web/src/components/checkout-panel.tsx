@@ -132,6 +132,11 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
   const subtotal = summary?.subtotalMinor != null ? formatMinorUnits(summary.subtotalMinor.toString(), quote?.currency ?? currency) : null;
   const minutes = summary ? Math.floor(summary.secondsRemaining / 60) : 0;
   const seconds = summary ? summary.secondsRemaining % 60 : 0;
+  // A recovered reservation belongs to its original city, even if this tab
+  // never selected it or the current city list no longer includes it.
+  const reservedCityId = quote?.state === 'RESERVED' ? quote.destinationCityId : null;
+  const selectedCityId = reservedCityId ?? cityId;
+  const quoteCity = quote ? cities.find(city => city.cityId === quote.destinationCityId) : undefined;
 
   return (
     <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
@@ -139,15 +144,17 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
         <p className="section-eyebrow">Delivery destination</p>
         <h2 className="mt-2 text-xl font-bold">Delivery city</h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Cities with reported store coverage are listed. Availability for your cart is checked when you request a quote.
+          Choose the recipient’s city, whether the delivery is for you or someone else. Cities with reported store coverage are listed; availability for your cart is checked when you request a quote.
         </p>
+
+        <p className="mt-3 text-sm leading-6 text-neutral-600">This quote only uses the city. Recipient details and delivery addresses are not collected yet, and placing an order is not available.</p>
 
         <label htmlFor="destination-city" className="mt-4 block text-sm font-semibold">
           City
         </label>
         <select
           id="destination-city"
-          value={cityId}
+          value={selectedCityId}
           disabled={busy || !!reservationUnavailable || quote?.state === 'RESERVED'}
           onChange={event => {
             setCityId(event.target.value);
@@ -156,6 +163,7 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
           className="mt-2 min-h-12 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 disabled:bg-neutral-100"
         >
           <option value="">Choose a city</option>
+          {reservedCityId && !quoteCity ? <option value={reservedCityId}>City details unavailable for this quote</option> : null}
           {cities.map(city => (
             <option key={city.cityId} value={city.cityId}>
               {city.name} — {city.storeCount} {city.storeCount === 1 ? 'store' : 'stores'}
@@ -199,6 +207,8 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
               </span>
             </div>
 
+            <p className="mt-3 text-sm text-neutral-700">Quote city: <span className="font-semibold">{quoteCity?.name ?? 'City details unavailable'}</span></p>
+
             {summary.status === 'reserved' ? (
               <p className="mt-2 text-sm text-neutral-700">
                 Stock held for{' '}
@@ -209,7 +219,9 @@ export function CheckoutPanel({ cartVersion, currency, cities, truncated, initia
             ) : null}
             {summary.status === 'expired' ? (
               <p className="mt-2 text-sm text-neutral-700">
-                This quote has expired. Release it to return the stock, then request a new one.
+                {summary.canRelease
+                  ? 'This quote has expired. Release it to return the stock, then request a new one.'
+                  : 'This quote has expired. No stock is held by this quote any more.'}
               </p>
             ) : null}
 
