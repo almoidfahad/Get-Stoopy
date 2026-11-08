@@ -1,0 +1,7 @@
+# Owner-requested getstoopy production release
+
+On 2026-11-08, the owner requested the current web version at `getstoopy.vercel.app` and selected the latest tested version over the older linked preview. The domain already belongs to Vercel project `getstoopy`; the linked preview is in a separate project `get-stoopy`. No domain transfer is required. This request supersedes the earlier preview-only restriction **only for this explicitly approved release**; it does not authorize live payments, payouts, migrations, or other production features.
+
+Automatic Git deployment and GitHub auto-alias remain disabled. The ignored-build-step guard permits preview builds, or production only when the Vercel project ID is the `getstoopy` project and `STOOPY_APPROVED_PRODUCTION_SHA` exactly matches the full Vercel Git commit SHA. The non-secret approval must be added to that project's production environment for the chosen commit and removed after the deployment attempt; missing or mismatched values fail closed. Manual release status and alias assignment must be verified; a successful build alone does not prove the public domain was updated.
+
+Vercel deploys the Next.js web app, not the separately hosted API/worker. The project lacks a configured live market, identity and API backend; sign-in, live catalog and cart/checkout workflows remain unavailable or unverified. Payment and order placement are not implemented. Production release of the web UI is not a production-readiness claim. No Supabase connection, database migration or production data change is implied.
