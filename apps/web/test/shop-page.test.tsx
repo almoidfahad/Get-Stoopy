@@ -78,8 +78,15 @@ describe('shop page', () => {
   it.each(['not-configured', 'unavailable'] as const)('shows %s honestly without demo products', async state => {
     mocks.products.mockResolvedValue({ state });
     const html = await render();
-    expect(html).toContain(state === 'not-configured' ? 'Market not configured' : 'Catalog unavailable');
+    expect(html).toContain(state === 'not-configured' ? 'Our shop is getting ready' : 'Catalog unavailable');
     expect(html).not.toContain('A real product');
+  });
+
+  it('offers a real reload preserving applied filters when the catalog is unavailable', async () => {
+    mocks.products.mockResolvedValue({ state: 'unavailable' });
+    const html = await render({ q: 'chair', categoryId: category.id, cursor: '00000000-0000-4000-8000-000000000003' });
+    expect(html).toContain('Try again');
+    expect(html).toContain('q=chair&amp;categoryId=00000000-0000-4000-8000-000000000001&amp;cursor=00000000-0000-4000-8000-000000000003');
   });
 
   it('explains an empty category and allows clearing filters', async () => {

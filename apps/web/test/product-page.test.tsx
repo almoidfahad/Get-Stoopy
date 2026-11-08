@@ -82,8 +82,9 @@ describe('product detail', () => {
   it.each(['not-configured', 'unavailable'] as const)('renders the %s state', async state => {
     mocks.product.mockResolvedValue({ state });
     const html = await render();
-    expect(html).toContain(state === 'not-configured' ? 'Market not configured' : 'Product unavailable');
+    expect(html).toContain(state === 'not-configured' ? 'Our shop is getting ready' : 'Product unavailable');
     expect(html).toContain('Back to shop');
+    if (state === 'unavailable') expect(html).toContain('Try again');
     expect(mocks.session).not.toHaveBeenCalled();
   });
   it('keeps the not-found behavior', async () => {

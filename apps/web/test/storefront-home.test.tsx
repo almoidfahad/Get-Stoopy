@@ -13,8 +13,8 @@ describe('storefront UI', () => {
   it.each(['not-configured', 'unavailable'] as const)('shows an honest empty collection when the catalog is %s', async state => {
     mocks.products.mockResolvedValue({ state });
     const html = renderToStaticMarkup(await Home());
-    expect(html).toContain('Our collection is coming together');
-    expect(html).toContain('Products will appear here when the catalog is available');
+    expect(html).toContain(state === 'not-configured' ? 'Our shop is getting ready' : 'The collection is temporarily unavailable');
+    expect(html).toContain(state === 'not-configured' ? 'Products aren’t available to browse here yet.' : 'We couldn’t load products right now.');
     expect(html).not.toContain('Up to 70%');
     expect(html).toContain('action="/shop"');
     expect(html).toContain('Skip to content');
@@ -23,11 +23,18 @@ describe('storefront UI', () => {
     expect(html).toContain('<span class="text-red-300">Stoopy</span>');
   });
 
+  it('distinguishes an empty successful catalog from a service outage', async () => {
+    mocks.products.mockResolvedValue({ state: 'ok', data: { items: [], nextCursor: null } });
+    const html = renderToStaticMarkup(await Home());
+    expect(html).toContain('No products to show yet');
+    expect(html).not.toContain('temporarily unavailable');
+  });
+
   it('renders real catalog items instead of placeholder products', async () => {
     mocks.products.mockResolvedValue({ state: 'ok', data: { items: [{ id: 'p', title: 'Real product', currency: 'BDT', variants: [], images: [] }], nextCursor: null } });
     const html = renderToStaticMarkup(await Home());
     expect(html).toContain('Real product');
-    expect(html).not.toContain('Our collection is coming together');
+    expect(html).not.toContain('No products to show yet');
     expect(html).toContain('/shop/p');
   });
 

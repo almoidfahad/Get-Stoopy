@@ -61,7 +61,7 @@ export default async function ShopPage({
         <aside aria-label="Shop filters" className="min-w-0">
           <form action="/shop" method="get" role="search" aria-label="Shop collection">
             <label htmlFor="shop-search" className="block text-sm font-bold text-neutral-900">Search the collection</label>
-            <div className="mt-3 flex overflow-hidden rounded-xl border border-neutral-300 bg-white focus-within:border-neutral-600">
+            <div className="mt-3 flex overflow-hidden rounded-xl border border-neutral-300 bg-white focus-within:border-brand-red focus-within:ring-2 focus-within:ring-brand-red">
               <input id="shop-search" type="search" name="q" defaultValue={q ?? ''} maxLength={120} placeholder="Search products" className="min-w-0 flex-1 bg-transparent px-4 py-3 text-sm outline-none" />
               {categoryId ? <input type="hidden" name="categoryId" value={categoryId} /> : null}
               <button type="submit" aria-label="Search the collection" className="flex min-h-12 w-12 shrink-0 items-center justify-center bg-brand-red text-white hover:bg-brand-red-hover"><Search size={19} /></button>
@@ -90,11 +90,11 @@ export default async function ShopPage({
           <div aria-live="polite">
             {products.state === 'not-configured' ? (
               <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-8">
-                <PackageSearch size={28} className="text-brand-red" aria-hidden="true" /><h3 className="mt-4 text-lg font-bold">Market not configured</h3>
-                <p className="mt-2 max-w-xl text-sm leading-6 text-neutral-700">This deployment has no market country set, so there is no catalog to show. Configure <code className="rounded bg-white px-1 py-0.5 font-mono text-sm">MARKET_COUNTRY_ID</code> to browse real published products. No demo products are substituted.</p>
+                <PackageSearch size={28} className="text-brand-red" aria-hidden="true" /><h3 className="mt-4 text-lg font-bold">Our shop is getting ready</h3>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-neutral-700">Products aren’t available to browse here yet. Please check back later.</p><Link href="/" className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-brand-red hover:underline">Back to home <ArrowRight size={15} aria-hidden="true" /></Link>
               </div>
             ) : products.state === 'unavailable' || products.state === 'not-found' ? (
-              <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-8"><PackageSearch size={28} className="text-brand-red" aria-hidden="true" /><h3 className="mt-4 text-lg font-bold">Catalog unavailable</h3><p className="mt-2 text-sm leading-6 text-neutral-700">The catalog service could not be reached. Please try again shortly.</p><Link href={shopHref({ ...(q ? { q } : {}), ...(categoryId ? { categoryId } : {}), ...(cursor ? { cursor } : {}) })} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-brand-red hover:underline">Retry <ArrowRight size={15} /></Link></div>
+              <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-8"><PackageSearch size={28} className="text-brand-red" aria-hidden="true" /><h3 className="mt-4 text-lg font-bold">Catalog unavailable</h3><p className="mt-2 text-sm leading-6 text-neutral-700">The catalog service could not be reached. Please try again shortly.</p><a href={shopHref({ ...(q ? { q } : {}), ...(categoryId ? { categoryId } : {}), ...(cursor ? { cursor } : {}) })} className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-brand-red hover:underline">Try again <ArrowRight size={15} aria-hidden="true" /></a></div>
             ) : products.data.items.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-8"><PackageSearch size={28} className="text-brand-red" aria-hidden="true" /><h3 className="mt-4 text-lg font-bold">No products found</h3><p className="mt-2 break-words text-sm leading-6 text-neutral-700 [overflow-wrap:anywhere]">{cursor ? 'There are no products on this page.' : q ? `Nothing matched “${q}”.` : categoryId ? 'No published products were found in this category.' : 'No published products are available in this market yet.'}</p>{cursor ? <Link href={shopHref({ ...(q ? { q } : {}), ...(categoryId ? { categoryId } : {}) })} className="mt-4 inline-block text-sm font-bold text-brand-red hover:underline">Back to first page</Link> : q || categoryId ? <Link href="/shop" className="mt-4 inline-block text-sm font-bold text-brand-red hover:underline">Clear filters</Link> : null}</div>
             ) : (

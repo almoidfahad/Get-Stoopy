@@ -22,9 +22,12 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       <Shell>
         <div className="max-w-2xl rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-8 sm:p-10">
           <PackageSearch size={30} className="text-brand-red" aria-hidden="true" />
-          <h1 className="mt-4 text-2xl font-black tracking-tight">{result.state === 'not-configured' ? 'Market not configured' : 'Product unavailable'}</h1>
-          <p className="mt-2 text-sm leading-6 text-neutral-700">{result.state === 'not-configured' ? 'This deployment has no market country set, so no catalog can be shown.' : 'The catalog service could not be reached. Please try again shortly.'}</p>
-          <Link href="/shop" className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-brand-red hover:underline"><ArrowLeft size={16} /> Back to shop</Link>
+          <h1 className="mt-4 text-2xl font-black tracking-tight">{result.state === 'not-configured' ? 'Our shop is getting ready' : 'Product unavailable'}</h1>
+          <p className="mt-2 text-sm leading-6 text-neutral-700">{result.state === 'not-configured' ? 'Products aren’t available to browse here yet. Please check back later.' : 'The catalog service could not be reached. Please try again shortly.'}</p>
+          <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-1">
+            {result.state === 'unavailable' ? <a href={`/shop/${encodeURIComponent(id)}`} className="inline-flex min-h-11 items-center text-sm font-bold text-brand-red hover:underline">Try again</a> : null}
+            <Link href="/shop" className="inline-flex min-h-11 items-center gap-2 text-sm font-bold text-brand-red hover:underline"><ArrowLeft size={16} aria-hidden="true" /> Back to shop</Link>
+          </div>
         </div>
       </Shell>
     );
