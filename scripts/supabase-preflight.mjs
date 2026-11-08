@@ -3,7 +3,8 @@
 //
 // Contract:
 //   * Never issues DDL/DML. The server session is forced into
-//     `default_transaction_read_only=on`, so a mistake cannot write.
+//     `default_transaction_read_only=on` as defense in depth. This setting is
+//     not a substitute for a genuinely read-only database role.
 //   * Never prints the connection string, password, or role password hashes.
 //   * Fails closed: requires an explicit Supabase host and refuses to run when
 //     NODE_ENV=production.
@@ -67,6 +68,16 @@ export function describeTarget(rawUrl) {
     throw new Error('Refusing to run: preflight is restricted to *.supabase.co / *.supabase.com hosts.');
   }
 
+  // pg merges connection-string query parameters over separately supplied
+  // options. A host, options or SSL override could otherwise silently bypass
+  // the checks above, the read-only default or TLS verification. Permit only
+  // the unambiguous, fully verified SSL mode; the script configures TLS itself.
+  const query = [...url.searchParams.entries()];
+  if (url.hash || query.length > 1 || query.some(([key, value]) => key !== 'sslmode' || value !== 'verify-full')) {
+    throw new Error('Refusing URL parameters: remove all query parameters or use only sslmode=verify-full.');
+  }
+  if (!url.username || !url.password) throw new Error(`${URL_ENV} must include a user and password.`);
+
   const port = Number(url.port || 5432);
   const pooled = host.includes('pooler.');
   const transactionPooler = pooled && port === 6543;
@@ -89,6 +100,37 @@ export function describeTarget(rawUrl) {
     // Direct Supabase hostnames are IPv6-only unless an IPv4 add-on is enabled.
     // The session pooler is the documented fallback for IPv4-only networks.
     direct: !pooled
+  };
+}
+
+/**
+ * Construct explicit pg options instead of passing through a connection string.
+ * The parsed host is therefore the checked host, and neither URL parameters nor
+ * PGHOST/PGSSLMODE/PGOPTIONS environment defaults can override the safeguards.
+ * Never log or serialize this object: it includes the database password.
+ * @param {string} rawUrl
+ * @param {string | undefined} ca
+ */
+export function buildClientOptions(rawUrl, ca) {
+  const target = describeTarget(rawUrl);
+  const url = new URL(rawUrl);
+  let user, password;
+  try {
+    user = decodeURIComponent(url.username);
+    password = decodeURIComponent(url.password);
+  } catch {
+    throw new Error(`${URL_ENV} contains invalid credential encoding.`);
+  }
+  if (!user || !password) throw new Error(`${URL_ENV} must include a user and password.`);
+  return {
+    host: target.host,
+    port: target.port,
+    database: target.database,
+    user,
+    password,
+    ssl: ca ? { rejectUnauthorized: true, ca } : { rejectUnauthorized: true },
+    connectionTimeoutMillis: 15000,
+    options: '-c default_transaction_read_only=on -c statement_timeout=15000'
   };
 }
 
@@ -171,25 +213,27 @@ async function main() {
     return 1;
   }
 
-  const ssl = { rejectUnauthorized: true };
+  let ca;
   const caPath = process.env[CA_ENV];
   if (caPath) {
     try {
-      ssl.ca = readFileSync(caPath, 'utf8');
+      ca = readFileSync(caPath, 'utf8');
     } catch {
       console.error(`Cannot read ${CA_ENV}. Provide the Supabase root certificate; TLS verification is never disabled.`);
       return 1;
     }
   }
 
+  let clientOptions;
+  try {
+    clientOptions = buildClientOptions(process.env[URL_ENV], ca);
+  } catch {
+    // Do not echo parsing exceptions; they may contain connection details.
+    console.error('Invalid preflight connection configuration.');
+    return 1;
+  }
   const { default: pg } = await import('pg');
-  const client = new pg.Client({
-    connectionString: process.env[URL_ENV],
-    ssl,
-    connectionTimeoutMillis: 15000,
-    // Server-enforced read-only session: a write would be rejected by PostgreSQL.
-    options: '-c default_transaction_read_only=on -c statement_timeout=15000'
-  });
+  const client = new pg.Client(clientOptions);
 
   try {
     await client.connect();
