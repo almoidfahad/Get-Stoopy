@@ -44,6 +44,7 @@ function SidebarContent() {
       <div className="mx-4 rounded-xl border border-white/10 bg-white/5 p-4"><p className="text-xs font-bold uppercase tracking-[.15em] text-neutral-400">Workspace</p><p className="mt-1 text-sm font-bold text-white">Vendor dashboard</p></div>
       <nav aria-label="Vendor workspace" className="mt-5 px-3 pb-5">
         <Link href="/vendor" aria-current="page" className="flex min-h-11 items-center gap-3 rounded-xl bg-brand-red px-3 py-2.5 text-sm font-bold text-white"><LayoutDashboard size={18} aria-hidden="true" />Dashboard</Link>
+        <Link href="/vendor/product-preview" className="mt-2 flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-neutral-200 hover:bg-white/10 hover:text-white"><Package size={18} aria-hidden="true" />Product layout preview</Link>
         <p className="px-3 pb-1 pt-5 text-[10px] font-bold uppercase tracking-[.15em] text-neutral-400">Modules not yet available</p>
         <ul>{modules.map(({ label, Icon }) => <li key={label} className="flex min-h-10 items-center gap-3 px-3 py-2 text-sm text-neutral-400"><Icon size={18} aria-hidden="true" /><span>{label}</span></li>)}</ul>
       </nav>

@@ -17,6 +17,8 @@ describe('vendor dashboard layout', () => {
     expect(html).toContain('Recent orders');
     expect(html).toContain('Dashboard metrics are not connected');
     expect(html).toContain('Modules not yet available');
+    expect(html).toContain('href="/vendor/product-preview"');
+    expect(html).toContain('Product layout preview');
     expect(html).not.toContain('TechMart');
     expect(html).not.toContain('$12,580');
     expect(html).not.toContain('href="/vendor/orders"');
