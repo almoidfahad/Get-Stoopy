@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { formatMinorUnits, summarizeVariantPrices } from '@getstoopy/core';
+import { summarizeVariantPrices } from '@getstoopy/core';
+import { formatCatalogPrice } from '@/lib/catalog-price';
 import type { PublicProduct } from '@/lib/catalog';
 import { imageProxyUrl } from '@/lib/catalog';
 
@@ -8,11 +9,11 @@ import { imageProxyUrl } from '@/lib/catalog';
  * a misleading zero, and states out-of-stock explicitly.
  */
 export function ProductCard({ product }: { product: PublicProduct }) {
-  const summary = summarizeVariantPrices(product.variants);
+  const currency = product.currency;
+  const summary = summarizeVariantPrices(product.variants.filter(variant => formatCatalogPrice(variant.priceAmountMinor, currency) !== null));
   const anyInStock = product.variants.some(variant => variant.inStock && variant.availableToPromise > 0);
-  const currency = product.currency || 'BDT';
-  const lowest = summary.lowestMinor === null ? null : formatMinorUnits(summary.lowestMinor.toString(), currency);
-  const highest = summary.highestMinor === null ? null : formatMinorUnits(summary.highestMinor.toString(), currency);
+  const lowest = summary.lowestMinor === null ? null : formatCatalogPrice(summary.lowestMinor.toString(), currency);
+  const highest = summary.highestMinor === null ? null : formatCatalogPrice(summary.highestMinor.toString(), currency);
   const image = product.images[0];
 
   return (

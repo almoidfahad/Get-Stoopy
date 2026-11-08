@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, PackageSearch } from 'lucide-react';
-import { formatMinorUnits, summarizeVariantPrices } from '@getstoopy/core';
+import { summarizeVariantPrices } from '@getstoopy/core';
+import { formatCatalogPrice } from '@/lib/catalog-price';
 import { Shell } from '@/components/shell';
 import { fetchProduct, imageProxyUrl } from '@/lib/catalog';
 import { hasSessionCookie } from '@/lib/cart';
@@ -29,12 +30,16 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   }
 
   const product = result.data;
-  const currency = product.currency || 'BDT';
-  const summary = summarizeVariantPrices(product.variants);
+  const currency = product.currency;
+  const summary = summarizeVariantPrices(product.variants.filter(v => formatCatalogPrice(v.priceAmountMinor, currency) !== null));
   const signedIn = await hasSessionCookie();
+  const anyAvailable = product.variants.some(v => v.inStock && v.availableToPromise > 0);
   const orderable = product.variants
-    .filter(v => v.inStock && v.availableToPromise > 0)
+    .filter(v => v.inStock && v.availableToPromise > 0 && formatCatalogPrice(v.priceAmountMinor, currency) !== null)
     .map(v => ({ id: v.id, label: v.title ?? v.id.slice(0, 8) }));
+
+  const lowestPrice = summary.lowestMinor === null ? null : formatCatalogPrice(summary.lowestMinor.toString(), currency);
+  const highestPrice = summary.highestMinor === null ? null : formatCatalogPrice(summary.highestMinor.toString(), currency);
 
   return (
     <Shell>
@@ -68,9 +73,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           {product.store ? <p className="mt-3 text-sm text-neutral-600">Sold by <span className="font-bold text-neutral-900">{product.store.name}</span></p> : null}
 
           <div className="mt-6 border-y border-neutral-200 py-5">
-            {summary.lowestMinor !== null && summary.highestMinor !== null ? (
-              <p className="text-2xl font-black text-neutral-950">{summary.singlePrice ? formatMinorUnits(summary.lowestMinor.toString(), currency) : `${formatMinorUnits(summary.lowestMinor.toString(), currency)} – ${formatMinorUnits(summary.highestMinor.toString(), currency)}`}</p>
-            ) : <p className="text-lg font-semibold text-neutral-600">{orderable.length ? 'Price unavailable' : 'Out of stock'}</p>}
+            {lowestPrice !== null && highestPrice !== null ? (
+              <p className="text-2xl font-black text-neutral-950">{summary.singlePrice ? lowestPrice : `${lowestPrice} – ${highestPrice}`}</p>
+            ) : <p className="text-lg font-semibold text-neutral-600">{anyAvailable ? 'Price unavailable' : 'Out of stock'}</p>}
           </div>
 
           <section aria-labelledby="options-heading" className="mt-7">
@@ -79,7 +84,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <ul className="mt-3 divide-y divide-neutral-200 overflow-hidden rounded-2xl border border-neutral-200">
                 {product.variants.map(variant => {
                   const available = variant.inStock && variant.availableToPromise > 0;
-                  const price = formatMinorUnits(variant.priceAmountMinor, currency);
+                  const price = formatCatalogPrice(variant.priceAmountMinor, currency);
                   return <li key={variant.id} className="flex items-center justify-between gap-4 bg-white p-4"><div className="min-w-0"><p className="break-words text-sm font-bold text-neutral-900">{variant.title ?? variant.id.slice(0, 8)}</p><p className="mt-1 text-sm text-neutral-600">{available ? `${variant.availableToPromise} available` : 'Out of stock'}</p></div><p className="shrink-0 text-sm font-bold text-neutral-900">{price ?? 'Price unavailable'}</p></li>;
                 })}
               </ul>
@@ -87,7 +92,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           </section>
 
           <div className="mt-6 rounded-2xl bg-[#faf5ee] p-5 sm:p-6">
-            {orderable.length ? <AddToCart variants={orderable} signedIn={signedIn} /> : <p className="text-sm font-medium text-neutral-700">Nothing is currently available to order.</p>}
+            {orderable.length ? <AddToCart variants={orderable} signedIn={signedIn} /> : <p className="text-sm font-medium text-neutral-700">{anyAvailable ? 'Pricing is unavailable for the available options. Please try again later.' : 'Nothing is currently available to order.'}</p>}
             <p className="mt-4 text-xs leading-5 text-neutral-600">Checkout may reserve stock where available. Delivery fees, payment and order confirmation are not yet available.</p>
           </div>
 

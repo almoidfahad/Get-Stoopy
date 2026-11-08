@@ -54,6 +54,28 @@ describe('product detail', () => {
     expect(card).toContain('Price unavailable');
     expect(card).not.toContain('out of stock');
   });
+  it.each([undefined, '', 'INVALID', 'bdt', null])('never guesses a currency when missing or invalid (%s)', async currency => {
+    const item = { ...product, currency };
+    mocks.session.mockResolvedValue(true);
+    mocks.product.mockResolvedValue({ state: 'ok', data: item });
+    const html = await render();
+    const card = renderToStaticMarkup(<ProductCard product={item as any} />);
+    expect(html).toContain('Price unavailable');
+    expect(html).toContain('Pricing is unavailable');
+    expect(html).not.toContain('Add to cart');
+    expect(card).toContain('Price unavailable');
+    expect(card).not.toContain('BDT');
+  });
+  it('only offers options with a valid positive price', async () => {
+    const item = { ...product, variants: [product.variants[0], { ...product.variants[0], id: 'v3', title: 'Bad price', priceAmountMinor: '0' }] };
+    mocks.session.mockResolvedValue(true);
+    mocks.product.mockResolvedValue({ state: 'ok', data: item });
+    const html = await render();
+    expect(html).toContain('Price unavailable');
+    expect(html).toContain('Add to cart');
+    expect(html).toContain('12.00');
+    expect(html).not.toContain('<option value="v3">');
+  });
   it.each(['not-configured', 'unavailable'] as const)('renders the %s state', async state => {
     mocks.product.mockResolvedValue({ state });
     const html = await render();

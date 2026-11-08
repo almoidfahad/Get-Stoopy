@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useId, useRef, useState, useTransition } from 'react';
 
 /**
  * Shared error copy for cart calls. A version conflict is explained rather than
@@ -28,7 +28,7 @@ function messageFor(code: string | undefined, status: number): string {
     case 'ORIGIN_DENIED':
       return 'That request was rejected. Reload the page and try again.';
     default:
-      return status >= 500 ? 'The cart service is unavailable. Please try again.' : 'Could not update your cart.';
+      return status >= 500 ? 'The cart service is unavailable. Check your cart before trying again.' : 'Could not update your cart.';
   }
 }
 
@@ -38,8 +38,13 @@ export function useCartMutation() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const inFlight = useRef(false);
+
+  function clearFeedback() { setError(null); setDone(false); }
 
   async function send(method: 'POST' | 'PATCH' | 'DELETE', body: Record<string, unknown>): Promise<boolean> {
+    if (inFlight.current) return false;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     setDone(false);
@@ -59,14 +64,15 @@ export function useCartMutation() {
       startTransition(() => router.refresh());
       return true;
     } catch {
-      setError('The cart service is unavailable. Please try again.');
+      setError('The cart service could not be reached. Check your cart before trying again.');
       return false;
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
 
-  return { send, error, done, working: busy || pending };
+  return { send, error, done, working: busy || pending, clearFeedback };
 }
 
 export interface OrderableVariant {
@@ -81,10 +87,14 @@ export function AddToCart({
   variants: readonly OrderableVariant[];
   signedIn: boolean;
 }) {
-  const { send, error, done, working } = useCartMutation();
-  const [quantity, setQuantity] = useState(1);
+  const { send, error, done, working, clearFeedback } = useCartMutation();
+  const quantityHelpId = useId();
+  const [quantity, setQuantity] = useState('1');
   const [selected, setSelected] = useState(variants[0]?.id ?? '');
-  const disabled = variants.length === 0 || selected === '';
+  const selectedAvailable = variants.some(variant => variant.id === selected);
+  const effectiveSelected = selectedAvailable ? selected : '';
+  const validQuantity = /^\d+$/.test(quantity) && Number(quantity) >= 1 && Number(quantity) <= 100;
+  const disabled = !selectedAvailable || !validQuantity;
 
   if (!signedIn) {
     return (
@@ -97,14 +107,16 @@ export function AddToCart({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-end gap-3">
-        {variants.length > 1 ? (
+        {variants.length > 1 || (variants.length > 0 && !selectedAvailable) ? (
           <label className="flex flex-col text-sm">
             <span className="mb-1 font-medium">Option</span>
             <select
-              value={selected}
-              onChange={event => setSelected(event.target.value)}
+              value={effectiveSelected}
+              disabled={working}
+              onChange={event => { setSelected(event.target.value); clearFeedback(); }}
               className="min-h-12 rounded-xl border border-neutral-300 bg-white px-3 py-2"
             >
+              <option value="" disabled>Choose an available option</option>
               {variants.map(variant => (
                 <option key={variant.id} value={variant.id}>{variant.label}</option>
               ))}
@@ -114,28 +126,29 @@ export function AddToCart({
         <label className="flex flex-col text-sm">
           <span className="mb-1 font-medium">Quantity</span>
           <input
-            type="number"
-            min={1}
-            max={100}
+            type="text"
+            inputMode="numeric"
+            maxLength={3}
             value={quantity}
-            onChange={event => {
-              const next = Number(event.target.value);
-              setQuantity(Number.isInteger(next) && next >= 1 && next <= 100 ? next : 1);
-            }}
+            disabled={working}
+            aria-invalid={!validQuantity || undefined}
+            aria-describedby={!validQuantity ? quantityHelpId : undefined}
+            onChange={event => { setQuantity(event.target.value); clearFeedback(); }}
             className="min-h-12 w-24 rounded-xl border border-neutral-300 bg-white px-3 py-2"
           />
         </label>
         <button
           type="button"
           disabled={disabled || working}
-          onClick={() => void send('POST', { variantId: selected, quantity })}
+          onClick={() => void send('POST', { variantId: effectiveSelected, quantity: Number(quantity) })}
           className="min-h-12 rounded-full bg-brand-red px-6 py-3 font-bold text-white hover:bg-brand-red-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           {working ? 'Adding…' : 'Add to cart'}
         </button>
       </div>
+      {!validQuantity ? <p id={quantityHelpId} className="text-sm font-medium text-brand-red">Enter a whole number between 1 and 100.</p> : null}
       {error ? <p role="alert" className="text-sm font-medium text-brand-red">{error}</p> : null}
-      {done && !error ? (
+      {done && !error && selectedAvailable ? (
         <p role="status" className="text-sm">
           Added. <a href="/cart" className="font-semibold text-brand-red">View cart</a>
         </p>
