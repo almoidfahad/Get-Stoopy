@@ -31,7 +31,7 @@ async function drainPendingFixtures() {
   // dead-letters invalid/mismatched fixture rows instead of leaving backoff rows.
   for (let i = 0; i < 25; i++) {
     const pending = await pool.query(
-      'UPDATE "OutboxEvent" SET "availableAt" = now(), "leaseToken" = NULL, "leaseUntil" = NULL WHERE "publishedAt" IS NULL AND "failedAt" IS NULL RETURNING id',
+      `UPDATE "OutboxEvent" SET "availableAt" = now() - interval '1 second', "leaseToken" = NULL, "leaseUntil" = NULL WHERE "publishedAt" IS NULL AND "failedAt" IS NULL RETURNING id`,
     );
     if ((pending.rowCount ?? 0) === 0) return;
     await publishOutboxBatch(pool, queue, { ...opts, maxAttempts: 1, batchSize: 100 });
@@ -68,7 +68,11 @@ async function insertEvent() {
   const env = envelope(eventKey);
   const id = randomUUID();
   await pool.query(
-    'INSERT INTO "OutboxEvent"(id,"aggregateType","aggregateId","eventKey","eventType",payload,"occurredAt") VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)',
+    // Use the database clock and an explicitly past availability. The column is
+    // timestamp(3): rounding a default now() up to the next millisecond can make
+    // a freshly inserted row briefly not due to the next claim transaction.
+    `INSERT INTO "OutboxEvent"(id,"aggregateType","aggregateId","eventKey","eventType",payload,"occurredAt","availableAt")
+     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7, now() - interval '1 second')`,
     [id, env.aggregateType, env.aggregateId, eventKey, env.eventType, JSON.stringify(env), new Date(env.occurredAt)],
   );
   return { id, eventKey, env };
@@ -85,7 +89,7 @@ async function expireLease(id: string) {
   expect(expired.rowCount).toBe(1);
 }
 async function dueNow(id: string) {
-  await pool.query('UPDATE "OutboxEvent" SET "availableAt" = now() WHERE id=$1', [id]);
+  await pool.query(`UPDATE "OutboxEvent" SET "availableAt" = now() - interval '1 second' WHERE id=$1`, [id]);
 }
 async function waitForLease(id: string) {
   for (let i = 0; i < 100; i++) {
@@ -203,18 +207,26 @@ describe('outbox visibility lease and stale-worker fencing', () => {
   it('releases a failed enqueue with backoff and dead-letters after max attempts', async () => {
     const { id } = await insertEvent();
     const failingQueue = { add: async () => { throw new Error('redis://user:super-secret@localhost:6379'); } } as unknown as Queue;
+    const claimable = await pool.query(
+      `SELECT id FROM "OutboxEvent" WHERE "publishedAt" IS NULL AND "failedAt" IS NULL
+       AND "availableAt" <= now() AND ("leaseUntil" IS NULL OR "leaseUntil" <= now()) ORDER BY "occurredAt", id`,
+    );
+    expect(claimable.rows.map(r => r.id), 'Expected the fixture to be the sole due outbox row').toEqual([id]);
+    const before = await pool.query<{ now: Date }>('SELECT now() AS now');
     const first = await publishOutboxBatch(pool, failingQueue, { ...opts, maxAttempts: 2, batchSize: 1 });
-    expect(first.failed).toBe(1);
+    expect(first, `First attempt; fixture: ${JSON.stringify(await row(id))}`).toEqual({ claimed: 1, published: 0, failed: 1, fenced: 0 });
     let r = await row(id);
     expect(r.failedAt).toBeNull();
     expect(r.leaseToken).toBeNull();
-    expect(r.availableAt.getTime()).toBeGreaterThan(Date.now());
+    // Compare to DB time recorded before publishing, not the runner clock after
+    // an arbitrarily slow query. Attempt 1 has a one-second retry delay.
+    expect(r.availableAt.getTime() - before.rows[0]!.now.getTime()).toBeGreaterThanOrEqual(1_000);
     expect(r.lastError).toBe('OUTBOX_ENQUEUE_FAILED');
     expect(JSON.stringify(r)).not.toContain('super-secret');
 
     await dueNow(id);
     const second = await publishOutboxBatch(pool, failingQueue, { ...opts, maxAttempts: 2, batchSize: 1 });
-    expect(second.failed).toBe(1);
+    expect(second, `Second attempt; fixture: ${JSON.stringify(await row(id))}`).toEqual({ claimed: 1, published: 0, failed: 1, fenced: 0 });
     r = await row(id);
     expect(r.attempts).toBe(2);
     expect(r.failedAt).toBeTruthy();
