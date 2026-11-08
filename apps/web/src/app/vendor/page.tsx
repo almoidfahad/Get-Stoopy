@@ -25,7 +25,6 @@ async function vendorSession(): Promise<SessionState> {
 
 const modules = [
   { label: 'My products', Icon: Package },
-  { label: 'Orders', Icon: ClipboardList },
   { label: 'Sales & earnings', Icon: BarChart3 },
   { label: 'Settlement', Icon: WalletCards },
   { label: 'Reviews & ratings', Icon: Star },
@@ -45,6 +44,7 @@ function SidebarContent() {
         <Link href="/vendor" aria-current="page" className="flex min-h-11 items-center gap-3 rounded-xl bg-brand-red px-3 py-2.5 text-sm font-bold text-white"><LayoutDashboard size={18} aria-hidden="true" />Dashboard</Link>
         <Link href="/vendor/product-preview" className="mt-2 flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-neutral-200 hover:bg-white/10 hover:text-white"><Package size={18} aria-hidden="true" />Product layout preview</Link>
         <Link href="/vendor/inventory" className="mt-2 flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-neutral-200 hover:bg-white/10 hover:text-white"><Boxes size={18} aria-hidden="true" />Inventory workspace</Link>
+        <Link href="/vendor/orders" className="mt-2 flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-neutral-200 hover:bg-white/10 hover:text-white"><ClipboardList size={18} aria-hidden="true" />Orders layout preview</Link>
         <p className="px-3 pb-1 pt-5 text-[10px] font-bold uppercase tracking-[.15em] text-neutral-400">Modules not yet available</p>
         <ul>{modules.map(({ label, Icon }) => <li key={label} className="flex min-h-10 items-center gap-3 px-3 py-2 text-sm text-neutral-400"><Icon size={18} aria-hidden="true" /><span>{label}</span></li>)}</ul>
       </nav>

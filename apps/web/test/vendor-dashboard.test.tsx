@@ -22,7 +22,8 @@ describe('vendor dashboard layout', () => {
     expect(html).toContain('href="/vendor/inventory"');
     expect(html).not.toContain('TechMart');
     expect(html).not.toContain('$12,580');
-    expect(html).not.toContain('href="/vendor/orders"');
+    expect(html).toContain('href="/vendor/orders"');
+    expect(html).toContain('Orders layout preview');
   });
   it('recognizes membership but does not expose its IDs or claim reports are connected', async () => {
     mocks.apiFetch.mockResolvedValue(Response.json({ user: { id: 'private-user' }, vendorMemberships: [{ vendorId: 'private-vendor', countryId: 'country', storeId: 'private-store' }], csrfToken: 'secret-csrf' }));
