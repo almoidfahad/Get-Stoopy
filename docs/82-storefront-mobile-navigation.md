@@ -1,0 +1,5 @@
+# Storefront mobile navigation
+
+The shared customer storefront navigation follows the dark navigation strip in the reference inventory (UI-H03), but exposes only the routes that exist. On small screens, a native `details` / `summary` menu replaces the easy-to-miss horizontal scroll. The browser supplies disclosure and keyboard behavior without a JavaScript dependency. Larger screens retain the existing horizontal navigation. A high-contrast white focus outline is applied inside the dark strip, and the global focus indicator now includes `summary`.
+
+Home, shop, cart and account links are unchanged. The menu does not introduce unsupported categories, deals, order tracking, contact or other placeholder features. DOM tests cover native click open/close and destinations; they do not substitute for actual mobile/desktop visual comparison, keyboard or screen-reader testing. Browser-native disclosure behavior and focus appearance need device review. No database/provider configuration or production deployment was changed.

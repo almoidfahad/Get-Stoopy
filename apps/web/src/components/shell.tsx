@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ArrowRight, Search, ShoppingBag, ShoppingCart, UserRound } from 'lucide-react';
+import { StorefrontNavigation } from '@/components/storefront-navigation';
 
 function Brand({ inverse = false }: { inverse?: boolean }) {
   return (
@@ -43,15 +44,7 @@ export function Shell({ children, fullWidth = false }: { children: React.ReactNo
             </div>
           </div>
         </div>
-        <nav aria-label="Main navigation" className="bg-neutral-950 text-white">
-          <div className="site-container flex min-h-12 items-center gap-7 overflow-x-auto whitespace-nowrap text-sm font-semibold sm:gap-10">
-            <Link href="/shop" className="flex min-h-12 items-center gap-2 text-red-300 hover:text-white"><ShoppingBag size={16} /> Explore the shop</Link>
-            <Link href="/" className="flex min-h-12 items-center hover:text-red-300">Home</Link>
-            <Link href="/shop" className="flex min-h-12 items-center hover:text-red-300">Shop</Link>
-            <Link href="/cart" className="flex min-h-12 items-center hover:text-red-300">My cart</Link>
-            <Link href="/account" className="flex min-h-12 items-center hover:text-red-300">My account</Link>
-          </div>
-        </nav>
+        <StorefrontNavigation />
       </header>
       <main id="main-content" tabIndex={-1} className={fullWidth ? 'flex-1' : 'site-container flex-1 py-8 sm:py-12'}>{children}</main>
       <footer className="bg-neutral-950 text-neutral-300">

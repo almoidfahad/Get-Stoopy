@@ -6,7 +6,8 @@
 html { scroll-behavior: smooth; }
 body { @apply bg-white text-neutral-900 antialiased; }
 .site-container { @apply mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8; }
-a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid var(--gs-red); outline-offset: 3px; }
+a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid var(--gs-red); outline-offset: 3px; }
+.storefront-navigation a:focus-visible, .storefront-navigation summary:focus-visible { outline: 3px solid #fff; outline-offset: -3px; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; } }
 .section-eyebrow { @apply text-xs font-bold uppercase tracking-[.18em] text-brand-red; }
 .section-title { @apply mt-2 text-3xl font-black tracking-[-.035em] text-neutral-950 sm:text-4xl; }
