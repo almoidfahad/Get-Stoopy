@@ -42,6 +42,35 @@ export type CartResult =
   | { state: 'not-configured' }
   | { state: 'unavailable' };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(value: unknown): value is string { return typeof value === 'string' && UUID_RE.test(value); }
+
+/** Check data needed for rendering and mutation routing, not ownership or prices. */
+function isCartResponse(value: unknown, countryId: string): value is Cart {
+  if (!value || typeof value !== 'object') return false;
+  const cart = value as Record<string, unknown>;
+  if (!isUuid(cart.cartId) || !isUuid(cart.countryId) || cart.countryId.toLowerCase() !== countryId.toLowerCase() ||
+      typeof cart.currency !== 'string' || !Number.isSafeInteger(cart.version) || (cart.version as number) < 1 ||
+      !(cart.activeQuoteId === null || isUuid(cart.activeQuoteId)) || !Array.isArray(cart.items)) return false;
+  const ids = new Set<string>();
+  const variants = new Set<string>();
+  for (const raw of cart.items) {
+    if (!raw || typeof raw !== 'object') return false;
+    const item = raw as Record<string, unknown>;
+    if (!isUuid(item.id) || !isUuid(item.variantId) || !isUuid(item.productId) || !isUuid(item.storeId) || !isUuid(item.vendorId) ||
+        typeof item.title !== 'string' || typeof item.storeName !== 'string' || typeof item.currency !== 'string' ||
+        typeof item.quantity !== 'number' || !Number.isFinite(item.quantity) ||
+        typeof item.unitPriceMinor !== 'string' || typeof item.lineTotalMinor !== 'string' ||
+        typeof item.availableToPromise !== 'number' || !Number.isSafeInteger(item.availableToPromise) || item.availableToPromise < 0 ||
+        typeof item.sellable !== 'boolean') return false;
+    const id = item.id.toLowerCase();
+    const variant = item.variantId.toLowerCase();
+    if (ids.has(id) || variants.has(variant)) return false;
+    ids.add(id); variants.add(variant);
+  }
+  return true;
+}
+
 async function sessionToken(): Promise<string | null> {
   const cfg = webConfig();
   return (await cookies()).get(cfg.sessionCookieName)?.value ?? null;
@@ -75,7 +104,9 @@ export async function getOrCreateCart(): Promise<CartResult> {
     const res = await cartFetch('/commerce/carts', { method: 'POST', body: JSON.stringify({ countryId }) });
     if (!res) return { state: 'sign-in' };
     if (!res.ok) return { state: 'unavailable' };
-    return { state: 'ok', cart: (await res.json()) as Cart };
+    const cart: unknown = await res.json();
+    if (!isCartResponse(cart, countryId)) return { state: 'unavailable' };
+    return { state: 'ok', cart };
   } catch {
     return { state: 'unavailable' };
   }
