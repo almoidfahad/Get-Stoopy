@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { StorefrontNavigation } from '../src/components/storefront-navigation';
+import { Shell } from '../src/components/shell';
 
 afterEach(cleanup);
 describe('storefront navigation', () => {
@@ -25,6 +26,12 @@ describe('storefront navigation', () => {
       expect(within(menu).getByRole('link', { name: label }).getAttribute('href')).toBe(href);
     }
     expect(nav.querySelector('details')).toBe(menu);
+  });
+  it('places the header search button focus outline inside its clipped container', () => {
+    render(<Shell><p>Content</p></Shell>);
+    const button = screen.getByRole('button', { name: 'Search' });
+    expect(button.className).toContain('focus-visible:outline-white');
+    expect(button.className).toContain('focus-visible:outline-offset-[-4px]');
   });
   it('does not rely on JavaScript controls, invented features, or placeholder links', () => {
     const { container } = render(<StorefrontNavigation />);

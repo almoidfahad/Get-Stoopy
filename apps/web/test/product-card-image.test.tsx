@@ -57,6 +57,13 @@ describe('catalog card images', () => {
     expect(screen.getByRole('link', { name: /Item — From BDT.*12\.00/ })).toBeTruthy();
     expect(screen.getByText(/From BDT.*12\.00/)).toBeTruthy();
   });
+  it('keeps its keyboard focus outline inside the clipped card', () => {
+    const product = { id: 'one', title: 'Item', currency: 'BDT', variants: [], images: [] };
+    render(<ul><ProductCard product={product as any} /></ul>);
+    const link = screen.getByRole('link', { name: 'Item — Out of stock' });
+    expect(link.className).toContain('focus-visible:outline-offset-[-4px]');
+    expect(link.className).toContain('focus-visible:outline-brand-red');
+  });
   it('encodes path segments instead of accepting a remote URL', () => {
     render(<ProductCardImage productId="../product" productTitle="Item" image={{ id: 'x/y?z', altText: null }} />);
     expect(screen.getByRole('img', { name: 'Item' }).getAttribute('src')).toBe('/api/catalog/products/..%2Fproduct/images/x%2Fy%3Fz');

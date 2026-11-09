@@ -49,7 +49,7 @@ export default async function ShopPage({
             <div className="mt-3 flex overflow-hidden rounded-xl border border-neutral-300 bg-white focus-within:border-brand-red focus-within:ring-2 focus-within:ring-brand-red">
               <input id="shop-search" type="search" name="q" defaultValue={q ?? ''} maxLength={120} placeholder="Search products" className="min-w-0 flex-1 bg-transparent px-4 py-3 text-sm outline-none" />
               {categoryId ? <input type="hidden" name="categoryId" value={categoryId} /> : null}
-              <button type="submit" aria-label="Search the collection" className="flex min-h-12 w-12 shrink-0 items-center justify-center bg-brand-red text-white hover:bg-brand-red-hover"><Search size={19} /></button>
+              <button type="submit" aria-label="Search the collection" className="flex min-h-12 w-12 shrink-0 items-center justify-center bg-brand-red text-white hover:bg-brand-red-hover focus-visible:outline-white focus-visible:outline-offset-[-4px]"><Search size={19} /></button>
             </div>
           </form>
 

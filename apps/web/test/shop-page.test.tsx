@@ -32,6 +32,11 @@ describe('shop page', () => {
     expect(html).not.toContain('evil.example');
   });
 
+  it('keeps the shop search button focus outline visible inside the clipped field', async () => {
+    mocks.products.mockResolvedValue({ state: 'ok', data: { items: [], nextCursor: null } });
+    const html = await render();
+    expect(html).toMatch(/aria-label="Search the collection" class="[^"]*focus-visible:outline-white[^"]*focus-visible:outline-offset-\[-4px\]/);
+  });
   it('offers a mobile category disclosure and individually removable applied filters', async () => {
     mocks.products.mockResolvedValue({ state: 'ok', data: { items: [], nextCursor: null } });
     const html = await render({ q: 'chair & table', categoryId: category.id, cursor: '00000000-0000-4000-8000-000000000003' });

@@ -27,7 +27,7 @@ export function ProductCard({ product, shopContext }: { product: PublicProduct; 
     <li className="group flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white">
       <Link
         href={productHref(product.id, shopContext)}
-        className="flex h-full flex-col"
+        className="flex h-full flex-col rounded-[14px] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[-4px] focus-visible:outline-brand-red"
         aria-label={accessibleName}
       >
         <div className="aspect-square w-full overflow-hidden bg-neutral-100">
