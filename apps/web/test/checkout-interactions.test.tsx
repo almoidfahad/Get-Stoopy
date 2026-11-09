@@ -169,6 +169,69 @@ describe('quote safety and recovery', () => {
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Quote' }));
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+  it.each(['server', 'network', 'bad-json', 'malformed', 'wrong-quote', 'wrong-cart', 'older', 'same-version'] as const)(
+    'requires reload when a conflicting quote cannot be read reliably: %s', async kind => {
+      const latest = { ...quote, state: 'RELEASED',
+        quoteId: kind === 'wrong-quote' ? 'wrong' : quote.quoteId,
+        cartId: kind === 'wrong-cart' ? 'wrong' : quote.cartId,
+        version: kind === 'older' ? 0 : kind === 'same-version' ? 1 : 2 };
+      const second = kind === 'network' ? Promise.reject(new Error('offline')) : Promise.resolve(
+        kind === 'server' ? new Response('{}', { status: 503 }) :
+        new Response(kind === 'bad-json' ? 'broken' : JSON.stringify(kind === 'malformed' ? {} : latest), { status: 200 }));
+      const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ code: 'CHECKOUT_QUOTE_VERSION_CONFLICT' }), { status: 409 }))
+        .mockImplementationOnce(() => second);
+      vi.stubGlobal('fetch', fetchMock);
+      render(<CheckoutPanel {...props} initialQuote={quote} />);
+      const release = screen.getByRole('button', { name: 'Release reserved stock' });
+      release.focus(); fireEvent.click(release);
+      expect((await screen.findByRole('alert')).textContent).toContain('current status could not be loaded');
+      expect(document.activeElement).toBe(release);
+      expect(release.getAttribute('aria-disabled')).toBe('true');
+      expect(screen.getByText('Last known: reserved')).toBeTruthy();
+      expect(screen.queryByText(/Stock held for/)).toBeNull();
+      expect(screen.queryByText(/page has been refreshed/)).toBeNull();
+      expect(screen.getByRole('link', { name: 'Reload checkout' }).getAttribute('href')).toBe('/checkout');
+      fireEvent.click(release);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    },
+  );
+  it('does not overwrite a newer quote that arrives while conflict recovery is pending', async () => {
+    let finishRead!: (value: Response) => void;
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ code: 'CHECKOUT_QUOTE_VERSION_CONFLICT' }), { status: 409 }))
+      .mockImplementationOnce(() => new Promise<Response>(resolve => { finishRead = resolve; }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { rerender } = render(<CheckoutPanel {...props} initialQuote={quote} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Release reserved stock' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    rerender(<CheckoutPanel {...props} initialQuote={{ ...quote, version: 3, destinationCityId: 'city-a' }} />);
+    await waitFor(() => expect((screen.getByLabelText('City') as HTMLSelectElement).value).toBe('city-a'));
+    finishRead(new Response(JSON.stringify({ ...quote, state: 'RELEASED', version: 2 }), { status: 200 }));
+    expect((await screen.findByRole('alert')).textContent).toContain('current status could not be loaded');
+    expect((screen.getByLabelText('City') as HTMLSelectElement).value).toBe('city-a');
+    expect(screen.getByText('Last known: reserved')).toBeTruthy();
+  });
+  it('does not overwrite a newer quote with an older successful release response', async () => {
+    let finish!: (value: Response) => void;
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; })));
+    const { rerender } = render(<CheckoutPanel {...props} initialQuote={quote} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Release reserved stock' }));
+    rerender(<CheckoutPanel {...props} initialQuote={{ ...quote, version: 3, destinationCityId: 'city-a' }} />);
+    await waitFor(() => expect((screen.getByLabelText('City') as HTMLSelectElement).value).toBe('city-a'));
+    finish(new Response(JSON.stringify({ ...quote, state: 'RELEASED', version: 2 }), { status: 200 }));
+    expect((await screen.findByRole('alert')).textContent).toContain('release result is unknown');
+    expect(screen.getByText('Last known: reserved')).toBeTruthy();
+    expect((screen.getByLabelText('City') as HTMLSelectElement).value).toBe('city-a');
+  });
+  it('shows newer reserved quote details after a successful conflict recovery', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ code: 'CHECKOUT_QUOTE_VERSION_CONFLICT' }), { status: 409 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...quote, version: 2 }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<CheckoutPanel {...props} initialQuote={quote} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Release reserved stock' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('latest available details');
+    expect(screen.queryByRole('link', { name: 'Reload checkout' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Release reserved stock' }).getAttribute('aria-disabled')).toBe('false');
+  });
   it('does not steal focus when the user moves away while a release is pending', async () => {
     let finish!: (value: Response) => void;
     vi.stubGlobal('fetch', vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; })));

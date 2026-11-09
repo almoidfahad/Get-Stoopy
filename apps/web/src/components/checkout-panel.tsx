@@ -10,6 +10,7 @@ import {
   type QuoteInput,
 } from '@getstoopy/core/browser';
 import type { ServiceableCity } from '@/lib/serviceability';
+import { isQuoteInput } from '@/lib/quote-validation';
 
 /**
  * The checkout quote panel.
@@ -36,31 +37,6 @@ function newAttemptId(): string {
   return crypto.randomUUID();
 }
 
-// Validate the fields rendered by this panel before adopting a mutation result.
-// This is not a general validation boundary for all quote reads.
-function isQuoteInput(value: unknown): value is QuoteInput {
-  if (!value || typeof value !== 'object') return false;
-  const q = value as Record<string, unknown>;
-  if (typeof q.quoteId !== 'string' || !q.quoteId || typeof q.cartId !== 'string' || !q.cartId ||
-      typeof q.state !== 'string' || !['RESERVED', 'RELEASED', 'EXPIRED', 'CONSUMED'].includes(q.state) ||
-      !Number.isInteger(q.version) || (q.version as number) < 1 || typeof q.currency !== 'string' ||
-      typeof q.destinationCityId !== 'string' || !q.destinationCityId || typeof q.subtotalMinor !== 'string' || typeof q.expiresAt !== 'string' ||
-      !(q.closedAt === null || typeof q.closedAt === 'string') || !(q.deliveryFeeMinor === null || typeof q.deliveryFeeMinor === 'string') ||
-      !(q.totalMinor === null || typeof q.totalMinor === 'string') || typeof q.paymentStatus !== 'string' ||
-      !Array.isArray(q.items) || !Array.isArray(q.groups)) return false;
-  return q.items.every((value: unknown) => {
-    if (!value || typeof value !== 'object') return false;
-    const item = value as Record<string, unknown>;
-    return typeof item.itemId === 'string' && typeof item.groupId === 'string' && typeof item.variantId === 'string' &&
-      typeof item.productTitle === 'string' && typeof item.quantity === 'number' && Number.isFinite(item.quantity) &&
-      typeof item.unitPriceMinor === 'string' && typeof item.lineTotalMinor === 'string' && typeof item.currency === 'string';
-  }) && q.groups.every((value: unknown) => {
-    if (!value || typeof value !== 'object') return false;
-    const group = value as Record<string, unknown>;
-    return typeof group.groupId === 'string' && typeof group.storeId === 'string' &&
-      typeof group.subtotalMinor === 'string' && typeof group.currency === 'string';
-  });
-}
 
 function isReleasedQuote(value: unknown, previous: QuoteInput): value is QuoteInput {
   return isQuoteInput(value) && value.quoteId === previous.quoteId && value.cartId === previous.cartId &&
@@ -80,7 +56,10 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
   const attempt = useRef<ReservationAttempt | null>(null);
   const [uncertain, setUncertain] = useState(false);
   const [releaseUncertain, setReleaseUncertain] = useState(false);
+  const [quoteReadUncertain, setQuoteReadUncertain] = useState(false);
+  const quoteStatusUncertain = releaseUncertain || quoteReadUncertain;
   const inFlight = useRef(false);
+  const latestQuoteRef = useRef<QuoteInput | null>(initialQuote);
   const releaseButtonRef = useRef<HTMLButtonElement>(null);
   const quoteHeadingRef = useRef<HTMLHeadingElement>(null);
   const reservationHelpId = useId();
@@ -90,6 +69,8 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => { latestQuoteRef.current = quote; }, [quote]);
 
   // A refresh can surface a quote this tab did not create (the ALREADY_RESERVED
   // recovery path). Adopt it, but never let a null prop wipe a quote this tab is
@@ -112,13 +93,26 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
     setQuote(next);
   }
 
-  async function readExisting(id: string): Promise<void> {
-    const res = await fetch(`/api/checkout/quotes/${encodeURIComponent(id)}`, { cache: 'no-store' });
-    if (res.ok) adoptReleasedQuote((await res.json()) as QuoteInput);
+  async function readExisting(previous: QuoteInput): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/checkout/quotes/${encodeURIComponent(previous.quoteId)}`, { cache: 'no-store' });
+      if (!res.ok) return false;
+      const next: unknown = await res.json();
+      // A conflict requires a newer version of this exact quote and cart.
+      if (!isQuoteInput(next) || next.quoteId.toLowerCase() !== previous.quoteId.toLowerCase() ||
+          next.cartId.toLowerCase() !== previous.cartId.toLowerCase() || next.version <= previous.version) return false;
+      const latest = latestQuoteRef.current;
+      if (!latest || latest.quoteId.toLowerCase() !== next.quoteId.toLowerCase() ||
+          latest.cartId.toLowerCase() !== next.cartId.toLowerCase() || next.version <= latest.version) return false;
+      adoptReleasedQuote(next);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async function reserve(): Promise<void> {
-    if (inFlight.current || releaseUncertain || (reservationUnavailable && !attempt.current) || quote?.state === 'RESERVED') return;
+    if (inFlight.current || quoteStatusUncertain || (reservationUnavailable && !attempt.current) || quote?.state === 'RESERVED') return;
     if (!cityId && !attempt.current) {
       setError('Choose a delivery city first.');
       return;
@@ -176,7 +170,7 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
   }
 
   async function release(): Promise<void> {
-    if (!quote || inFlight.current || releaseUncertain) return;
+    if (!quote || inFlight.current || quoteStatusUncertain) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -192,12 +186,20 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
           setReleaseUncertain(true);
           setError('The release result is unknown. Stock may still be held, or it may have been released.');
         } else {
-          setError(quoteErrorMessage(payload.code, res.status));
-          if (payload.code === 'CHECKOUT_QUOTE_VERSION_CONFLICT') await readExisting(quote.quoteId);
+          if (payload.code === 'CHECKOUT_QUOTE_VERSION_CONFLICT') {
+            if (await readExisting(quote)) {
+              setError('This quote changed in another tab. Its latest available details are shown below.');
+            } else {
+              setQuoteReadUncertain(true);
+              setError('This quote changed, but its current status could not be loaded. Stock may still be held.');
+            }
+          } else setError(quoteErrorMessage(payload.code, res.status));
         }
         return;
       }
-      if (!isReleasedQuote(payload, quote)) {
+      const latest = latestQuoteRef.current;
+      if (!isReleasedQuote(payload, quote) || !latest || latest.quoteId.toLowerCase() !== payload.quoteId.toLowerCase() ||
+          latest.cartId.toLowerCase() !== payload.cartId.toLowerCase() || payload.version < latest.version) {
         setReleaseUncertain(true);
         setError('The release result is unknown. Stock may still be held, or it may have been released.');
         return;
@@ -223,7 +225,7 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
   const reservedCityId = quote?.state === 'RESERVED' ? quote.destinationCityId : null;
   const selectedCityId = reservedCityId ?? (uncertain ? attempt.current?.destinationCityId : undefined) ?? cityId;
   const quoteCity = quote ? cities.find(city => city.cityId === quote.destinationCityId) : undefined;
-  const reserveBlocked = busy || releaseUncertain || (!uncertain && (!!reservationUnavailable || !cityId)) || quote?.state === 'RESERVED';
+  const reserveBlocked = busy || quoteStatusUncertain || (!uncertain && (!!reservationUnavailable || !cityId)) || quote?.state === 'RESERVED';
 
   return (
     <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
@@ -242,7 +244,7 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
         <select
           id="destination-city"
           value={selectedCityId}
-          disabled={busy || uncertain || releaseUncertain || !!reservationUnavailable || quote?.state === 'RESERVED'}
+          disabled={busy || uncertain || quoteStatusUncertain || !!reservationUnavailable || quote?.state === 'RESERVED'}
           onChange={event => {
             setCityId(event.target.value);
           }}
@@ -273,7 +275,7 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
           {busy ? 'Working…' : uncertain ? 'Retry same reservation request' : 'Reserve stock and get quote'}
         </button>
         <p id={reservationHelpId} className="mt-2 text-sm text-neutral-600">
-          {releaseUncertain ? 'Release status is unknown; reload checkout to check it. ' : quote?.state === 'RESERVED' ? 'Stock is already reserved for this quote. ' : reservationUnavailable && !uncertain ? `${reservationUnavailable} ` : !cityId && !uncertain ? 'Choose a delivery city before requesting a quote. ' : ''}This holds the items for a short time. It is not an order and no payment is taken.
+          {quoteStatusUncertain ? 'Quote status is unknown; reload checkout to check it. ' : quote?.state === 'RESERVED' ? 'Stock is already reserved for this quote. ' : reservationUnavailable && !uncertain ? `${reservationUnavailable} ` : !cityId && !uncertain ? 'Choose a delivery city before requesting a quote. ' : ''}This holds the items for a short time. It is not an order and no payment is taken.
         </p>
         {busy ? <p role="status" className="sr-only">Updating reservation…</p> : null}
 
@@ -287,9 +289,9 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
           </p>
         ) : null}
 
-        {releaseUncertain ? (
+        {quoteStatusUncertain ? (
           <div className="mt-4 rounded-lg border border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-800">
-            <p>Reload checkout to check the latest quote. The earlier request may still finish after the reload.</p>
+            <p>Reload checkout to check the latest quote.{releaseUncertain ? ' The earlier request may still finish after the reload.' : ''}</p>
             <a href="/checkout" className="mt-2 inline-flex min-h-11 items-center font-bold text-brand-red underline">Reload checkout</a>
           </div>
         ) : null}
@@ -299,13 +301,13 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 ref={quoteHeadingRef} tabIndex={-1} className="font-semibold">Quote</h3>
               <span role="status" className="rounded-full border border-neutral-300 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
-                {releaseUncertain ? `Last known: ${summary.status}` : summary.status}
+                {quoteStatusUncertain ? `Last known: ${summary.status}` : summary.status}
               </span>
             </div>
 
             <p className="mt-3 text-sm text-neutral-700">Quote city: <span className="font-semibold">{quoteCity?.name ?? 'City details unavailable'}</span></p>
 
-            {!releaseUncertain && summary.status === 'reserved' ? (
+            {!quoteStatusUncertain && summary.status === 'reserved' ? (
               <p className="mt-2 text-sm text-neutral-700">
                 Stock held for{' '}
                 <span className="font-semibold">
@@ -313,10 +315,10 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
                 </span>
               </p>
             ) : null}
-            {!releaseUncertain && summary.status === 'unknown' ? (
+            {!quoteStatusUncertain && summary.status === 'unknown' ? (
               <p className="mt-2 text-sm text-neutral-700">{summary.canRelease ? 'Reservation expiry is unavailable. Stock may still be held; you can release it below.' : 'The stock-hold status is unavailable. Refresh this page and try again.'}</p>
             ) : null}
-            {!releaseUncertain && summary.status === 'expired' ? (
+            {!quoteStatusUncertain && summary.status === 'expired' ? (
               <p className="mt-2 text-sm text-neutral-700">
                 {summary.canRelease
                   ? 'This quote has expired. Release it to return the stock, then request a new one.'
@@ -349,13 +351,13 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
               <button
                 type="button"
                 ref={releaseButtonRef}
-                onClick={() => { if (!busy && !releaseUncertain) void release(); }}
-                aria-disabled={busy || releaseUncertain}
+                onClick={() => { if (!busy && !quoteStatusUncertain) void release(); }}
+                aria-disabled={busy || quoteStatusUncertain}
                 className="mt-4 min-h-11 rounded-full border border-neutral-400 bg-white px-5 py-2 text-sm font-bold hover:border-neutral-900 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
               >
                 Release reserved stock
               </button>
-            ) : !releaseUncertain && summary.status !== 'unknown' ? (
+            ) : !quoteStatusUncertain && summary.status !== 'unknown' ? (
               <p className="mt-4 text-sm text-neutral-700">
                 No stock is held by this quote any more.
               </p>

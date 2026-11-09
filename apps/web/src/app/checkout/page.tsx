@@ -5,6 +5,7 @@ import { CheckoutPanel } from '@/components/checkout-panel';
 import { getOrCreateCart } from '@/lib/cart';
 import { readQuote } from '@/lib/checkout';
 import type { QuoteInput } from '@getstoopy/core';
+import { isQuoteInput } from '@/lib/quote-validation';
 import { fetchServiceableCities } from '@/lib/serviceability';
 import { CommerceHeader, CommerceNotice } from '@/components/commerce-layout';
 import { ArrowLeft } from 'lucide-react';
@@ -43,10 +44,12 @@ export default async function CheckoutPage() {
   let initialQuote: QuoteInput | null = null;
   if (cart.activeQuoteId) {
     const existing = await readQuote(cart.activeQuoteId);
-    if (existing.status !== 200) {
+    if (existing.status !== 200 || !isQuoteInput(existing.body) ||
+        existing.body.quoteId.toLowerCase() !== cart.activeQuoteId.toLowerCase() ||
+        existing.body.cartId.toLowerCase() !== cart.cartId.toLowerCase()) {
       return <Notice retry title="Reserved quote unavailable" body="Your cart may still have reserved stock, but the quote could not be loaded. Please reload this page and try again; the reservation may still be active." />;
     }
-    initialQuote = existing.body as QuoteInput;
+    initialQuote = existing.body;
   }
 
   if (!initialQuote && cart.items.length === 0) {
