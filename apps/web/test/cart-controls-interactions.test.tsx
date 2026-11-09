@@ -124,12 +124,41 @@ describe('cart controls interactions', () => {
     const increase = screen.getByRole('button', { name: 'Increase quantity for Item' }) as HTMLButtonElement;
     fireEvent.click(increase);
     expect((await screen.findByRole('alert')).textContent).toContain('result is unknown');
-    expect(increase.disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'Remove Item from cart' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(increase.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Remove Item from cart' }).getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByRole('link', { name: 'Reload cart' }).getAttribute('href')).toBe('/cart');
     expect(screen.getByText(/earlier request may still complete later/)).toBeTruthy();
     fireEvent.click(increase);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('retains focus while an update is pending, blocks repeat actions, and keeps focus after an explicit failure', async () => {
+    let finish!: (response: Response) => void;
+    const fetchMock = vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<CartLineControls variantId="one" productTitle="Item" quantity={2} version={7} />);
+    const increase = screen.getByRole('button', { name: 'Increase quantity for Item' });
+    increase.focus();
+    fireEvent.click(increase);
+    expect(document.activeElement).toBe(increase);
+    expect(increase.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByRole('status').textContent).toContain('Updating cart');
+    fireEvent.click(increase);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Item from cart' }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    finish(new Response(JSON.stringify({ code: 'CART_QUANTITY_LIMIT' }), { status: 400 }));
+    await screen.findByRole('alert');
+    expect(document.activeElement).toBe(increase);
+    expect(increase.getAttribute('aria-disabled')).toBe('false');
+  });
+  it.each([[1, 'Decrease quantity for Item'], [100, 'Increase quantity for Item']] as const)('blocks a quantity outside limits even though the control remains focusable', (quantity, name) => {
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
+    render(<CartLineControls variantId="one" productTitle="Item" quantity={quantity} version={7} />);
+    const button = screen.getByRole('button', { name });
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    button.focus();
+    expect(document.activeElement).toBe(button);
+    fireEvent.click(button);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
   it('refreshes on a conflicting cart edit without retrying the update', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'CART_VERSION_CONFLICT' }), { status: 409 })); vi.stubGlobal('fetch', fetchMock);

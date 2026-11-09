@@ -195,9 +195,9 @@ export function CartLineControls({
         <button
           type="button"
           aria-label={`Decrease quantity for ${productTitle}`}
-          disabled={working || uncertain || quantity <= 1}
-          onClick={() => void send('PATCH', { variantId, quantity: quantity - 1, expectedVersion: version })}
-          className="h-11 w-11 rounded-xl border border-neutral-300 font-semibold hover:border-neutral-900 disabled:opacity-40"
+          aria-disabled={working || uncertain || quantity <= 1}
+          onClick={() => { if (!working && !uncertain && quantity > 1) void send('PATCH', { variantId, quantity: quantity - 1, expectedVersion: version }); }}
+          className="h-11 w-11 rounded-xl border border-neutral-300 font-semibold hover:border-neutral-900 aria-disabled:opacity-40"
         >
           −
         </button>
@@ -205,22 +205,23 @@ export function CartLineControls({
         <button
           type="button"
           aria-label={`Increase quantity for ${productTitle}`}
-          disabled={working || uncertain || quantity >= 100}
-          onClick={() => void send('PATCH', { variantId, quantity: quantity + 1, expectedVersion: version })}
-          className="h-11 w-11 rounded-xl border border-neutral-300 font-semibold hover:border-neutral-900 disabled:opacity-40"
+          aria-disabled={working || uncertain || quantity >= 100}
+          onClick={() => { if (!working && !uncertain && quantity < 100) void send('PATCH', { variantId, quantity: quantity + 1, expectedVersion: version }); }}
+          className="h-11 w-11 rounded-xl border border-neutral-300 font-semibold hover:border-neutral-900 aria-disabled:opacity-40"
         >
           +
         </button>
         <button
           type="button"
-          disabled={working || uncertain}
+          aria-disabled={working || uncertain}
           aria-label={`Remove ${productTitle} from cart`}
-          onClick={() => void send('DELETE', { variantId, expectedVersion: version })}
-          className="min-h-11 rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold hover:border-neutral-900 disabled:opacity-40"
+          onClick={() => { if (!working && !uncertain) void send('DELETE', { variantId, expectedVersion: version }); }}
+          className="min-h-11 rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold hover:border-neutral-900 aria-disabled:opacity-40"
         >
           Remove
         </button>
       </div>
+      {working ? <p role="status" className="text-sm text-neutral-700">Updating cart…</p> : null}
       {error ? <p role="alert" className="max-w-xs text-left text-sm font-medium text-brand-red sm:text-right">{error}</p> : null}
       {uncertain ? <p className="max-w-xs text-left text-sm leading-6 text-neutral-700 sm:text-right">Review your cart before making another change. <a href="/cart" className="font-bold text-brand-red underline">Reload cart</a>; an earlier request may still complete later.</p> : null}
     </div>
