@@ -38,9 +38,11 @@ export function useCartMutation() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
   const inFlight = useRef(false);
 
-  function clearFeedback() { setError(null); setDone(false); }
+  function clearFeedback() { if (!uncertain) setError(null); setDone(false); }
+  function acknowledgeUncertain() { setUncertain(false); setError(null); }
 
   async function send(method: 'POST' | 'PATCH' | 'DELETE', body: Record<string, unknown>): Promise<boolean> {
     if (inFlight.current) return false;
@@ -56,7 +58,10 @@ export function useCartMutation() {
       });
       const payload = (await res.json().catch(() => ({}))) as { code?: string };
       if (!res.ok) {
-        setError(messageFor(payload.code, res.status));
+        if (res.status >= 500) {
+          setUncertain(true);
+          setError('The request may have succeeded, but its result is unknown. It may still complete later.');
+        } else setError(messageFor(payload.code, res.status));
         if (payload.code === 'CART_VERSION_CONFLICT') startTransition(() => router.refresh());
         return false;
       }
@@ -64,7 +69,8 @@ export function useCartMutation() {
       startTransition(() => router.refresh());
       return true;
     } catch {
-      setError('The cart service could not be reached. Check your cart before trying again.');
+      setUncertain(true);
+      setError('The request may have succeeded, but its result is unknown. It may still complete later.');
       return false;
     } finally {
       inFlight.current = false;
@@ -72,7 +78,7 @@ export function useCartMutation() {
     }
   }
 
-  return { send, error, done, working: busy || pending, clearFeedback };
+  return { send, error, done, uncertain, working: busy || pending, clearFeedback, acknowledgeUncertain };
 }
 
 export interface OrderableVariant {
@@ -88,7 +94,7 @@ export function AddToCart({
   variants: readonly OrderableVariant[];
   signedIn: boolean;
 }) {
-  const { send, error, done, working, clearFeedback } = useCartMutation();
+  const { send, error, done, uncertain, working, clearFeedback, acknowledgeUncertain } = useCartMutation();
   const quantityHelpId = useId();
   const [quantity, setQuantity] = useState('1');
   const [selected, setSelected] = useState('');
@@ -98,7 +104,7 @@ export function AddToCart({
   useEffect(() => { if (selected && !selectedAvailable) setSelected(''); }, [selected, selectedAvailable]);
   const effectiveSelected = selectedAvailable ? selected : '';
   const validQuantity = /^\d+$/.test(quantity) && Number(quantity) >= 1 && Number(quantity) <= 100;
-  const disabled = !selectedAvailable || !validQuantity;
+  const disabled = !selectedAvailable || !validQuantity || uncertain;
 
   if (!signedIn) {
     return (
@@ -152,6 +158,15 @@ export function AddToCart({
       <p className="text-xs leading-5 text-neutral-600">Price and availability may change; adding to your cart does not reserve stock.</p>
       {!validQuantity ? <p id={quantityHelpId} className="text-sm font-medium text-brand-red">Enter a whole number between 1 and 100.</p> : null}
       {error ? <p role="alert" className="text-sm font-medium text-brand-red">{error}</p> : null}
+      {uncertain ? (
+        <div className="rounded-xl border border-red-200 bg-white p-4 text-sm leading-6 text-neutral-800">
+          <p>Check your cart before adding again. A reload cannot guarantee that an earlier request won’t finish later.</p>
+          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1">
+            <a href="/cart" className="inline-flex min-h-11 items-center font-bold text-brand-red underline">View cart</a>
+            <button type="button" onClick={acknowledgeUncertain} className="min-h-11 text-left font-bold text-neutral-900 underline">I understand, enable adding again</button>
+          </div>
+        </div>
+      ) : null}
       {done && !error && selectedAvailable ? (
         <p role="status" className="text-sm">
           Added. <a href="/cart" className="font-semibold text-brand-red">View cart</a>
@@ -172,7 +187,7 @@ export function CartLineControls({
   quantity: number;
   version: number;
 }) {
-  const { send, error, working } = useCartMutation();
+  const { send, error, uncertain, working } = useCartMutation();
 
   return (
     <div className="flex flex-col items-start gap-2 sm:items-end">
@@ -180,7 +195,7 @@ export function CartLineControls({
         <button
           type="button"
           aria-label={`Decrease quantity for ${productTitle}`}
-          disabled={working || quantity <= 1}
+          disabled={working || uncertain || quantity <= 1}
           onClick={() => void send('PATCH', { variantId, quantity: quantity - 1, expectedVersion: version })}
           className="h-11 w-11 rounded-xl border border-neutral-300 font-semibold hover:border-neutral-900 disabled:opacity-40"
         >
@@ -190,7 +205,7 @@ export function CartLineControls({
         <button
           type="button"
           aria-label={`Increase quantity for ${productTitle}`}
-          disabled={working || quantity >= 100}
+          disabled={working || uncertain || quantity >= 100}
           onClick={() => void send('PATCH', { variantId, quantity: quantity + 1, expectedVersion: version })}
           className="h-11 w-11 rounded-xl border border-neutral-300 font-semibold hover:border-neutral-900 disabled:opacity-40"
         >
@@ -198,7 +213,7 @@ export function CartLineControls({
         </button>
         <button
           type="button"
-          disabled={working}
+          disabled={working || uncertain}
           aria-label={`Remove ${productTitle} from cart`}
           onClick={() => void send('DELETE', { variantId, expectedVersion: version })}
           className="min-h-11 rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold hover:border-neutral-900 disabled:opacity-40"
@@ -207,6 +222,7 @@ export function CartLineControls({
         </button>
       </div>
       {error ? <p role="alert" className="max-w-xs text-left text-sm font-medium text-brand-red sm:text-right">{error}</p> : null}
+      {uncertain ? <p className="max-w-xs text-left text-sm leading-6 text-neutral-700 sm:text-right">Review your cart before making another change. <a href="/cart" className="font-bold text-brand-red underline">Reload cart</a>; an earlier request may still complete later.</p> : null}
     </div>
   );
 }
