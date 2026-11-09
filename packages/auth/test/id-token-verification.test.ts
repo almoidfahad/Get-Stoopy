@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { CompactSign, createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type JWTPayload } from 'jose';
 import { SessionService } from '../../../apps/api/src/auth/session.service.js';
+import { SecurityService } from '../../../apps/api/src/security/security.service.js';
 
 const issuer = 'https://identity.example.test/realm';
 const audience = 'get-stoopy-web';
@@ -70,5 +71,42 @@ describe('signed identity token session creation', () => {
     const { service, privileged } = makeService();
     await expect(service.createFromIdToken({ idToken: await sign(valid, otherKey) })).rejects.toMatchObject({ status: 401 });
     expect(privileged.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('identity linking token validation', () => {
+  function makeLinkService() {
+    const tx = { $executeRaw: vi.fn().mockResolvedValue(0), userIdentity: { findUnique: vi.fn().mockResolvedValue({ id: 'identity-1', userId: 'user-1' }), update: vi.fn().mockResolvedValue({}) } };
+    const db = { $transaction: vi.fn(async (fn: (tx: typeof tx) => Promise<unknown>) => fn(tx)) };
+    const env = { KEYCLOAK_ISSUER: issuer, KEYCLOAK_CLIENT_ID: audience, REDIS_URL: 'redis://localhost:6379' };
+    const service = new SecurityService(db as any, {} as any, env as any);
+    (service as any).jwks = jwks;
+    // Redis is configured lazy and this path never connects.
+    (service as any).redis.disconnect();
+    const context = { userId: 'user-1', authorizationVersion: 1, permissions: [], assurance: 'PASSWORD' } as any;
+    return { service, db, tx, context };
+  }
+  it.each([
+    ['missing subject', { ...valid, sub: undefined }], ['numeric subject', { ...valid, sub: 42 }],
+    ['missing expiration', { ...valid, exp: undefined }], ['missing issued-at', { ...valid, iat: undefined }],
+    ['expired', { ...valid, exp: now - 1 }],
+  ])('rejects %s before a database transaction', async (_label, claims) => {
+    const { service, db, context } = makeLinkService();
+    await expect(service.linkIdentity(context, await sign(claims as JWTPayload))).rejects.toMatchObject({ status: 401, response: { code: 'OIDC_VERIFICATION_FAILED' } });
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+  it('preserves a valid subject for the existing linked identity', async () => {
+    const { service, db, tx, context } = makeLinkService();
+    expect(await service.linkIdentity(context, await sign({ ...valid, sub: ' subject ' }))).toEqual({ linked: true, issuer });
+    expect(db.$transaction).toHaveBeenCalledOnce();
+    expect(tx.userIdentity.findUnique.mock.calls[0]?.[0]).toEqual({ where: { issuer_subject: { issuer, subject: ' subject ' } } });
+    expect(tx.userIdentity.update).toHaveBeenCalledOnce();
+  });
+  it('still requires step-up for administrators before linking', async () => {
+    const { service, db, context } = makeLinkService();
+    context.permissions = ['admin:test'];
+    await expect(service.linkIdentity(context, await sign(valid))).rejects.toMatchObject({ status: 403, response: { code: 'STEP_UP_REQUIRED' } });
+    expect(db.$transaction).not.toHaveBeenCalled();
   });
 });

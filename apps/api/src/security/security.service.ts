@@ -7,7 +7,8 @@ import type { ApiEnv } from '@getstoopy/config';
 import { decryptJson, encryptJson } from '@getstoopy/bff';
 import { generateTotpSecret, verifyTotp, otpauthUri, generateRecoveryCodes, hashToken } from '@getstoopy/auth';
 import type { AccessContext } from '@getstoopy/core';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { createRemoteJWKSet } from 'jose';
+import { verifyIdToken } from '../auth/id-token.js';
 const STEP_UP_MINUTES = 10;
 function sha256(v: string): string { return createHash('sha256').update(v).digest('hex'); }
 @Injectable()
@@ -146,11 +147,10 @@ export class SecurityService implements OnModuleDestroy {
   }
   async linkIdentity(ctx: AccessContext, idToken: string) {
     if (ctx.permissions.some(p => p.startsWith('admin:')) && ctx.assurance !== 'STEP_UP') throw new ForbiddenException({ code: 'STEP_UP_REQUIRED', message: 'Admin linking requires step-up' });
-    let payload: any;
-    try { const r = await jwtVerify(idToken, this.keySet(), { issuer: this.env.KEYCLOAK_ISSUER, audience: this.env.KEYCLOAK_CLIENT_ID }); payload = r.payload; }
+    let payload: Awaited<ReturnType<typeof verifyIdToken>>;
+    try { payload = await verifyIdToken(idToken, this.keySet(), this.env.KEYCLOAK_ISSUER, this.env.KEYCLOAK_CLIENT_ID); }
     catch { throw new UnauthorizedException({ code: 'OIDC_VERIFICATION_FAILED', message: 'Provider token verification failed' }); }
-    const issuer = String(payload.iss), subject = String(payload.sub);
-    if (!subject) throw new UnauthorizedException({ code: 'OIDC_VERIFICATION_FAILED', message: 'Missing subject' });
+    const issuer = this.env.KEYCLOAK_ISSUER, subject = payload.sub;
     await this.db.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion });
       const existing = await tx.userIdentity.findUnique({ where: { issuer_subject: { issuer, subject } } });
