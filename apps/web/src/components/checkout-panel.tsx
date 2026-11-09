@@ -19,9 +19,10 @@ import type { ServiceableCity } from '@/lib/serviceability';
  * rather than filled in with the subtotal. There is deliberately no "Pay" button.
  */
 
-interface ReservationAttempt { destinationCityId: string; expectedVersion: number; attemptId: string }
+interface ReservationAttempt { cartId: string; destinationCityId: string; expectedVersion: number; attemptId: string }
 
 interface Props {
+  cartId: string;
   cartVersion: number;
   currency: string;
   cities: ServiceableCity[];
@@ -35,14 +36,15 @@ function newAttemptId(): string {
   return crypto.randomUUID();
 }
 
-// A 2xx response with an unreadable or unrelated quote does not prove release.
-// Validate the fields used to render before adopting a release response.
-function isReleasedQuote(value: unknown, previous: QuoteInput): value is QuoteInput {
+// Validate the fields rendered by this panel before adopting a mutation result.
+// This is not a general validation boundary for all quote reads.
+function isQuoteInput(value: unknown): value is QuoteInput {
   if (!value || typeof value !== 'object') return false;
   const q = value as Record<string, unknown>;
-  if (q.quoteId !== previous.quoteId || q.cartId !== previous.cartId || typeof q.state !== 'string' || !['RELEASED', 'EXPIRED', 'CONSUMED'].includes(q.state) ||
-      !Number.isInteger(q.version) || (q.version as number) < previous.version || typeof q.currency !== 'string' ||
-      typeof q.destinationCityId !== 'string' || typeof q.subtotalMinor !== 'string' || typeof q.expiresAt !== 'string' ||
+  if (typeof q.quoteId !== 'string' || !q.quoteId || typeof q.cartId !== 'string' || !q.cartId ||
+      typeof q.state !== 'string' || !['RESERVED', 'RELEASED', 'EXPIRED', 'CONSUMED'].includes(q.state) ||
+      !Number.isInteger(q.version) || (q.version as number) < 1 || typeof q.currency !== 'string' ||
+      typeof q.destinationCityId !== 'string' || !q.destinationCityId || typeof q.subtotalMinor !== 'string' || typeof q.expiresAt !== 'string' ||
       !(q.closedAt === null || typeof q.closedAt === 'string') || !(q.deliveryFeeMinor === null || typeof q.deliveryFeeMinor === 'string') ||
       !(q.totalMinor === null || typeof q.totalMinor === 'string') || typeof q.paymentStatus !== 'string' ||
       !Array.isArray(q.items) || !Array.isArray(q.groups)) return false;
@@ -60,7 +62,12 @@ function isReleasedQuote(value: unknown, previous: QuoteInput): value is QuoteIn
   });
 }
 
-export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, reservationUnavailable }: Props) {
+function isReleasedQuote(value: unknown, previous: QuoteInput): value is QuoteInput {
+  return isQuoteInput(value) && value.quoteId === previous.quoteId && value.cartId === previous.cartId &&
+    value.state !== 'RESERVED' && value.version >= previous.version;
+}
+
+export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQuote, reservationUnavailable }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [cityId, setCityId] = useState('');
@@ -120,12 +127,12 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
     setBusy(true);
     setError(null);
     try {
-      attempt.current ??= { destinationCityId: cityId, expectedVersion: cartVersion, attemptId: newAttemptId() };
+      attempt.current ??= { cartId, destinationCityId: cityId, expectedVersion: cartVersion, attemptId: newAttemptId() };
       const request = attempt.current;
       const res = await fetch('/api/checkout/quotes', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(request),
+        body: JSON.stringify({ destinationCityId: request.destinationCityId, expectedVersion: request.expectedVersion, attemptId: request.attemptId }),
       });
       const payload = (await res.json().catch(() => ({}))) as QuoteInput & { code?: string };
       if (!res.ok) {
@@ -145,6 +152,14 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
         if (payload.code === 'CHECKOUT_QUOTE_ALREADY_RESERVED' || payload.code === 'CHECKOUT_CART_VERSION_CONFLICT') {
           startTransition(() => router.refresh());
         }
+        return;
+      }
+      // A successful HTTP status alone does not prove what happened. Keep the
+      // same attempt when the returned quote cannot safely be identified/read.
+      if (!isQuoteInput(payload) || payload.cartId.toLowerCase() !== request.cartId.toLowerCase() ||
+          payload.destinationCityId.toLowerCase() !== request.destinationCityId.toLowerCase()) {
+        setUncertain(true);
+        setError('The reservation result is unknown. Stock may be held. Retry the same request or reload checkout to check for a quote.');
         return;
       }
       setQuote(payload);

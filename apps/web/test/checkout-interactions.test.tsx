@@ -9,7 +9,7 @@ import { CheckoutPanel } from '../src/components/checkout-panel';
 
 const cities = [{ cityId: 'city-a', name: 'City A', code: 'A', storeCount: 1 }, { cityId: 'city-b', name: 'City B', code: 'B', storeCount: 2 }];
 const quote: QuoteInput = { quoteId: 'quote', cartId: 'cart', currency: 'BDT', state: 'RESERVED', destinationCityId: 'city-b', subtotalMinor: '0', version: 1, expiresAt: '2100-01-01T00:00:00Z', closedAt: null, deliveryFeeMinor: null, totalMinor: null, paymentStatus: 'NOT_IMPLEMENTED', groups: [], items: [] };
-const props = { cartVersion: 1, currency: 'BDT', cities, truncated: false, reservationUnavailable: null };
+const props = { cartId: 'cart', cartVersion: 1, currency: 'BDT', cities, truncated: false, reservationUnavailable: null };
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
@@ -275,6 +275,52 @@ describe('uncertain reservation requests', () => {
     expect(await screen.findByRole('button', { name: 'Release reserved stock' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Retry same reservation request' }).getAttribute('aria-disabled')).toBe('true');
     expect((screen.getByLabelText('City') as HTMLSelectElement).value).toBe('city-b');
+  });
+});
+
+describe('unreadable reservation success responses', () => {
+  it.each(['invalid-json', 'null', 'missing', 'wrong-cart', 'wrong-city', 'unknown-state', 'invalid-item', 'invalid-version'] as const)(
+    'keeps the original attempt when a 2xx response is %s', async kind => {
+      const good = { ...quote, destinationCityId: 'city-a' };
+      const candidate = kind === 'null' ? null : kind === 'missing' ? {} : {
+        ...good,
+        cartId: kind === 'wrong-cart' ? 'wrong-cart' : good.cartId,
+        destinationCityId: kind === 'wrong-city' ? 'city-b' : good.destinationCityId,
+        state: kind === 'unknown-state' ? 'UNRECOGNIZED' : good.state,
+        items: kind === 'invalid-item' ? [{ itemId: 'broken' }] : good.items,
+        version: kind === 'invalid-version' ? 0 : good.version,
+      };
+      const fetchMock = vi.fn().mockResolvedValueOnce(new Response(kind === 'invalid-json' ? 'broken' : JSON.stringify(candidate), { status: 200 }))
+        .mockResolvedValueOnce(new Response(JSON.stringify(good), { status: 200 }));
+      vi.stubGlobal('fetch', fetchMock);
+      const { rerender } = render(<CheckoutPanel {...props} initialQuote={null} />);
+      fireEvent.change(screen.getByLabelText('City'), { target: { value: 'city-a' } });
+      const button = screen.getByRole('button', { name: 'Reserve stock and get quote' });
+      button.focus(); fireEvent.click(button);
+      const retry = await screen.findByRole('button', { name: 'Retry same reservation request' });
+      expect(screen.getByRole('alert').textContent).toContain('reservation result is unknown');
+      expect(document.activeElement).toBe(retry);
+      expect(screen.queryByRole('button', { name: 'Release reserved stock' })).toBeNull();
+      expect((screen.getByLabelText('City') as HTMLSelectElement).disabled).toBe(true);
+      rerender(<CheckoutPanel {...props} cartId="changed-cart" cartVersion={9} initialQuote={null} />);
+      fireEvent.click(retry);
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      expect(fetchMock.mock.calls[1]![1].body).toBe(fetchMock.mock.calls[0]![1].body);
+      expect(Object.keys(JSON.parse(fetchMock.mock.calls[0]![1].body)).sort()).toEqual(['attemptId', 'destinationCityId', 'expectedVersion']);
+      await screen.findByRole('button', { name: 'Release reserved stock' });
+    },
+  );
+  it('accepts a valid closed quote when an idempotent retry returns an already closed attempt', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response('broken', { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...quote, destinationCityId: 'city-a', state: 'EXPIRED', version: 2 }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<CheckoutPanel {...props} initialQuote={null} />);
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: 'city-a' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reserve stock and get quote' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry same reservation request' }));
+    await waitFor(() => expect(screen.getByText('expired')).toBeTruthy());
+    expect(screen.queryByText(/reservation result is unknown/)).toBeNull();
+    expect(fetchMock.mock.calls[1]![1].body).toBe(fetchMock.mock.calls[0]![1].body);
   });
 });
 

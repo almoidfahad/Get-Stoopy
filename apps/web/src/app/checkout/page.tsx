@@ -102,6 +102,7 @@ export default async function CheckoutPage() {
     <Shell>
       <CommerceHeader stage="Checkout" title="Checkout" description={`${summary.lineCount} ${summary.lineCount === 1 ? 'item' : 'items'} · ${summary.unitCount} ${summary.unitCount === 1 ? 'unit' : 'units'}`} />
       <CheckoutPanel
+        cartId={cart.cartId}
         cartVersion={cart.version}
         currency={summary.currency ?? cart.currency}
         cities={cities.state === 'ok' ? cities.data.items : []}

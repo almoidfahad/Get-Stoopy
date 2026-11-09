@@ -11,7 +11,7 @@ const quote: QuoteInput = {
   subtotalMinor: '100', version: 1, expiresAt: '2030-01-01T00:00:00Z', closedAt: null,
   deliveryFeeMinor: null, totalMinor: null, paymentStatus: 'NOT_IMPLEMENTED', groups: [], items: [],
 };
-const props = { cartVersion: 1, currency: 'BDT', cities: [{ cityId: 'city', name: 'City', code: 'C', storeCount: 1 }], truncated: false, reservationUnavailable: null };
+const props = { cartId: 'cart', cartVersion: 1, currency: 'BDT', cities: [{ cityId: 'city', name: 'City', code: 'C', storeCount: 1 }], truncated: false, reservationUnavailable: null };
 
 describe('checkout panel reservation safeguards', () => {
   it('disables city selection immediately for a recovered reservation, before the clock effect runs', () => {
