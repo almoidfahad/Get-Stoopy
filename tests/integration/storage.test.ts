@@ -75,32 +75,40 @@ describe('private encrypted storage API with quarantine review', () => {
     // A valid upload token does not grant another user access to the row.
     await upload(other, firstBytes).expect(404);
     const holder = new pg.Client({ connectionString: u.runtime });
+    const monitor = new pg.Client({ connectionString: u.runtime });
     await holder.connect();
+    await monitor.connect();
     let first: Promise<any> | undefined;
     let second: Promise<any> | undefined;
+    let earlyFirst: any;
+    let earlySecond: any;
     try {
       await holder.query('BEGIN');
       await holder.query("SELECT set_config('app.user_id',$1,true)", [owner.userId]);
       await holder.query("SELECT set_config('app.auth_version','1',true)");
       await holder.query("SELECT set_config('app.is_super','false',true)");
-      await holder.query('SELECT id FROM "StorageObject" WHERE id=$1 FOR UPDATE', [objectId]);
+      const locked = await holder.query('SELECT id FROM "StorageObject" WHERE id=$1 FOR UPDATE', [objectId]);
+      expect(locked.rowCount).toBe(1);
       const holderPid = (await holder.query('SELECT pg_backend_pid() AS pid')).rows[0].pid as number;
-      first = upload(owner, firstBytes).then((res: any) => res);
-      second = upload(owner, secondBytes).then((res: any) => res);
+      first = upload(owner, firstBytes).then((res: any) => { earlyFirst = res; return res; });
+      second = upload(owner, secondBytes).then((res: any) => { earlySecond = res; return res; });
       const deadline = Date.now() + 4000;
       let blocked = 0;
       while (Date.now() < deadline) {
-        const waiting = await holder.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+        // A separate autocommit monitor avoids PostgreSQL's transaction-cached statistics.
+        const waiting = await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity
           WHERE state='active' AND wait_event_type='Lock' AND pid <> $1 AND query LIKE '%StorageObject%'`, [holderPid]);
         blocked = waiting.rows[0].n;
-        if (blocked >= 2) break;
+        if (blocked >= 2 || earlyFirst || earlySecond) break;
         await new Promise(resolve => setTimeout(resolve, 40));
       }
-      expect(blocked).toBe(2);
+      if (blocked !== 2) throw new Error(`Expected 2 waiting uploads; got ${blocked}. Completed statuses: ${earlyFirst?.status ?? 'pending'}, ${earlySecond?.status ?? 'pending'}; codes: ${earlyFirst?.body?.code ?? '-'}, ${earlySecond?.body?.code ?? '-'}`);
       await holder.query('COMMIT');
     } finally {
       await holder.query('ROLLBACK').catch(() => undefined);
       await holder.end();
+      await monitor.end();
+      if (first && second) await Promise.allSettled([first, second]);
     }
     const [a, b] = await Promise.all([first!, second!]);
     expect([a.status, b.status].sort()).toEqual([200, 400]);
