@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID, createHash } from 'node:crypto';
 import request from 'supertest';
+import pg from 'pg';
 import { urls, asSuper } from './helpers';
 const u = urls();
 let app: any;
@@ -60,6 +61,56 @@ describe('private encrypted storage API with quarantine review', () => {
     const other = await makeUser('other');
     await post(`/api/v1/storage/objects/${objectId}/download-url`, other).expect(404);
     await request(app.getHttpServer()).get(`/api/v1/storage/downloads/${objectId}?token=bad`).expect(403);
+  });
+  it('serializes overlapping uploads of one object and keeps bytes consistent with metadata', async () => {
+    const owner = await makeUser('upload-race');
+    const other = await makeUser('upload-other');
+    const prefix = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const firstBytes = Buffer.concat([prefix, Buffer.from('first-image')]);
+    const secondBytes = Buffer.concat([prefix, Buffer.from('other-image')]);
+    const create = await post('/api/v1/storage/uploads', owner, { purpose: 'profile-avatar', contentType: 'image/png', sizeBytes: firstBytes.length }).expect(201);
+    const objectId = create.body.objectId as string;
+    const upload = (user: typeof owner, data: Buffer) => request(app.getHttpServer()).put(`/api/v1/storage/uploads/${objectId}`)
+      .set('Cookie', `gs_session_dev=${user.token}`).set('X-Storage-Token', create.body.token).set('Content-Type', 'image/png').send(data);
+    // A valid upload token does not grant another user access to the row.
+    await upload(other, firstBytes).expect(404);
+    const holder = new pg.Client({ connectionString: u.runtime });
+    await holder.connect();
+    let first: Promise<any> | undefined;
+    let second: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN');
+      await holder.query("SELECT set_config('app.user_id',$1,true)", [owner.userId]);
+      await holder.query("SELECT set_config('app.auth_version','1',true)");
+      await holder.query("SELECT set_config('app.is_super','false',true)");
+      await holder.query('SELECT id FROM "StorageObject" WHERE id=$1 FOR UPDATE', [objectId]);
+      const holderPid = (await holder.query('SELECT pg_backend_pid() AS pid')).rows[0].pid as number;
+      first = upload(owner, firstBytes).then((res: any) => res);
+      second = upload(owner, secondBytes).then((res: any) => res);
+      const deadline = Date.now() + 4000;
+      let blocked = 0;
+      while (Date.now() < deadline) {
+        const waiting = await holder.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+          WHERE state='active' AND wait_event_type='Lock' AND pid <> $1 AND query LIKE '%StorageObject%'`, [holderPid]);
+        blocked = waiting.rows[0].n;
+        if (blocked >= 2) break;
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      expect(blocked).toBe(2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end();
+    }
+    const [a, b] = await Promise.all([first!, second!]);
+    expect([a.status, b.status].sort()).toEqual([200, 400]);
+    const winner = a.status === 200 ? firstBytes : secondBytes;
+    expect((a.status === 400 ? a : b).body.code).toBe('OBJECT_NOT_PENDING');
+    const metadata = await asSuper(u.privileged, c => c.query('SELECT state, sha256, "sizeBytes" FROM "StorageObject" WHERE id=$1', [objectId]));
+    expect(metadata.rows[0]).toMatchObject({ state: 'UPLOADED', sha256: createHash('sha256').update(winner).digest('hex'), sizeBytes: String(winner.length) });
+    const url = await post(`/api/v1/storage/objects/${objectId}/download-url`, owner).expect(201);
+    const downloaded = await request(app.getHttpServer()).get(url.body.downloadUrl).expect(200);
+    expect(Buffer.from(downloaded.body).equals(winner)).toBe(true);
   });
   it('denies self-review and rejects magic-byte mismatch', async () => {
     const owner = await makeUser('self'); await grantReviewer(owner, true);
