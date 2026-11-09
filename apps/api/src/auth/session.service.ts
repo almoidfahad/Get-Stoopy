@@ -4,7 +4,8 @@ import { ENV } from '../common/env.js';
 import type { ApiEnv } from '@getstoopy/config';
 import { hashToken, newOpaqueToken, sessionExpiry, sessionValid } from '@getstoopy/auth';
 import { encryptJson, csrfTokenForSession } from '@getstoopy/bff';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { createRemoteJWKSet } from 'jose';
+import { verifyIdToken } from './id-token.js';
 import { isPartyActiveWithKyc, vendorMembershipPermissions, type AccessContext, type VendorMembershipRole } from '@getstoopy/core';
 @Injectable()
 export class SessionService {
@@ -15,13 +16,11 @@ export class SessionService {
     return this.jwks;
   }
   async createFromIdToken(input: { idToken: string; accessToken?: string; refreshToken?: string; providerExpiresAt?: string }) {
-    let payload: any;
+    let payload: Awaited<ReturnType<typeof verifyIdToken>>;
     try {
-      const result = await jwtVerify(input.idToken, this.keySet(), { issuer: this.env.KEYCLOAK_ISSUER, audience: this.env.KEYCLOAK_CLIENT_ID });
-      payload = result.payload;
+      payload = await verifyIdToken(input.idToken, this.keySet(), this.env.KEYCLOAK_ISSUER, this.env.KEYCLOAK_CLIENT_ID);
     } catch { throw new UnauthorizedException({ code: 'OIDC_VERIFICATION_FAILED', message: 'Identity token verification failed' }); }
-    const issuer = String(payload.iss); const subject = String(payload.sub);
-    if (!subject) throw new UnauthorizedException({ code: 'OIDC_VERIFICATION_FAILED', message: 'Missing subject' });
+    const issuer = this.env.KEYCLOAK_ISSUER; const subject = payload.sub;
     const email = typeof payload['email'] === 'string' ? payload['email'].toLowerCase() : null;
     const emailVerified = payload['email_verified'] === true;
     const displayName = typeof payload['name'] === 'string' ? payload['name'].slice(0, 120) : 'Get Stoopy User';
