@@ -86,6 +86,11 @@ export class CommerceService {
   async createCart(ctx: AccessContext, countryId: string) {
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      // A unique constraint alone makes concurrent first requests race: both can
+      // miss the row and one can fail on insert instead of returning the cart.
+      // Normalize UUID case so equivalent IDs share a transaction-scoped lock.
+      // This is coordination, not authorization; ownership checks remain required.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`cart-create:${ctx.userId.toLowerCase()}:${countryId.toLowerCase()}`}, 0))`;
       const existing = await tx.cart.findUnique({ where: { userId_countryId: { userId: ctx.userId, countryId } } });
       if (existing) return { ...(await this.cartJson(tx, existing)), duplicate: true };
       const country = await tx.country.findFirst({ where: { id: countryId, status: 'ACTIVE' } });

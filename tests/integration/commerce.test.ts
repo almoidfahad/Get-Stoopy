@@ -370,6 +370,51 @@ describe('checkout destination must be serviceable before stock is reserved', ()
   });
 });
 
+describe('concurrent cart creation', () => {
+  it('returns one cart for overlapping equivalent requests, without blocking a different buyer', async () => {
+    const buyer = await makeUser(`cart-race-${randomUUID().slice(0, 8)}`);
+    const other = await makeUser(`cart-independent-${randomUUID().slice(0, 8)}`);
+    const holder = new pg.Client({ connectionString: u.privileged });
+    await holder.connect();
+    let first: Promise<any> | undefined;
+    let second: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN');
+      await holder.query('SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))', [`cart-create:${buyer.userId.toLowerCase()}:${countryId.toLowerCase()}`]);
+      const holderPid = (await holder.query('SELECT pg_backend_pid() AS pid')).rows[0].pid as number;
+      first = post('/api/v1/commerce/carts', buyer, { countryId }).then((res: any) => res);
+      second = post('/api/v1/commerce/carts', buyer, { countryId: countryId.toUpperCase() }).then((res: any) => res);
+      const deadline = Date.now() + 4000;
+      let blocked = 0;
+      while (Date.now() < deadline) {
+        const result = await privilegedPool.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+          WHERE state='active' AND wait_event_type='Lock' AND $1 = ANY(pg_blocking_pids(pid))`, [holderPid]);
+        blocked = result.rows[0].n;
+        if (blocked >= 2) break;
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      expect(blocked).toBe(2);
+      const unrelated = await post('/api/v1/commerce/carts', other, { countryId }).expect(201);
+      expect(unrelated.body.duplicate).toBe(false);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end();
+    }
+    const [a, b] = await Promise.all([first!, second!]);
+    expect(a.status).toBe(201);
+    expect(b.status).toBe(201);
+    expect(a.body.cartId).toBe(b.body.cartId);
+    expect([a.body.duplicate, b.body.duplicate].sort()).toEqual([false, true]);
+    const rows = await asSuper(u.privileged, c => c.query(`SELECT
+      (SELECT count(*)::int FROM "Cart" WHERE "userId"=$1 AND "countryId"=$2) AS carts,
+      (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$3 AND action='commerce.cart.created') AS audits,
+      (SELECT count(*)::int FROM "OutboxEvent" WHERE "aggregateId"=$3 AND "eventType"='commerce.cart.created') AS events`,
+      [buyer.userId, countryId, a.body.cartId]));
+    expect(rows.rows[0]).toMatchObject({ carts: 1, audits: 1, events: 1 });
+  });
+});
+
 describe('concurrent checkout reservation idempotency', () => {
   // Hold the cart row until both HTTP requests have reached the database. This
   // forces the second request to overlap the first, rather than relying on timing
