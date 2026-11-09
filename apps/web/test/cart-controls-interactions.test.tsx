@@ -48,7 +48,7 @@ describe('cart controls interactions', () => {
     expect(screen.getByText(/does not reserve stock/)).toBeTruthy();
   });
   it('submits the chosen option and quantity and clears success when the entry changes', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 })); vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ mutationConfirmed: true }), { status: 200 })); vi.stubGlobal('fetch', fetchMock);
     render(<AddToCart variants={variants} signedIn />);
     fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'two' } });
     fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: '100' } });
@@ -87,7 +87,7 @@ describe('cart controls interactions', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect((screen.getByLabelText('Quantity') as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByLabelText('Option') as HTMLSelectElement).disabled).toBe(true);
-    finish(new Response('{}', { status: 200 }));
+    finish(new Response(JSON.stringify({ mutationConfirmed: true }), { status: 200 }));
     await waitFor(() => expect(screen.getByRole('status')).toBeTruthy());
   });
   it('preserves button focus during a pending request and an uncertain outcome without allowing another add', async () => {
@@ -137,6 +137,31 @@ describe('cart controls interactions', () => {
     expect(document.activeElement).toBe(button);
     expect(button.getAttribute('aria-disabled')).toBe('false');
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+  it.each(['invalid-json', 'null', 'missing-marker'] as const)('treats a 2xx %s add response as unknown', async kind => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(kind === 'invalid-json' ? 'broken' : kind === 'null' ? 'null' : '{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AddToCart variants={variants} signedIn />);
+    fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'one' } });
+    const add = screen.getByRole('button', { name: 'Add to cart' });
+    add.focus(); fireEvent.click(add);
+    expect((await screen.findByRole('alert')).textContent).toContain('result is unknown');
+    expect(document.activeElement).toBe(add);
+    expect(add.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.queryByText('Added.', { exact: false })).toBeNull();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    fireEvent.click(add);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('does not move focus or claim removal when a 2xx response lacks confirmation', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })));
+    render(<><h1 id="cart-page-heading" tabIndex={-1}>Your cart</h1><CartLineControls variantId="one" productTitle="Item" quantity={2} version={7} /></>);
+    const remove = screen.getByRole('button', { name: 'Remove Item from cart' });
+    remove.focus(); fireEvent.click(remove);
+    expect((await screen.findByRole('alert')).textContent).toContain('result is unknown');
+    expect(document.activeElement).toBe(remove);
+    expect(screen.getByRole('link', { name: 'Reload cart' })).toBeTruthy();
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
   it('does not mark an explicit rejected request as an unknown outcome', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'CART_VARIANT_NOT_SELLABLE' }), { status: 409 })));
@@ -195,7 +220,7 @@ describe('cart controls interactions', () => {
     const button = screen.getByRole('button', { name: 'Remove Item from cart' });
     button.focus(); fireEvent.click(button);
     expect(document.activeElement).toBe(button);
-    finish(new Response('{}', { status: 200 }));
+    finish(new Response(JSON.stringify({ mutationConfirmed: true }), { status: 200 }));
     await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Your cart' }));
   });
@@ -206,7 +231,7 @@ describe('cart controls interactions', () => {
     const remove = screen.getByRole('button', { name: 'Remove Item from cart' });
     remove.focus(); fireEvent.click(remove);
     const other = screen.getByRole('button', { name: 'Other action' }); other.focus();
-    finish(new Response('{}', { status: 200 }));
+    finish(new Response(JSON.stringify({ mutationConfirmed: true }), { status: 200 }));
     await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
     expect(document.activeElement).toBe(other);
   });

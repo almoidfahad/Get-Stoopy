@@ -56,13 +56,20 @@ export function useCartMutation() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const payload = (await res.json().catch(() => ({}))) as { code?: string };
+      const raw: unknown = await res.json().catch(() => null);
+      const payload = raw && typeof raw === 'object' ? raw as { code?: string; mutationConfirmed?: unknown } : {};
       if (!res.ok) {
         if (res.status >= 500) {
           setUncertain(true);
           setError('The request may have succeeded, but its result is unknown. It may still complete later.');
         } else setError(messageFor(payload.code, res.status));
         if (payload.code === 'CART_VERSION_CONFLICT') startTransition(() => router.refresh());
+        return false;
+      }
+      // Only the BFF can confirm that its upstream response matched the action.
+      if (payload.mutationConfirmed !== true) {
+        setUncertain(true);
+        setError('The request may have succeeded, but its result is unknown. It may still complete later.');
         return false;
       }
       setDone(true);

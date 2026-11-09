@@ -6,6 +6,7 @@ vi.mock('@/lib/config', () => ({ webConfig: mocks.config }));
 vi.mock('next/headers', () => ({ cookies: async () => ({ get: mocks.session }) }));
 import { getOrCreateCart, mutateCart } from '../src/lib/cart';
 import { createQuote } from '../src/lib/checkout';
+import { POST } from '../src/app/api/cart/items/route';
 
 const country = '11111111-1111-4111-8111-111111111111';
 const cartId = '22222222-2222-4222-8222-222222222222';
@@ -75,10 +76,57 @@ describe('cart API response validation', () => {
     expect(await createQuote({ destinationCityId: country, expectedVersion: 1, commandKey: 'web-test' })).toMatchObject({ status: 502, body: { code: 'QUOTE_UNAVAILABLE' } });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+  it.each(['null', 'invalid-json', 'wrong-cart', 'wrong-market', 'old-version', 'missing-item', 'wrong-quantity', 'malformed-cart'] as const)(
+    'returns an unknown outcome when an add responds with %s', async kind => {
+      const result = { ...cart, version: kind === 'old-version' ? 1 : 2,
+        cartId: kind === 'wrong-cart' ? '88888888-8888-4888-8888-888888888888' : cartId,
+        countryId: kind === 'wrong-market' ? '99999999-9999-4999-8999-999999999999' : country,
+        items: kind === 'missing-item' ? [] : kind === 'malformed-cart' ? [null] : [{ ...item, quantity: kind === 'wrong-quantity' ? 2 : 3, lineTotalMinor: '300' }] };
+      const second = kind === 'invalid-json' ? new Response('bad json', { status: 200 }) : reply(kind === 'null' ? null : result);
+      const fetchMock = vi.fn().mockResolvedValueOnce(reply(cart)).mockResolvedValueOnce(second); vi.stubGlobal('fetch', fetchMock);
+      expect(await mutateCart('add', { variantId: variant, quantity: 1 })).toEqual({ status: 502, body: { code: 'CART_RESULT_UNKNOWN' } });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    },
+  );
+  it('confirms an add of a new item, an update and a removal only with matching results', async () => {
+    const empty = { ...cart, items: [] };
+    const added = { ...cart, version: 2, items: [{ ...item, quantity: 1, lineTotalMinor: '100' }] };
+    const updated = { ...cart, version: 2, items: [{ ...item, quantity: 3, lineTotalMinor: '300' }] };
+    const removed = { ...cart, version: 2, items: [] };
+    const fetchMock = vi.fn().mockResolvedValueOnce(reply(empty)).mockResolvedValueOnce(reply(added))
+      .mockResolvedValueOnce(reply(cart)).mockResolvedValueOnce(reply(updated))
+      .mockResolvedValueOnce(reply(cart)).mockResolvedValueOnce(reply(removed)); vi.stubGlobal('fetch', fetchMock);
+    expect(await mutateCart('add', { variantId: variant, quantity: 1 })).toMatchObject({ status: 200, body: { mutationConfirmed: true } });
+    expect(await mutateCart('update', { variantId: variant, quantity: 3, expectedVersion: 1 })).toMatchObject({ status: 200, body: { mutationConfirmed: true } });
+    expect(await mutateCart('remove', { variantId: variant, expectedVersion: 1 })).toMatchObject({ status: 200, body: { mutationConfirmed: true } });
+  });
+  it.each(['update', 'remove'] as const)('rejects a 2xx %s with an inconsistent item result', async op => {
+    const result = { ...cart, version: 2, items: [{ ...item, quantity: 2 }] };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(reply(cart)).mockResolvedValueOnce(reply(result)));
+    expect(await mutateCart(op, { variantId: variant, quantity: 3, expectedVersion: 1 })).toEqual({ status: 502, body: { code: 'CART_RESULT_UNKNOWN' } });
+  });
+  it('preserves a definitive 409 response without confirming or retrying it', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(reply(cart)).mockResolvedValueOnce(new Response(JSON.stringify({ code: 'CART_VERSION_CONFLICT' }), { status: 409 }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await mutateCart('remove', { variantId: variant, expectedVersion: 1 })).toEqual({ status: 409, body: { code: 'CART_VERSION_CONFLICT' } });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it('exposes uncertain or confirmed outcomes through the actual BFF route', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(reply(cart)).mockResolvedValueOnce(reply({}))
+      .mockResolvedValueOnce(reply(cart)).mockResolvedValueOnce(reply({ ...cart, version: 2, items: [{ ...item, quantity: 3, lineTotalMinor: '300' }] }));
+    vi.stubGlobal('fetch', fetchMock);
+    const makeRequest = () => new Request('https://shop.test/api/cart/items', { method: 'POST', headers: { origin: 'https://shop.test', 'content-type': 'application/json' }, body: JSON.stringify({ variantId: variant, quantity: 1 }) });
+    const unknown = await POST(makeRequest());
+    expect(unknown.status).toBe(502);
+    expect(await unknown.json()).toEqual({ code: 'CART_RESULT_UNKNOWN' });
+    const confirmed = await POST(makeRequest());
+    expect(confirmed.status).toBe(200);
+    expect(await confirmed.json()).toMatchObject({ cartId, mutationConfirmed: true });
+  });
   it('sends a mutation with the validated cart identity and version', async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(reply(cart)).mockResolvedValueOnce(reply({ ok: true })); vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = vi.fn().mockResolvedValueOnce(reply(cart)).mockResolvedValueOnce(reply({ ...cart, version: 2, items: [{ ...item, quantity: 3, lineTotalMinor: '300' }] })); vi.stubGlobal('fetch', fetchMock);
     const result = await mutateCart('add', { variantId: variant, quantity: 1 });
-    expect(result.status).toBe(200);
+    expect(result).toMatchObject({ status: 200, body: { cartId, mutationConfirmed: true } });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1]![0]).toBe(`https://api.test/api/v1/commerce/carts/${cartId}/items`);
     expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toEqual({ variantId: variant, quantity: 1, expectedVersion: 1 });

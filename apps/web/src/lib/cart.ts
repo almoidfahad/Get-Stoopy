@@ -165,8 +165,19 @@ export async function mutateCart(
     return { status: 502, body: { code: 'CART_UNAVAILABLE' } };
   }
   if (!res) return { status: 401, body: { code: 'SIGN_IN_REQUIRED' } };
-  const body = await res.json().catch(() => ({ code: 'CART_UNAVAILABLE' }));
-  return { status: res.status, body };
+  const body: unknown = await res.json().catch(() => null);
+  if (!res.ok) return { status: res.status, body: body ?? { code: 'CART_UNAVAILABLE' } };
+
+  // A successful HTTP status does not establish what the mutation did. Check
+  // the returned cart and the specific line before confirming it to the client.
+  if (!isCartResponse(body, cart.cart.countryId) || body.cartId.toLowerCase() !== cart.cart.cartId.toLowerCase() ||
+      body.version <= (expectedVersion as number)) return { status: 502, body: { code: 'CART_RESULT_UNKNOWN' } };
+  const updated = body.items.find(item => item.variantId.toLowerCase() === input.variantId.toLowerCase());
+  const previous = cart.cart.items.find(item => item.variantId.toLowerCase() === input.variantId.toLowerCase());
+  const matches = op === 'remove' ? !updated : op === 'update' ? updated?.quantity === input.quantity :
+    typeof input.quantity === 'number' && updated?.quantity === (previous?.quantity ?? 0) + input.quantity;
+  if (!matches) return { status: 502, body: { code: 'CART_RESULT_UNKNOWN' } };
+  return { status: res.status, body: { ...body, mutationConfirmed: true } };
 }
 
 export { parseCartMutation } from '@getstoopy/core';
