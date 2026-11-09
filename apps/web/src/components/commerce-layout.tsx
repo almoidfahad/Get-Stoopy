@@ -15,7 +15,7 @@ export function CommerceHeader({ stage, title, description }: { stage: Stage; ti
       </nav>
       <header className="rounded-2xl bg-[#faf5ee] px-6 py-7 sm:px-9 sm:py-9">
         <p className="section-eyebrow">Your shopping journey</p>
-        <h1 className="mt-2 text-3xl font-black tracking-[-.035em] text-neutral-950 sm:text-4xl">{title}</h1>
+        <h1 id={stage === 'Cart' ? 'cart-page-heading' : undefined} tabIndex={stage === 'Cart' ? -1 : undefined} className="mt-2 text-3xl font-black tracking-[-.035em] text-neutral-950 sm:text-4xl">{title}</h1>
         {description ? <p className="mt-2 text-sm leading-6 text-neutral-600">{description}</p> : null}
       </header>
     </>

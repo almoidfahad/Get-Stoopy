@@ -29,6 +29,7 @@ describe('cart and checkout UI', () => {
     mocks.cart.mockResolvedValue({ state: 'ok', cart: { ...cart, items: [] } });
     const html = renderToStaticMarkup(await CartPage());
     expect(html).toContain('Your cart is empty');
+    expect(html).toMatch(/<h1[^>]*id="cart-page-heading"[^>]*tabindex="-1"/);
     expect(html).toContain('href="/shop"');
     expect(html).not.toContain('Continue to checkout');
   });

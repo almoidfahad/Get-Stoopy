@@ -188,6 +188,37 @@ describe('cart controls interactions', () => {
     fireEvent.click(button);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+  it('moves focus to the cart heading after a confirmed removal, before refreshing', async () => {
+    let finish!: (response: Response) => void;
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; })));
+    render(<><h1 id="cart-page-heading" tabIndex={-1}>Your cart</h1><CartLineControls variantId="one" productTitle="Item" quantity={2} version={7} /></>);
+    const button = screen.getByRole('button', { name: 'Remove Item from cart' });
+    button.focus(); fireEvent.click(button);
+    expect(document.activeElement).toBe(button);
+    finish(new Response('{}', { status: 200 }));
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Your cart' }));
+  });
+  it('does not steal focus if the user moves away during removal', async () => {
+    let finish!: (response: Response) => void;
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; })));
+    render(<><h1 id="cart-page-heading" tabIndex={-1}>Your cart</h1><button>Other action</button><CartLineControls variantId="one" productTitle="Item" quantity={2} version={7} /></>);
+    const remove = screen.getByRole('button', { name: 'Remove Item from cart' });
+    remove.focus(); fireEvent.click(remove);
+    const other = screen.getByRole('button', { name: 'Other action' }); other.focus();
+    finish(new Response('{}', { status: 200 }));
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
+    expect(document.activeElement).toBe(other);
+  });
+  it('does not move focus after an uncertain removal', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+    render(<><h1 id="cart-page-heading" tabIndex={-1}>Your cart</h1><CartLineControls variantId="one" productTitle="Item" quantity={2} version={7} /></>);
+    const remove = screen.getByRole('button', { name: 'Remove Item from cart' });
+    remove.focus(); fireEvent.click(remove);
+    await screen.findByRole('alert');
+    expect(document.activeElement).toBe(remove);
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
   it('refreshes on a conflicting cart edit without retrying the update', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'CART_VERSION_CONFLICT' }), { status: 409 })); vi.stubGlobal('fetch', fetchMock);
     render(<CartLineControls variantId="one" productTitle="Item" quantity={2} version={7} />);

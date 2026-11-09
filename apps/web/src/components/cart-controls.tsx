@@ -44,7 +44,7 @@ export function useCartMutation() {
   function clearFeedback() { if (!uncertain) setError(null); setDone(false); }
   function acknowledgeUncertain() { setUncertain(false); setError(null); }
 
-  async function send(method: 'POST' | 'PATCH' | 'DELETE', body: Record<string, unknown>): Promise<boolean> {
+  async function send(method: 'POST' | 'PATCH' | 'DELETE', body: Record<string, unknown>, onSuccess?: () => void): Promise<boolean> {
     if (inFlight.current) return false;
     inFlight.current = true;
     setBusy(true);
@@ -66,6 +66,8 @@ export function useCartMutation() {
         return false;
       }
       setDone(true);
+      // Focus recovery must happen before a refresh removes the active control.
+      onSuccess?.();
       startTransition(() => router.refresh());
       return true;
     } catch {
@@ -195,6 +197,12 @@ export function CartLineControls({
   version: number;
 }) {
   const { send, error, uncertain, working } = useCartMutation();
+  const removeButtonRef = useRef<HTMLButtonElement>(null);
+
+  function recoverFocusAfterRemoval() {
+    // Respect a user who has moved elsewhere while the request was pending.
+    if (document.activeElement === removeButtonRef.current) document.getElementById('cart-page-heading')?.focus();
+  }
 
   return (
     <div className="flex flex-col items-start gap-2 sm:items-end">
@@ -220,9 +228,10 @@ export function CartLineControls({
         </button>
         <button
           type="button"
+          ref={removeButtonRef}
           aria-disabled={working || uncertain}
           aria-label={`Remove ${productTitle} from cart`}
-          onClick={() => { if (!working && !uncertain) void send('DELETE', { variantId, expectedVersion: version }); }}
+          onClick={() => { if (!working && !uncertain) void send('DELETE', { variantId, expectedVersion: version }, recoverFocusAfterRemoval); }}
           className="min-h-11 rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold hover:border-neutral-900 aria-disabled:opacity-40"
         >
           Remove
