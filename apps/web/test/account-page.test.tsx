@@ -47,6 +47,7 @@ describe('account page', () => {
     expect(html).toContain('<details');
     expect(html).toContain('action="/api/auth/logout"');
     expect(html).toContain('method="post"');
+    expect(html).toContain('sign-in provider or other devices may stay signed in');
     expect(html).toContain('href="/cart"');
     expect(html).not.toContain('do-not-render');
     expect(html).not.toContain('href="/orders"');
