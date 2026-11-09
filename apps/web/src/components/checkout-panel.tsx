@@ -38,9 +38,13 @@ function newAttemptId(): string {
 }
 
 
+function sameId(a: string, b: string): boolean { return a.toLowerCase() === b.toLowerCase(); }
+
 function isReleasedQuote(value: unknown, previous: QuoteInput): value is QuoteInput {
-  return isQuoteInput(value) && value.quoteId === previous.quoteId && value.cartId === previous.cartId &&
-    value.state !== 'RESERVED' && value.version >= previous.version;
+  // A transition from RESERVED to a closed state increments the server version,
+  // including when the release endpoint finds a quote already closed elsewhere.
+  return isQuoteInput(value) && sameId(value.quoteId, previous.quoteId) && sameId(value.cartId, previous.cartId) &&
+    value.state !== 'RESERVED' && value.version > previous.version;
 }
 
 export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQuote, reservationUnavailable }: Props) {
@@ -80,7 +84,7 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
     // A recovered quote may belong to a different attempt. Keep any uncertain
     // attempt until its own result is resolved; the recovered hold can be released.
     setQuote(current =>
-      current && current.quoteId === initialQuote.quoteId && current.version >= initialQuote.version
+      current && sameId(current.quoteId, initialQuote.quoteId) && sameId(current.cartId, initialQuote.cartId) && current.version >= initialQuote.version
         ? current
         : initialQuote,
     );
@@ -199,7 +203,8 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
       }
       const latest = latestQuoteRef.current;
       if (!isReleasedQuote(payload, quote) || !latest || latest.quoteId.toLowerCase() !== payload.quoteId.toLowerCase() ||
-          latest.cartId.toLowerCase() !== payload.cartId.toLowerCase() || payload.version < latest.version) {
+          latest.cartId.toLowerCase() !== payload.cartId.toLowerCase() || payload.version < latest.version ||
+          (payload.version === latest.version && payload.state !== latest.state)) {
         setReleaseUncertain(true);
         setError('The release result is unknown. Stock may still be held, or it may have been released.');
         return;
@@ -223,8 +228,9 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
   // A recovered reservation belongs to its original city, even if this tab
   // never selected it or the current city list no longer includes it.
   const reservedCityId = quote?.state === 'RESERVED' ? quote.destinationCityId : null;
-  const selectedCityId = reservedCityId ?? (uncertain ? attempt.current?.destinationCityId : undefined) ?? cityId;
-  const quoteCity = quote ? cities.find(city => city.cityId === quote.destinationCityId) : undefined;
+  const requestedCityId = reservedCityId ?? (uncertain ? attempt.current?.destinationCityId : undefined) ?? cityId;
+  const selectedCityId = cities.find(city => sameId(city.cityId, requestedCityId))?.cityId ?? requestedCityId;
+  const quoteCity = quote ? cities.find(city => sameId(city.cityId, quote.destinationCityId)) : undefined;
   const reserveBlocked = busy || quoteStatusUncertain || (!uncertain && (!!reservationUnavailable || !cityId)) || quote?.state === 'RESERVED';
 
   return (
@@ -340,11 +346,13 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
             </ul>
 
             {summary.issues.length > 0 ? (
-              <ul role="alert" className="mt-3 space-y-1 text-sm font-medium text-brand-red">
-                {summary.issues.map((issue, index) => (
-                  <li key={`${issue.kind}-${index}`}>{QUOTE_ISSUE_MESSAGES[issue.kind]}</li>
-                ))}
-              </ul>
+              <div role="alert" className="mt-3 text-sm font-medium text-brand-red">
+                <ul className="space-y-1">
+                  {summary.issues.map((issue, index) => (
+                    <li key={`${issue.kind}-${index}`}>{QUOTE_ISSUE_MESSAGES[issue.kind]}</li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
 
             {summary.canRelease ? (

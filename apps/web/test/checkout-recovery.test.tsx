@@ -74,6 +74,7 @@ describe('reserved quote recovery', () => {
     ['unknown state', { ...quote, state: 'NEW_STATE' }],
     ['malformed item', { ...quote, items: [{ itemId: 'bad' }] }],
     ['invalid version', { ...quote, version: 0 }],
+    ['unsafe version', { ...quote, version: Number.MAX_SAFE_INTEGER + 1 }],
   ])('shows a recovery notice instead of adopting a %s response', async (_label, body) => {
     mocks.quote.mockResolvedValue({ status: 200, body });
     const html = renderToStaticMarkup(await CheckoutPage());

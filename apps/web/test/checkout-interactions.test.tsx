@@ -22,6 +22,14 @@ describe('checkout destination and quote recovery interactions', () => {
     expect(screen.getByText('City B')).toBeTruthy();
     expect(screen.getByText(/Recipient details and delivery addresses are not collected yet/)).toBeTruthy();
   });
+  it('matches a recovered quote city regardless of identifier case', () => {
+    render(<CheckoutPanel {...props} initialQuote={{ ...quote, destinationCityId: 'CITY-B' }} />);
+    const select = screen.getByLabelText('City') as HTMLSelectElement;
+    expect(select.value).toBe('city-b');
+    expect(select.selectedOptions[0]?.textContent).toContain('City B');
+    expect(screen.getByText('City B')).toBeTruthy();
+    expect(screen.queryByText('City details unavailable')).toBeNull();
+  });
   it('does not substitute another city if the quote city is missing from the list', () => {
     render(<CheckoutPanel {...props} cities={[cities[0]!]} initialQuote={quote} />);
     const select = screen.getByLabelText('City') as HTMLSelectElement;
@@ -67,6 +75,7 @@ describe('quote safety and recovery', () => {
     expect(screen.getByText('Line total unavailable')).toBeTruthy();
     expect(screen.getByText('Unavailable')).toBeTruthy();
     expect(screen.getByText(/A line total no longer matches/)).toBeTruthy();
+    expect(screen.getByRole('alert').querySelector('ul > li')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Release reserved stock' })).toBeTruthy();
   });
   it('renders malformed item currency as unavailable, not an exception', () => {
@@ -91,12 +100,12 @@ describe('quote safety and recovery', () => {
     expect(screen.getByText(/stock-hold status is unavailable/)).toBeTruthy();
     expect(screen.queryByText(/No stock is held/)).toBeNull();
   });
-  it.each(['network', 'server', 'malformed-json', 'wrong-quote', 'reserved', 'malformed-items'] as const)(
+  it.each(['network', 'server', 'malformed-json', 'wrong-quote', 'reserved', 'malformed-items', 'same-version', 'older-version', 'unsafe-version'] as const)(
     'treats %s release responses as uncertain and prevents a new action until reload', async kind => {
       const fetchMock = kind === 'network' ? vi.fn().mockRejectedValue(new Error('offline')) : vi.fn().mockResolvedValue(
         kind === 'server' ? new Response('{}', { status: 503 }) :
         kind === 'malformed-json' ? new Response('not json', { status: 200 }) :
-        new Response(JSON.stringify({ ...quote, state: kind === 'reserved' ? 'RESERVED' : 'RELEASED', version: 2,
+        new Response(JSON.stringify({ ...quote, state: kind === 'reserved' ? 'RESERVED' : 'RELEASED', version: kind === 'same-version' ? 1 : kind === 'older-version' ? 0 : kind === 'unsafe-version' ? Number.MAX_SAFE_INTEGER + 1 : 2,
           quoteId: kind === 'wrong-quote' ? 'another-quote' : quote.quoteId,
           items: kind === 'malformed-items' ? [{ itemId: 'broken' }] : [] }), { status: 200 })
       );
@@ -122,6 +131,32 @@ describe('quote safety and recovery', () => {
       expect(screen.queryByText(/No stock is held by this quote/)).toBeNull();
     },
   );
+  it('accepts case-equivalent quote and cart identities in a newer closed response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ ...quote, quoteId: 'QUOTE', cartId: 'CART', state: 'RELEASED', version: 2 }), { status: 200 })));
+    render(<CheckoutPanel {...props} initialQuote={quote} />);
+    const release = screen.getByRole('button', { name: 'Release reserved stock' });
+    release.focus(); fireEvent.click(release);
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Release reserved stock' })).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Quote' }));
+    expect(screen.queryByRole('link', { name: 'Reload checkout' })).toBeNull();
+  });
+  it('does not regress a newer quote when refreshed identifiers differ only by case', async () => {
+    const { rerender } = render(<CheckoutPanel {...props} initialQuote={{ ...quote, version: 2, destinationCityId: 'city-a' }} />);
+    rerender(<CheckoutPanel {...props} initialQuote={{ ...quote, quoteId: 'QUOTE', cartId: 'CART', version: 1 }} />);
+    await waitFor(() => expect((screen.getByLabelText('City') as HTMLSelectElement).value).toBe('city-a'));
+  });
+  it('does not accept a closed response contradicting a same-version reserved refresh', async () => {
+    let finish!: (value: Response) => void;
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; })));
+    const { rerender } = render(<CheckoutPanel {...props} initialQuote={quote} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Release reserved stock' }));
+    rerender(<CheckoutPanel {...props} initialQuote={{ ...quote, version: 2, destinationCityId: 'city-a' }} />);
+    await waitFor(() => expect((screen.getByLabelText('City') as HTMLSelectElement).value).toBe('city-a'));
+    finish(new Response(JSON.stringify({ ...quote, state: 'RELEASED', version: 2 }), { status: 200 }));
+    expect((await screen.findByRole('alert')).textContent).toContain('release result is unknown');
+    expect(screen.getByText('Last known: reserved')).toBeTruthy();
+    expect(screen.queryByText(/No stock is held by this quote/)).toBeNull();
+  });
   it('does not classify an explicit release rejection as an unknown outcome', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'ORIGIN_DENIED' }), { status: 403 })));
     render(<CheckoutPanel {...props} initialQuote={quote} />);
@@ -342,7 +377,7 @@ describe('uncertain reservation requests', () => {
 });
 
 describe('unreadable reservation success responses', () => {
-  it.each(['invalid-json', 'null', 'missing', 'wrong-cart', 'wrong-city', 'unknown-state', 'invalid-item', 'invalid-version'] as const)(
+  it.each(['invalid-json', 'null', 'missing', 'wrong-cart', 'wrong-city', 'unknown-state', 'invalid-item', 'invalid-version', 'unsafe-version'] as const)(
     'keeps the original attempt when a 2xx response is %s', async kind => {
       const good = { ...quote, destinationCityId: 'city-a' };
       const candidate = kind === 'null' ? null : kind === 'missing' ? {} : {
@@ -351,7 +386,7 @@ describe('unreadable reservation success responses', () => {
         destinationCityId: kind === 'wrong-city' ? 'city-b' : good.destinationCityId,
         state: kind === 'unknown-state' ? 'UNRECOGNIZED' : good.state,
         items: kind === 'invalid-item' ? [{ itemId: 'broken' }] : good.items,
-        version: kind === 'invalid-version' ? 0 : good.version,
+        version: kind === 'invalid-version' ? 0 : kind === 'unsafe-version' ? Number.MAX_SAFE_INTEGER + 1 : good.version,
       };
       const fetchMock = vi.fn().mockResolvedValueOnce(new Response(kind === 'invalid-json' ? 'broken' : JSON.stringify(candidate), { status: 200 }))
         .mockResolvedValueOnce(new Response(JSON.stringify(good), { status: 200 }));

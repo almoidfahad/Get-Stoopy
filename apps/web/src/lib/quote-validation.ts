@@ -6,7 +6,7 @@ export function isQuoteInput(value: unknown): value is QuoteInput {
   const q = value as Record<string, unknown>;
   if (typeof q.quoteId !== 'string' || !q.quoteId || typeof q.cartId !== 'string' || !q.cartId ||
       typeof q.state !== 'string' || !['RESERVED', 'RELEASED', 'EXPIRED', 'CONSUMED'].includes(q.state) ||
-      !Number.isInteger(q.version) || (q.version as number) < 1 || typeof q.currency !== 'string' ||
+      !Number.isSafeInteger(q.version) || (q.version as number) < 1 || typeof q.currency !== 'string' ||
       typeof q.destinationCityId !== 'string' || !q.destinationCityId || typeof q.subtotalMinor !== 'string' || typeof q.expiresAt !== 'string' ||
       !(q.closedAt === null || typeof q.closedAt === 'string') || !(q.deliveryFeeMinor === null || typeof q.deliveryFeeMinor === 'string') ||
       !(q.totalMinor === null || typeof q.totalMinor === 'string') || typeof q.paymentStatus !== 'string' ||
