@@ -333,13 +333,13 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
             ) : null}
 
             <ul className="mt-3 space-y-1 text-sm">
-              {quote.items.map(item => (
-                <li key={item.itemId} className="flex justify-between gap-4">
+              {quote.items.map((item, index) => (
+                <li key={`${item.itemId}-${index}`} className="flex justify-between gap-4">
                   <span className="min-w-0 break-words [overflow-wrap:anywhere]">
                     {item.productTitle} × {item.quantity}
                   </span>
                   <span className="font-semibold">
-                    {summary.issues.some(issue => issue.itemId === item.itemId && ['price-invalid', 'line-total-mismatch', 'currency-invalid'].includes(issue.kind)) ? 'Line total unavailable' : formatMinorUnits(item.lineTotalMinor, item.currency) ?? 'Line total unavailable'}
+                    {summary.issues.some(issue => issue.kind === 'quote-structure-invalid' || (issue.itemId === item.itemId && ['price-invalid', 'line-total-mismatch', 'currency-invalid'].includes(issue.kind))) ? 'Line total unavailable' : formatMinorUnits(item.lineTotalMinor, item.currency) ?? 'Line total unavailable'}
                   </span>
                 </li>
               ))}

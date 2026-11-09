@@ -155,8 +155,39 @@ describe('quote summary', () => {
     expect(summary.lineCount).toBe(0);
   });
 
+  it('accepts multiple complete groups and case-equivalent identifiers', () => {
+    const summary = summarizeQuote(quote({
+      subtotalMinor: '150000',
+      groups: [{ groupId: 'G1', storeId: 's1', subtotalMinor: '100000', currency: 'BDT' }, { groupId: 'g2', storeId: 's2', subtotalMinor: '50000', currency: 'BDT' }],
+      items: [item(), item({ itemId: 'i2', variantId: 'v2', groupId: 'G2', quantity: 1, lineTotalMinor: '50000' })],
+    }), NOW);
+    expect(summary.issues).toEqual([]);
+    expect(summary.subtotalMinor).toBe(150000n);
+    expect(summary.storeCount).toBe(2);
+  });
+
+  it.each([
+    ['missing groups', quote({ groups: [] })],
+    ['missing item group', quote({ items: [item({ groupId: 'missing' })] })],
+    ['empty quote', quote({ items: [], groups: [], subtotalMinor: '0' })],
+    ['unused zero-price group', quote({ groups: [{ groupId: 'g1', storeId: 's1', subtotalMinor: '100000', currency: 'BDT' }, { groupId: 'g2', storeId: 's2', subtotalMinor: '0', currency: 'BDT' }] })],
+    ['duplicate group', quote({ groups: [{ groupId: 'g1', storeId: 's1', subtotalMinor: '100000', currency: 'BDT' }, { groupId: 'G1', storeId: 's2', subtotalMinor: '100000', currency: 'BDT' }] })],
+    ['duplicate store', quote({ groups: [{ groupId: 'g1', storeId: 's1', subtotalMinor: '100000', currency: 'BDT' }, { groupId: 'g2', storeId: 'S1', subtotalMinor: '0', currency: 'BDT' }], items: [item(), item({ itemId: 'i2', variantId: 'v2', groupId: 'g2', unitPriceMinor: '0', lineTotalMinor: '0' })] })],
+    ['duplicate item', quote({ subtotalMinor: '200000', groups: [{ groupId: 'g1', storeId: 's1', subtotalMinor: '200000', currency: 'BDT' }], items: [item(), item({ itemId: 'I1', variantId: 'v2' })] })],
+    ['duplicate variant', quote({ subtotalMinor: '200000', groups: [{ groupId: 'g1', storeId: 's1', subtotalMinor: '200000', currency: 'BDT' }], items: [item(), item({ itemId: 'i2', variantId: 'V1' })] })],
+    ['blank group id', quote({ groups: [{ groupId: ' ', storeId: 's1', subtotalMinor: '100000', currency: 'BDT' }], items: [item({ groupId: ' ' })] })],
+    ['blank store id', quote({ groups: [{ groupId: 'g1', storeId: '', subtotalMinor: '100000', currency: 'BDT' }] })],
+    ['blank item id', quote({ items: [item({ itemId: '' })] })],
+    ['blank variant id', quote({ items: [item({ variantId: '' })] })],
+  ])('withholds totals but keeps release available for %s', (_label, badQuote) => {
+    const summary = summarizeQuote(badQuote, NOW);
+    expect(summary.issues.map(i => i.kind)).toContain('quote-structure-invalid');
+    expect(summary.subtotalMinor).toBeNull();
+    expect(summary.canRelease).toBe(true);
+  });
+
   it('has copy for every issue kind it can raise', () => {
-    const kinds = ['price-invalid', 'line-total-mismatch', 'group-subtotal-mismatch', 'subtotal-mismatch', 'currency-mismatch', 'currency-invalid'] as const;
+    const kinds = ['price-invalid', 'line-total-mismatch', 'group-subtotal-mismatch', 'subtotal-mismatch', 'currency-mismatch', 'currency-invalid', 'quote-structure-invalid'] as const;
     for (const kind of kinds) expect(QUOTE_ISSUE_MESSAGES[kind].length).toBeGreaterThan(10);
   });
 });

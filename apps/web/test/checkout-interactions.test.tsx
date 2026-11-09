@@ -13,7 +13,7 @@ const cityA = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const cityB = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 
 const cities = [{ cityId: cityA, name: 'City A', code: 'A', storeCount: 1 }, { cityId: cityB, name: 'City B', code: 'B', storeCount: 2 }];
-const quote: QuoteInput = { quoteId: quoteId, cartId: cartId, currency: 'BDT', state: 'RESERVED', destinationCityId: cityB, subtotalMinor: '0', version: 1, expiresAt: '2100-01-01T00:00:00Z', closedAt: null, deliveryFeeMinor: null, totalMinor: null, paymentStatus: 'NOT_IMPLEMENTED', groups: [], items: [] };
+const quote: QuoteInput = { quoteId: quoteId, cartId: cartId, currency: 'BDT', state: 'RESERVED', destinationCityId: cityB, subtotalMinor: '0', version: 1, expiresAt: '2100-01-01T00:00:00Z', closedAt: null, deliveryFeeMinor: null, totalMinor: null, paymentStatus: 'NOT_IMPLEMENTED', groups: [{ groupId: 'group', storeId: 'store', subtotalMinor: '0', currency: 'BDT' }], items: [{ itemId: 'item', groupId: 'group', variantId: 'variant', productTitle: 'Fixture item', quantity: 1, unitPriceMinor: '0', lineTotalMinor: '0', currency: 'BDT' }] };
 const props = { cartId: cartId, cartVersion: 1, currency: 'BDT', cities, truncated: false, reservationUnavailable: null };
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
@@ -82,6 +82,33 @@ describe('quote safety and recovery', () => {
     expect(screen.getByText(/A line total no longer matches/)).toBeTruthy();
     expect(screen.getByRole('alert').querySelector('ul > li')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Release reserved stock' })).toBeTruthy();
+  });
+  it('withholds an orphaned line and subtotal, warns, and keeps the reservation releasable', () => {
+    render(<CheckoutPanel {...props} initialQuote={{ ...quote, subtotalMinor: '200', items: [{ ...item, groupId: 'missing', lineTotalMinor: '200' }], groups: [] }} />);
+    expect(screen.getByText('Line total unavailable')).toBeTruthy();
+    expect(screen.getByText('Unavailable')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('items or stores in this quote could not be verified');
+    expect(screen.getByRole('alert').querySelector('ul > li')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Release reserved stock' }).getAttribute('aria-disabled')).toBe('false');
+  });
+  it('labels an empty quote as unavailable rather than not quoted', () => {
+    render(<CheckoutPanel {...props} initialQuote={{ ...quote, items: [], groups: [] }} />);
+    expect(screen.getByText('Unavailable')).toBeTruthy();
+    expect(screen.queryByText('Not quoted yet')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Release reserved stock' })).toBeTruthy();
+  });
+  it('withholds every line when a duplicated identifier makes the quote ambiguous', () => {
+    const first = quote.items[0]!;
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      render(<CheckoutPanel {...props} initialQuote={{ ...quote, items: [first, { ...first, variantId: 'another' }] }} />);
+      expect(screen.getAllByText('Line total unavailable')).toHaveLength(2);
+      expect(screen.getByText('Unavailable')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Release reserved stock' })).toBeTruthy();
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
   it('renders malformed item currency as unavailable, not an exception', () => {
     render(<CheckoutPanel {...props} initialQuote={{ ...quote, currency: '', items: [{ ...item, currency: '', lineTotalMinor: '200' }], subtotalMinor: '200' }} />);

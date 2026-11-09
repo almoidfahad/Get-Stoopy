@@ -64,7 +64,8 @@ export type QuoteIssueKind =
   | 'group-subtotal-mismatch'
   | 'subtotal-mismatch'
   | 'currency-mismatch'
-  | 'currency-invalid';
+  | 'currency-invalid'
+  | 'quote-structure-invalid';
 
 export interface QuoteIssue {
   readonly kind: QuoteIssueKind;
@@ -78,7 +79,7 @@ export interface QuoteSummary {
   readonly lineCount: number;
   readonly unitCount: number;
   readonly storeCount: number;
-  /** null when any price is unparseable or currencies are mixed. */
+  /** null when prices are unparseable, currencies are mixed, or quote structure is inconsistent. */
   readonly subtotalMinor: bigint | null;
   readonly currency: string | null;
   /**
@@ -122,6 +123,35 @@ export function summarizeQuote(quote: QuoteInput, now: Date = new Date()): Quote
     issues.push({ kind: 'currency-invalid', itemId: null });
     currency = null;
   }
+  // A numerically matching subtotal is not enough: every line must belong to
+  // exactly one represented store group, without duplicate IDs or variants.
+  // UUIDs from the API are case-insensitive; use canonical keys for comparison.
+  const key = (id: string) => id.toLowerCase();
+  const groups = new Set<string>();
+  const stores = new Set<string>();
+  const itemIds = new Set<string>();
+  const variants = new Set<string>();
+  const usedGroups = new Set<string>();
+  let structureInvalid = quote.items.length === 0 || quote.groups.length === 0;
+  for (const group of quote.groups) {
+    const groupId = key(group.groupId);
+    const storeId = key(group.storeId);
+    if (!groupId.trim() || !storeId.trim() || groups.has(groupId) || stores.has(storeId)) structureInvalid = true;
+    groups.add(groupId);
+    stores.add(storeId);
+  }
+  for (const item of quote.items) {
+    const itemId = key(item.itemId);
+    const variantId = key(item.variantId);
+    const groupId = key(item.groupId);
+    if (!itemId.trim() || !variantId.trim() || !groupId.trim() || itemIds.has(itemId) || variants.has(variantId) || !groups.has(groupId)) structureInvalid = true;
+    itemIds.add(itemId);
+    variants.add(variantId);
+    usedGroups.add(groupId);
+  }
+  if ([...groups].some(groupId => !usedGroups.has(groupId))) structureInvalid = true;
+  if (structureInvalid) issues.push({ kind: 'quote-structure-invalid', itemId: null });
+
   const groupTotals = new Map<string, bigint>();
 
   for (const item of quote.items) {
@@ -144,7 +174,8 @@ export function summarizeQuote(quote: QuoteInput, now: Date = new Date()): Quote
       const expected = unit * BigInt(item.quantity);
       if (expected !== line) issues.push({ kind: 'line-total-mismatch', itemId: item.itemId });
       subtotal += line;
-      groupTotals.set(item.groupId, (groupTotals.get(item.groupId) ?? 0n) + line);
+      const groupId = key(item.groupId);
+      groupTotals.set(groupId, (groupTotals.get(groupId) ?? 0n) + line);
     } catch {
       issues.push({ kind: 'price-invalid', itemId: item.itemId });
       priceable = false;
@@ -161,7 +192,7 @@ export function summarizeQuote(quote: QuoteInput, now: Date = new Date()): Quote
       currency = null;
     }
     try {
-      if (parseMinorUnits(group.subtotalMinor) !== (groupTotals.get(group.groupId) ?? 0n)) {
+      if (parseMinorUnits(group.subtotalMinor) !== (groupTotals.get(key(group.groupId)) ?? 0n)) {
         issues.push({ kind: 'group-subtotal-mismatch', itemId: null });
       }
     } catch {
@@ -185,8 +216,8 @@ export function summarizeQuote(quote: QuoteInput, now: Date = new Date()): Quote
     secondsRemaining,
     lineCount: quote.items.length,
     unitCount: quote.items.reduce((total, item) => total + (Number.isInteger(item.quantity) ? item.quantity : 0), 0),
-    storeCount: new Set(quote.groups.map(group => group.storeId)).size,
-    subtotalMinor: priceable && !mixed && quote.items.length > 0 ? subtotal : null,
+    storeCount: stores.size,
+    subtotalMinor: priceable && !mixed && !structureInvalid ? subtotal : null,
     currency: mixed ? null : currency,
     totalsImplemented: quote.deliveryFeeMinor !== null && quote.totalMinor !== null,
     paymentImplemented: quote.paymentStatus !== 'NOT_IMPLEMENTED',
@@ -202,6 +233,7 @@ export const QUOTE_ISSUE_MESSAGES: Record<QuoteIssueKind, string> = {
   'subtotal-mismatch': 'The quote subtotal no longer matches its items. Release this quote and request a new one.',
   'currency-mismatch': 'This quote mixes currencies, so no total can be shown.',
   'currency-invalid': 'A currency in this quote is unavailable. Release it and request a new one.',
+  'quote-structure-invalid': 'The items or stores in this quote could not be verified. If stock is reserved, release this quote and request a new one.',
 };
 
 /** Buyer-facing copy for the codes the quote endpoints actually return. */
