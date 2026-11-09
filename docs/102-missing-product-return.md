@@ -1,0 +1,7 @@
+# Missing product return navigation
+
+The product-not-found screen now reconstructs a return link using only the supported, normalized shop search, category and cursor fields, not a user-supplied destination URL. With valid context it says “Back to results”; without it the link goes to the shop. Repeated parameters take the first value, consistent with the shop. The search/cursor preserve a query, not a snapshot or scroll position; a stale cursor may yield an empty listing. The client component uses the browser-safe core entry.
+
+Component tests cover valid filters, encoding, invalid context, ignored external destinations and repeated values. With JavaScript enabled and a synthetic local catalog returning a missing product, Chromium checked direct HTTP 404, keyboard navigation in both directions, retained query parameters, selected Axe checks and no overflow at 320, 390 and 1440 pixels. Typecheck, production web build and 537 tests passed locally. No live catalog or production configuration was changed.
+
+**Known limitation:** in the local Next production server, the direct product 404 response does not expose a visible product-not-found page with JavaScript disabled. The prior revision showed the same behavior; the new Suspense fallback alone does not fix it. This requires separate framework/rendering investigation. Browser tests are not full accessibility, cross-browser, real-device or live-backend signoff.

@@ -1,4 +1,4 @@
-import { buildShopQuery } from '@getstoopy/core';
+import { buildShopQuery } from '@getstoopy/core/browser';
 
 type SearchValue = string | string[] | undefined;
 export type ShopInput = Record<string, SearchValue>;
