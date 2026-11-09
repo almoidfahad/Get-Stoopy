@@ -1,6 +1,7 @@
-import { BadRequestException, Controller, Get, Inject, ParseUUIDPipe, Query } from '@nestjs/common';
+import { Controller, Get, Inject, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ServiceabilityService } from './serviceability.service.js';
+import { optionalPublicSearch } from '../common/public-query.js';
 
 /**
  * Public, read-only destination lookup for the storefront.
@@ -18,11 +19,8 @@ export class PublicServiceabilityController {
   @Get('cities')
   cities(
     @Query('countryId', ParseUUIDPipe) countryId: string,
-    @Query('q') q?: string,
+    @Query('q') q?: unknown,
   ) {
-    if (q !== undefined && q.length > 60) {
-      throw new BadRequestException({ code: 'QUERY_INVALID', message: 'q is too long' });
-    }
-    return this.serviceability.publicServiceableCities(countryId, q?.trim() ? q.trim() : undefined);
+    return this.serviceability.publicServiceableCities(countryId.toLowerCase(), optionalPublicSearch(q, 60));
   }
 }

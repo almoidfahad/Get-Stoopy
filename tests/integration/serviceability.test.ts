@@ -242,12 +242,14 @@ describe('public serviceable-city lookup', () => {
   });
 
   it('filters by name and rejects an over-long query', async () => {
-    const hit = await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}&q=Serviceability`).expect(200);
+    const hit = await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId.toUpperCase()}&q=Serviceability`).expect(200);
     expect(hit.body.items.some((c: any) => c.cityId === cityId)).toBe(true);
     const miss = await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}&q=NoSuchCityName`).expect(200);
     expect(miss.body.items).toEqual([]);
     const tooLong = await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}&q=${'x'.repeat(61)}`).expect(400);
     expect(tooLong.body.code).toBe('QUERY_INVALID');
+    expect((await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}&q=a&q=b`).expect(400)).body.code).toBe('QUERY_INVALID');
+    expect((await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}&q=a%00b`).expect(400)).body.code).toBe('QUERY_INVALID');
   });
 
   it('rejects a malformed country id and an unknown country', async () => {

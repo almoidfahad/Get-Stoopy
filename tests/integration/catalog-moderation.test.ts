@@ -173,6 +173,10 @@ describe('product moderation/publication gate and public catalog reads', () => {
     expect(detail.body.variants[0].priceAmountMinor).toBe('125000');
     const listed = await publicGet(`/api/v1/public/catalog/products?countryId=${countryId}&cityId=${cityId}&q=${runId}&limit=10`).expect(200);
     expect(listed.body.items.some((p: any) => p.id === productId)).toBe(true);
+    const uppercase = await publicGet(`/api/v1/public/catalog/products?countryId=${countryId.toUpperCase()}&cityId=${cityId.toUpperCase()}&q=${runId}`).expect(200);
+    expect(uppercase.body.items.some((p: any) => p.id === productId)).toBe(true);
+    expect((await publicGet(`/api/v1/public/catalog/products?countryId=${countryId}&q=a&q=b`).expect(400)).body.code).toBe('QUERY_INVALID');
+    expect((await publicGet(`/api/v1/public/catalog/products?countryId=${countryId}&q=a%00b`).expect(400)).body.code).toBe('QUERY_INVALID');
     const wrongCity = await publicGet(`/api/v1/public/catalog/products?countryId=${countryId}&cityId=${otherCityId}&q=${runId}`).expect(200);
     expect(wrongCity.body.items).toEqual([]);
     await post(`/api/v1/catalog/products/${productId}/variants`, owner, { sku: 'LOCKED-SKU', optionValues: {}, priceAmountMinor: '1000', currency: 'BDT' }).expect(409);
