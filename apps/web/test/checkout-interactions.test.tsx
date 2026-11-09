@@ -102,6 +102,73 @@ describe('quote safety and recovery', () => {
     finish(new Response(JSON.stringify({ ...quote, state: 'RELEASED', version: 2 }), { status: 200 }));
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Release reserved stock' })).toBeNull());
   });
+  it('keeps focus through a release and moves it to the quote heading when the control disappears', async () => {
+    let finish!: (value: Response) => void;
+    const fetchMock = vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<CheckoutPanel {...props} initialQuote={quote} />);
+    const button = screen.getByRole('button', { name: 'Release reserved stock' });
+    button.focus();
+    fireEvent.click(button);
+    expect(document.activeElement).toBe(button);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByText('Updating reservation…').getAttribute('role')).toBe('status');
+    fireEvent.click(button);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    finish(new Response(JSON.stringify({ ...quote, state: 'RELEASED', version: 2 }), { status: 200 }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Release reserved stock' })).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Quote' }));
+  });
+  it('moves focus to the quote when conflict recovery discovers it was already released', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ code: 'CHECKOUT_QUOTE_VERSION_CONFLICT' }), { status: 409 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...quote, state: 'RELEASED', version: 2 }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<CheckoutPanel {...props} initialQuote={quote} />);
+    const button = screen.getByRole('button', { name: 'Release reserved stock' });
+    button.focus(); fireEvent.click(button);
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Release reserved stock' })).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Quote' }));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it('does not steal focus when the user moves away while a release is pending', async () => {
+    let finish!: (value: Response) => void;
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; })));
+    render(<CheckoutPanel {...props} initialQuote={quote} />);
+    const button = screen.getByRole('button', { name: 'Release reserved stock' });
+    button.focus(); fireEvent.click(button);
+    const reserve = screen.getByRole('button', { name: 'Working…' });
+    reserve.focus();
+    finish(new Response(JSON.stringify({ ...quote, state: 'RELEASED', version: 2 }), { status: 200 }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Release reserved stock' })).toBeNull());
+    expect(document.activeElement).toBe(reserve);
+  });
+  it('keeps focus and the original retry payload after an uncertain reservation', async () => {
+    let finish!: (value: Response) => void;
+    const fetchMock = vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<CheckoutPanel {...props} initialQuote={null} />);
+    const button = screen.getByRole('button', { name: 'Reserve stock and get quote' });
+    button.focus();
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(button);
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: 'city-a' } });
+    fireEvent.click(button);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(document.activeElement).toBe(button);
+    fireEvent.click(button);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    finish(new Response('{}', { status: 503 }));
+    const retry = await screen.findByRole('button', { name: 'Retry same reservation request' });
+    expect(retry).toBe(button);
+    expect(document.activeElement).toBe(button);
+    expect(retry.getAttribute('aria-disabled')).toBe('false');
+    fireEvent.click(retry);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]![1].body).toBe(fetchMock.mock.calls[0]![1].body);
+    finish(new Response(JSON.stringify({ ...quote, destinationCityId: 'city-a' }), { status: 200 }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Release reserved stock' })).toBeTruthy());
+  });
   it('sends only one reservation request while one is in flight', async () => {
     let finish!: (value: Response) => void;
     const fetchMock = vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
@@ -167,7 +234,7 @@ describe('uncertain reservation requests', () => {
     await screen.findByRole('button', { name: 'Retry same reservation request' });
     rerender(<CheckoutPanel {...props} initialQuote={quote} />);
     expect(await screen.findByRole('button', { name: 'Release reserved stock' })).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Retry same reservation request' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Retry same reservation request' }).getAttribute('aria-disabled')).toBe('true');
     expect((screen.getByLabelText('City') as HTMLSelectElement).value).toBe('city-b');
   });
 });

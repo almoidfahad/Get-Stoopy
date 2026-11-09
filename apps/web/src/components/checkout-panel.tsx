@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import {
   QUOTE_ISSUE_MESSAGES,
   formatMinorUnits,
@@ -48,6 +48,9 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
   const attempt = useRef<ReservationAttempt | null>(null);
   const [uncertain, setUncertain] = useState(false);
   const inFlight = useRef(false);
+  const releaseButtonRef = useRef<HTMLButtonElement>(null);
+  const quoteHeadingRef = useRef<HTMLHeadingElement>(null);
+  const reservationHelpId = useId();
 
   useEffect(() => {
     setNow(Date.now());
@@ -69,9 +72,16 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
     );
   }, [initialQuote]);
 
+  function adoptReleasedQuote(next: QuoteInput) {
+    // The release control is removed when the quote no longer holds stock.
+    // Move focus only if the user is still on it, not if they moved elsewhere.
+    if (next.state !== 'RESERVED' && document.activeElement === releaseButtonRef.current) quoteHeadingRef.current?.focus();
+    setQuote(next);
+  }
+
   async function readExisting(id: string): Promise<void> {
     const res = await fetch(`/api/checkout/quotes/${encodeURIComponent(id)}`, { cache: 'no-store' });
-    if (res.ok) setQuote((await res.json()) as QuoteInput);
+    if (res.ok) adoptReleasedQuote((await res.json()) as QuoteInput);
   }
 
   async function reserve(): Promise<void> {
@@ -141,7 +151,7 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
         if (payload.code === 'CHECKOUT_QUOTE_VERSION_CONFLICT') await readExisting(quote.quoteId);
         return;
       }
-      setQuote(payload);
+      adoptReleasedQuote(payload);
       startTransition(() => router.refresh());
     } catch {
       setError(quoteErrorMessage('QUOTE_UNAVAILABLE', 502));
@@ -161,6 +171,7 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
   const reservedCityId = quote?.state === 'RESERVED' ? quote.destinationCityId : null;
   const selectedCityId = reservedCityId ?? (uncertain ? attempt.current?.destinationCityId : undefined) ?? cityId;
   const quoteCity = quote ? cities.find(city => city.cityId === quote.destinationCityId) : undefined;
+  const reserveBlocked = busy || (!uncertain && (!!reservationUnavailable || !cityId)) || quote?.state === 'RESERVED';
 
   return (
     <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
@@ -199,17 +210,20 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
           </p>
         ) : null}
 
+        {/* A focusable aria-disabled button requires an explicit activation guard. */}
         <button
           type="button"
-          onClick={reserve}
-          disabled={busy || (!uncertain && (!!reservationUnavailable || !cityId)) || quote?.state === 'RESERVED'}
-          className="mt-5 min-h-12 rounded-full bg-brand-red px-6 py-3 font-bold text-white hover:bg-brand-red-hover disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-700"
+          onClick={() => { if (!reserveBlocked) void reserve(); }}
+          aria-disabled={reserveBlocked}
+          aria-describedby={reservationHelpId}
+          className="mt-5 min-h-12 rounded-full bg-brand-red px-6 py-3 font-bold text-white hover:bg-brand-red-hover aria-disabled:cursor-not-allowed aria-disabled:bg-neutral-300 aria-disabled:text-neutral-700"
         >
           {busy ? 'Working…' : uncertain ? 'Retry same reservation request' : 'Reserve stock and get quote'}
         </button>
-        <p className="mt-2 text-sm text-neutral-600">
-          This holds the items for a short time. It is not an order and no payment is taken.
+        <p id={reservationHelpId} className="mt-2 text-sm text-neutral-600">
+          {quote?.state === 'RESERVED' ? 'Stock is already reserved for this quote. ' : reservationUnavailable && !uncertain ? `${reservationUnavailable} ` : !cityId && !uncertain ? 'Choose a delivery city before requesting a quote. ' : ''}This holds the items for a short time. It is not an order and no payment is taken.
         </p>
+        {busy ? <p role="status" className="sr-only">Updating reservation…</p> : null}
 
         {reservationUnavailable ? (
           <p role="status" className="mt-4 text-sm text-neutral-700">{reservationUnavailable}</p>
@@ -224,8 +238,8 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
         {quote && summary ? (
           <div className="mt-6 rounded-xl border border-neutral-200 bg-neutral-50 p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-semibold">Quote</h3>
-              <span className="rounded-full border border-neutral-300 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
+              <h3 ref={quoteHeadingRef} tabIndex={-1} className="font-semibold">Quote</h3>
+              <span role="status" className="rounded-full border border-neutral-300 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
                 {summary.status}
               </span>
             </div>
@@ -275,9 +289,10 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
             {summary.canRelease ? (
               <button
                 type="button"
-                onClick={release}
-                disabled={busy}
-                className="mt-4 min-h-11 rounded-full border border-neutral-400 bg-white px-5 py-2 text-sm font-bold hover:border-neutral-900 disabled:cursor-not-allowed disabled:opacity-60"
+                ref={releaseButtonRef}
+                onClick={() => { if (!busy) void release(); }}
+                aria-disabled={busy}
+                className="mt-4 min-h-11 rounded-full border border-neutral-400 bg-white px-5 py-2 text-sm font-bold hover:border-neutral-900 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
               >
                 Release reserved stock
               </button>

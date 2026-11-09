@@ -24,6 +24,6 @@ describe('checkout panel reservation safeguards', () => {
     const html = renderToStaticMarkup(<CheckoutPanel {...props} initialQuote={quote} reservationUnavailable="Cities unavailable" />);
     expect(html).toContain('Cities unavailable');
     expect(html).toMatch(/<select[^>]*disabled=""/);
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Reserve stock and get quote/);
+    expect(html).toMatch(/<button[^>]*aria-disabled="true"[^>]*>Reserve stock and get quote/);
   });
 });
