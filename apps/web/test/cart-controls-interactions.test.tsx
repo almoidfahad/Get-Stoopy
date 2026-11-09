@@ -19,7 +19,7 @@ describe('cart controls interactions', () => {
     expect(input.getAttribute('aria-invalid')).toBe('true');
     expect(screen.getByText('Enter a whole number between 1 and 100.')).toBeTruthy();
     const button = screen.getByRole('button', { name: 'Add to cart' }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(button);
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -27,16 +27,16 @@ describe('cart controls interactions', () => {
     render(<AddToCart variants={variants} signedIn />);
     const select = screen.getByLabelText('Option') as HTMLSelectElement;
     expect(select.value).toBe('');
-    expect((screen.getByRole('button', { name: 'Add to cart' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Add to cart' }).getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByRole('option', { name: 'Small — BDT 12.00 each' })).toBeTruthy();
     fireEvent.change(select, { target: { value: 'two' } });
     expect(screen.getByText(/Selected:/).textContent).toContain('Large · BDT 14.00 each');
-    expect((screen.getByRole('button', { name: 'Add to cart' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole('button', { name: 'Add to cart' }).getAttribute('aria-disabled')).toBe('false');
   });
   it('asks for a choice even when only one option can be ordered', () => {
     render(<AddToCart variants={[variants[0]!]} signedIn />);
     expect((screen.getByLabelText('Option') as HTMLSelectElement).value).toBe('');
-    expect((screen.getByRole('button', { name: 'Add to cart' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Add to cart' }).getAttribute('aria-disabled')).toBe('true');
     fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'one' } });
     expect(screen.getByText(/Selected:/).textContent).toContain('Small · BDT 12.00 each');
   });
@@ -65,9 +65,9 @@ describe('cart controls interactions', () => {
     const select = screen.getByLabelText('Option') as HTMLSelectElement;
     const button = screen.getByRole('button', { name: 'Add to cart' }) as HTMLButtonElement;
     expect(select.value).toBe('');
-    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
     fireEvent.change(select, { target: { value: 'one' } });
-    expect(button.disabled).toBe(false);
+    expect(button.getAttribute('aria-disabled')).toBe('false');
   });
   it('does not restore a vanished choice that later reappears', () => {
     const { rerender } = render(<AddToCart variants={variants} signedIn />);
@@ -75,7 +75,7 @@ describe('cart controls interactions', () => {
     rerender(<AddToCart variants={[variants[0]!]} signedIn />);
     rerender(<AddToCart variants={variants} signedIn />);
     expect((screen.getByLabelText('Option') as HTMLSelectElement).value).toBe('');
-    expect((screen.getByRole('button', { name: 'Add to cart' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Add to cart' }).getAttribute('aria-disabled')).toBe('true');
   });
   it('disables inputs during an in-flight request and avoids duplicate posts', async () => {
     let finish!: (value: Response) => void;
@@ -90,6 +90,31 @@ describe('cart controls interactions', () => {
     finish(new Response('{}', { status: 200 }));
     await waitFor(() => expect(screen.getByRole('status')).toBeTruthy());
   });
+  it('preserves button focus during a pending request and an uncertain outcome without allowing another add', async () => {
+    let finish!: (response: Response) => void;
+    const fetchMock = vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AddToCart variants={variants} signedIn />);
+    const button = screen.getByRole('button', { name: 'Add to cart' });
+    button.focus();
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(button);
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'one' } });
+    fireEvent.click(button);
+    expect(document.activeElement).toBe(button);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(button);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    finish(new Response('{}', { status: 503 }));
+    await screen.findByRole('alert');
+    expect(document.activeElement).toBe(button);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    const description = button.getAttribute('aria-describedby');
+    expect(description && document.getElementById(description)?.textContent).toContain('Check your cart');
+    fireEvent.click(button);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it.each(['network', 'server'] as const)('requires acknowledgement after an ambiguous %s add outcome', async failure => {
     const fetchMock = failure === 'network' ? vi.fn().mockRejectedValue(new Error('offline')) : vi.fn().mockResolvedValue(new Response('{}', { status: 503 }));
     vi.stubGlobal('fetch', fetchMock);
@@ -100,14 +125,17 @@ describe('cart controls interactions', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('result is unknown');
     expect(screen.getByRole('link', { name: 'View cart' }).getAttribute('href')).toBe('/cart');
     expect(screen.getByText(/reload cannot guarantee/)).toBeTruthy();
-    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
     fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: '2' } });
-    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByRole('alert')).toBeTruthy();
     fireEvent.click(button);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: 'I understand, enable adding again' }));
-    expect(button.disabled).toBe(false);
+    const acknowledge = screen.getByRole('button', { name: 'I understand, enable adding again' });
+    acknowledge.focus();
+    fireEvent.click(acknowledge);
+    expect(document.activeElement).toBe(button);
+    expect(button.getAttribute('aria-disabled')).toBe('false');
     expect(screen.queryByRole('alert')).toBeNull();
   });
   it('does not mark an explicit rejected request as an unknown outcome', async () => {

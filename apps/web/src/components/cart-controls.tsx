@@ -96,6 +96,9 @@ export function AddToCart({
 }) {
   const { send, error, done, uncertain, working, clearFeedback, acknowledgeUncertain } = useCartMutation();
   const quantityHelpId = useId();
+  const selectionHelpId = useId();
+  const uncertainHelpId = useId();
+  const addButtonRef = useRef<HTMLButtonElement>(null);
   const [quantity, setQuantity] = useState('1');
   const [selected, setSelected] = useState('');
   const selectedOption = variants.find(variant => variant.id === selected);
@@ -145,25 +148,29 @@ export function AddToCart({
             className="min-h-12 w-24 rounded-xl border border-neutral-300 bg-white px-3 py-2"
           />
         </label>
+        {/* Keep focus through pending/uncertain states; aria-disabled needs the explicit click guard below. */}
         <button
           type="button"
-          disabled={disabled || working}
-          onClick={() => void send('POST', { variantId: effectiveSelected, quantity: Number(quantity) })}
-          className="min-h-12 rounded-full bg-brand-red px-6 py-3 font-bold text-white hover:bg-brand-red-hover disabled:cursor-not-allowed disabled:opacity-50"
+          ref={addButtonRef}
+          aria-disabled={disabled || working}
+          aria-describedby={[!selectedAvailable ? selectionHelpId : null, !validQuantity ? quantityHelpId : null, uncertain ? uncertainHelpId : null].filter(Boolean).join(' ') || undefined}
+          onClick={() => { if (!disabled && !working) void send('POST', { variantId: effectiveSelected, quantity: Number(quantity) }); }}
+          className="min-h-12 rounded-full bg-brand-red px-6 py-3 font-bold text-white hover:bg-brand-red-hover aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
         >
           {working ? 'Adding…' : 'Add to cart'}
         </button>
       </div>
-      <p aria-live="polite" className="text-sm leading-6 text-neutral-700 [overflow-wrap:anywhere]">{selectedOption ? <>Selected: <span className="font-semibold">{selectedOption.label}</span> · {selectedOption.priceLabel} each</> : 'Choose an option before adding to your cart.'}</p>
+      <p id={selectionHelpId} aria-live="polite" className="text-sm leading-6 text-neutral-700 [overflow-wrap:anywhere]">{selectedOption ? <>Selected: <span className="font-semibold">{selectedOption.label}</span> · {selectedOption.priceLabel} each</> : 'Choose an option before adding to your cart.'}</p>
       <p className="text-xs leading-5 text-neutral-600">Price and availability may change; adding to your cart does not reserve stock.</p>
       {!validQuantity ? <p id={quantityHelpId} className="text-sm font-medium text-brand-red">Enter a whole number between 1 and 100.</p> : null}
+      {working ? <p role="status" className="sr-only">Adding to cart…</p> : null}
       {error ? <p role="alert" className="text-sm font-medium text-brand-red">{error}</p> : null}
       {uncertain ? (
-        <div className="rounded-xl border border-red-200 bg-white p-4 text-sm leading-6 text-neutral-800">
+        <div id={uncertainHelpId} className="rounded-xl border border-red-200 bg-white p-4 text-sm leading-6 text-neutral-800">
           <p>Check your cart before adding again. A reload cannot guarantee that an earlier request won’t finish later.</p>
           <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1">
             <a href="/cart" className="inline-flex min-h-11 items-center font-bold text-brand-red underline">View cart</a>
-            <button type="button" onClick={acknowledgeUncertain} className="min-h-11 text-left font-bold text-neutral-900 underline">I understand, enable adding again</button>
+            <button type="button" onClick={() => { acknowledgeUncertain(); addButtonRef.current?.focus(); }} className="min-h-11 text-left font-bold text-neutral-900 underline">I understand, enable adding again</button>
           </div>
         </div>
       ) : null}
