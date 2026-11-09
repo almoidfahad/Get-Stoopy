@@ -35,6 +35,31 @@ function newAttemptId(): string {
   return crypto.randomUUID();
 }
 
+// A 2xx response with an unreadable or unrelated quote does not prove release.
+// Validate the fields used to render before adopting a release response.
+function isReleasedQuote(value: unknown, previous: QuoteInput): value is QuoteInput {
+  if (!value || typeof value !== 'object') return false;
+  const q = value as Record<string, unknown>;
+  if (q.quoteId !== previous.quoteId || q.cartId !== previous.cartId || typeof q.state !== 'string' || !['RELEASED', 'EXPIRED', 'CONSUMED'].includes(q.state) ||
+      !Number.isInteger(q.version) || (q.version as number) < previous.version || typeof q.currency !== 'string' ||
+      typeof q.destinationCityId !== 'string' || typeof q.subtotalMinor !== 'string' || typeof q.expiresAt !== 'string' ||
+      !(q.closedAt === null || typeof q.closedAt === 'string') || !(q.deliveryFeeMinor === null || typeof q.deliveryFeeMinor === 'string') ||
+      !(q.totalMinor === null || typeof q.totalMinor === 'string') || typeof q.paymentStatus !== 'string' ||
+      !Array.isArray(q.items) || !Array.isArray(q.groups)) return false;
+  return q.items.every((value: unknown) => {
+    if (!value || typeof value !== 'object') return false;
+    const item = value as Record<string, unknown>;
+    return typeof item.itemId === 'string' && typeof item.groupId === 'string' && typeof item.variantId === 'string' &&
+      typeof item.productTitle === 'string' && typeof item.quantity === 'number' && Number.isFinite(item.quantity) &&
+      typeof item.unitPriceMinor === 'string' && typeof item.lineTotalMinor === 'string' && typeof item.currency === 'string';
+  }) && q.groups.every((value: unknown) => {
+    if (!value || typeof value !== 'object') return false;
+    const group = value as Record<string, unknown>;
+    return typeof group.groupId === 'string' && typeof group.storeId === 'string' &&
+      typeof group.subtotalMinor === 'string' && typeof group.currency === 'string';
+  });
+}
+
 export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, reservationUnavailable }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -47,6 +72,7 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
   // not just its key: a refresh can change cartVersion in this same component.
   const attempt = useRef<ReservationAttempt | null>(null);
   const [uncertain, setUncertain] = useState(false);
+  const [releaseUncertain, setReleaseUncertain] = useState(false);
   const inFlight = useRef(false);
   const releaseButtonRef = useRef<HTMLButtonElement>(null);
   const quoteHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -85,7 +111,7 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
   }
 
   async function reserve(): Promise<void> {
-    if (inFlight.current || (reservationUnavailable && !attempt.current) || quote?.state === 'RESERVED') return;
+    if (inFlight.current || releaseUncertain || (reservationUnavailable && !attempt.current) || quote?.state === 'RESERVED') return;
     if (!cityId && !attempt.current) {
       setError('Choose a delivery city first.');
       return;
@@ -135,7 +161,7 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
   }
 
   async function release(): Promise<void> {
-    if (!quote || inFlight.current) return;
+    if (!quote || inFlight.current || releaseUncertain) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -147,14 +173,25 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
       });
       const payload = (await res.json().catch(() => ({}))) as QuoteInput & { code?: string };
       if (!res.ok) {
-        setError(quoteErrorMessage(payload.code, res.status));
-        if (payload.code === 'CHECKOUT_QUOTE_VERSION_CONFLICT') await readExisting(quote.quoteId);
+        if (res.status >= 500) {
+          setReleaseUncertain(true);
+          setError('The release result is unknown. Stock may still be held, or it may have been released.');
+        } else {
+          setError(quoteErrorMessage(payload.code, res.status));
+          if (payload.code === 'CHECKOUT_QUOTE_VERSION_CONFLICT') await readExisting(quote.quoteId);
+        }
+        return;
+      }
+      if (!isReleasedQuote(payload, quote)) {
+        setReleaseUncertain(true);
+        setError('The release result is unknown. Stock may still be held, or it may have been released.');
         return;
       }
       adoptReleasedQuote(payload);
       startTransition(() => router.refresh());
     } catch {
-      setError(quoteErrorMessage('QUOTE_UNAVAILABLE', 502));
+      setReleaseUncertain(true);
+      setError('The release result is unknown. Stock may still be held, or it may have been released.');
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -171,7 +208,7 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
   const reservedCityId = quote?.state === 'RESERVED' ? quote.destinationCityId : null;
   const selectedCityId = reservedCityId ?? (uncertain ? attempt.current?.destinationCityId : undefined) ?? cityId;
   const quoteCity = quote ? cities.find(city => city.cityId === quote.destinationCityId) : undefined;
-  const reserveBlocked = busy || (!uncertain && (!!reservationUnavailable || !cityId)) || quote?.state === 'RESERVED';
+  const reserveBlocked = busy || releaseUncertain || (!uncertain && (!!reservationUnavailable || !cityId)) || quote?.state === 'RESERVED';
 
   return (
     <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
@@ -190,7 +227,7 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
         <select
           id="destination-city"
           value={selectedCityId}
-          disabled={busy || uncertain || !!reservationUnavailable || quote?.state === 'RESERVED'}
+          disabled={busy || uncertain || releaseUncertain || !!reservationUnavailable || quote?.state === 'RESERVED'}
           onChange={event => {
             setCityId(event.target.value);
           }}
@@ -221,7 +258,7 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
           {busy ? 'Working…' : uncertain ? 'Retry same reservation request' : 'Reserve stock and get quote'}
         </button>
         <p id={reservationHelpId} className="mt-2 text-sm text-neutral-600">
-          {quote?.state === 'RESERVED' ? 'Stock is already reserved for this quote. ' : reservationUnavailable && !uncertain ? `${reservationUnavailable} ` : !cityId && !uncertain ? 'Choose a delivery city before requesting a quote. ' : ''}This holds the items for a short time. It is not an order and no payment is taken.
+          {releaseUncertain ? 'Release status is unknown; reload checkout to check it. ' : quote?.state === 'RESERVED' ? 'Stock is already reserved for this quote. ' : reservationUnavailable && !uncertain ? `${reservationUnavailable} ` : !cityId && !uncertain ? 'Choose a delivery city before requesting a quote. ' : ''}This holds the items for a short time. It is not an order and no payment is taken.
         </p>
         {busy ? <p role="status" className="sr-only">Updating reservation…</p> : null}
 
@@ -235,18 +272,25 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
           </p>
         ) : null}
 
+        {releaseUncertain ? (
+          <div className="mt-4 rounded-lg border border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-800">
+            <p>Reload checkout to check the latest quote. The earlier request may still finish after the reload.</p>
+            <a href="/checkout" className="mt-2 inline-flex min-h-11 items-center font-bold text-brand-red underline">Reload checkout</a>
+          </div>
+        ) : null}
+
         {quote && summary ? (
           <div className="mt-6 rounded-xl border border-neutral-200 bg-neutral-50 p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 ref={quoteHeadingRef} tabIndex={-1} className="font-semibold">Quote</h3>
               <span role="status" className="rounded-full border border-neutral-300 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
-                {summary.status}
+                {releaseUncertain ? `Last known: ${summary.status}` : summary.status}
               </span>
             </div>
 
             <p className="mt-3 text-sm text-neutral-700">Quote city: <span className="font-semibold">{quoteCity?.name ?? 'City details unavailable'}</span></p>
 
-            {summary.status === 'reserved' ? (
+            {!releaseUncertain && summary.status === 'reserved' ? (
               <p className="mt-2 text-sm text-neutral-700">
                 Stock held for{' '}
                 <span className="font-semibold">
@@ -254,10 +298,10 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
                 </span>
               </p>
             ) : null}
-            {summary.status === 'unknown' ? (
+            {!releaseUncertain && summary.status === 'unknown' ? (
               <p className="mt-2 text-sm text-neutral-700">{summary.canRelease ? 'Reservation expiry is unavailable. Stock may still be held; you can release it below.' : 'The stock-hold status is unavailable. Refresh this page and try again.'}</p>
             ) : null}
-            {summary.status === 'expired' ? (
+            {!releaseUncertain && summary.status === 'expired' ? (
               <p className="mt-2 text-sm text-neutral-700">
                 {summary.canRelease
                   ? 'This quote has expired. Release it to return the stock, then request a new one.'
@@ -290,13 +334,13 @@ export function CheckoutPanel({ cartVersion, cities, truncated, initialQuote, re
               <button
                 type="button"
                 ref={releaseButtonRef}
-                onClick={() => { if (!busy) void release(); }}
-                aria-disabled={busy}
+                onClick={() => { if (!busy && !releaseUncertain) void release(); }}
+                aria-disabled={busy || releaseUncertain}
                 className="mt-4 min-h-11 rounded-full border border-neutral-400 bg-white px-5 py-2 text-sm font-bold hover:border-neutral-900 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
               >
                 Release reserved stock
               </button>
-            ) : summary.status !== 'unknown' ? (
+            ) : !releaseUncertain && summary.status !== 'unknown' ? (
               <p className="mt-4 text-sm text-neutral-700">
                 No stock is held by this quote any more.
               </p>

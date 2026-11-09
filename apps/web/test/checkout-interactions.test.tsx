@@ -91,6 +91,45 @@ describe('quote safety and recovery', () => {
     expect(screen.getByText(/stock-hold status is unavailable/)).toBeTruthy();
     expect(screen.queryByText(/No stock is held/)).toBeNull();
   });
+  it.each(['network', 'server', 'malformed-json', 'wrong-quote', 'reserved', 'malformed-items'] as const)(
+    'treats %s release responses as uncertain and prevents a new action until reload', async kind => {
+      const fetchMock = kind === 'network' ? vi.fn().mockRejectedValue(new Error('offline')) : vi.fn().mockResolvedValue(
+        kind === 'server' ? new Response('{}', { status: 503 }) :
+        kind === 'malformed-json' ? new Response('not json', { status: 200 }) :
+        new Response(JSON.stringify({ ...quote, state: kind === 'reserved' ? 'RESERVED' : 'RELEASED', version: 2,
+          quoteId: kind === 'wrong-quote' ? 'another-quote' : quote.quoteId,
+          items: kind === 'malformed-items' ? [{ itemId: 'broken' }] : [] }), { status: 200 })
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      const { rerender } = render(<CheckoutPanel {...props} initialQuote={quote} />);
+      const release = screen.getByRole('button', { name: 'Release reserved stock' });
+      release.focus(); fireEvent.click(release);
+      expect((await screen.findByRole('alert')).textContent).toContain('release result is unknown');
+      expect(document.activeElement).toBe(release);
+      expect(release.getAttribute('aria-disabled')).toBe('true');
+      expect(screen.getByText('Last known: reserved')).toBeTruthy();
+      expect(screen.queryByText(/Stock held for/)).toBeNull();
+      expect(screen.queryByText(/Stock is already reserved for this quote/)).toBeNull();
+      expect(screen.getByText(/earlier request may still finish after the reload/)).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Reload checkout' }).getAttribute('href')).toBe('/checkout');
+      fireEvent.click(release);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      rerender(<CheckoutPanel {...props} initialQuote={{ ...quote, state: 'RELEASED', version: 2 }} />);
+      const reserve = await screen.findByRole('button', { name: 'Reserve stock and get quote' });
+      expect(reserve.getAttribute('aria-disabled')).toBe('true');
+      fireEvent.click(reserve);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText(/No stock is held by this quote/)).toBeNull();
+    },
+  );
+  it('does not classify an explicit release rejection as an unknown outcome', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'ORIGIN_DENIED' }), { status: 403 })));
+    render(<CheckoutPanel {...props} initialQuote={quote} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Release reserved stock' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('request was rejected');
+    expect(screen.queryByRole('link', { name: 'Reload checkout' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Release reserved stock' }).getAttribute('aria-disabled')).toBe('false');
+  });
   it('sends only one release request while one is in flight', async () => {
     let finish!: (value: Response) => void;
     const fetchMock = vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
