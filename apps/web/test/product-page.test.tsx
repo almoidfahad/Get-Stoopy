@@ -14,7 +14,7 @@ const product = {
   images: [{ id: 'image-1', altText: 'Product view' }, { id: 'image-2', altText: 'Side view' }],
   variants: [{ id: 'v1', title: 'Small', priceAmountMinor: '1200', inStock: true, availableToPromise: 3 }, { id: 'v2', title: 'Large', priceAmountMinor: '1400', inStock: false, availableToPromise: 0 }],
 };
-async function render() { return renderToStaticMarkup(await ProductPage({ params: Promise.resolve({ id: 'product-1' }) })); }
+async function render(searchParams: Record<string, string | string[]> = {}) { return renderToStaticMarkup(await ProductPage({ params: Promise.resolve({ id: 'product-1' }), searchParams: Promise.resolve(searchParams) })); }
 beforeEach(() => { vi.clearAllMocks(); mocks.session.mockResolvedValue(false); });
 
 describe('product detail', () => {
@@ -41,6 +41,27 @@ describe('product detail', () => {
     expect(html).toContain('Small — BDT');
     expect(html).toContain('does not reserve stock');
     expect(html).not.toContain('<option value="v2">');
+  });
+  it('returns to the canonical filtered results and retains them when retrying an unavailable product', async () => {
+    const categoryId = '00000000-0000-4000-8000-000000000001';
+    const cursor = '00000000-0000-4000-8000-000000000002';
+    const params = { q: 'chair & table', categoryId, cursor, returnTo: 'https://evil.example/' };
+    mocks.product.mockResolvedValue({ state: 'ok', data: product });
+    const html = await render(params);
+    expect(html).toContain('Back to results');
+    expect(html).toContain('href="/shop?q=chair+%26+table&amp;categoryId=' + categoryId + '&amp;cursor=' + cursor + '"');
+    expect(html).not.toContain('evil.example');
+    mocks.product.mockResolvedValue({ state: 'unavailable' });
+    const unavailable = await render(params);
+    expect(unavailable).toContain('Back to results');
+    expect(unavailable).toContain('/shop/product-1?q=chair+%26+table&amp;categoryId=' + categoryId + '&amp;cursor=' + cursor);
+  });
+  it('falls back to shop for absent or invalid return context', async () => {
+    mocks.product.mockResolvedValue({ state: 'ok', data: product });
+    const html = await render({ q: 'x'.repeat(121), cursor: '//evil.example', categoryId: 'invalid', returnTo: 'https://evil.example' });
+    expect(html).toContain('Back to shop');
+    expect(html).not.toContain('evil.example');
+    expect(html).not.toContain('Back to results');
   });
   it('handles out-of-stock and missing images without fabricated values', async () => {
     mocks.product.mockResolvedValue({ state: 'ok', data: { ...product, images: [], variants: [{ ...product.variants[1], inStock: false }] } });

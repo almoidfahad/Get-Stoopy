@@ -8,11 +8,15 @@ import { fetchProduct } from '@/lib/catalog';
 import { ProductGallery } from '@/components/product-gallery';
 import { hasSessionCookie } from '@/lib/cart';
 import { AddToCart } from '@/components/cart-controls';
+import { productHref, shopHref, type ShopInput } from '@/lib/shop-query';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProductPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<ShopInput> }) {
   const { id } = await params;
+  const context = await searchParams;
+  const returnHref = shopHref(context);
+  const backLabel = returnHref === '/shop' ? 'Back to shop' : 'Back to results';
   const result = await fetchProduct(id);
 
   if (result.state === 'not-found') notFound();
@@ -25,8 +29,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <h1 className="mt-4 text-2xl font-black tracking-tight">{result.state === 'not-configured' ? 'Our shop is getting ready' : 'Product unavailable'}</h1>
           <p className="mt-2 text-sm leading-6 text-neutral-700">{result.state === 'not-configured' ? 'Products aren’t available to browse here yet. Please check back later.' : 'The catalog service could not be reached. Please try again shortly.'}</p>
           <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-1">
-            {result.state === 'unavailable' ? <a href={`/shop/${encodeURIComponent(id)}`} className="inline-flex min-h-11 items-center text-sm font-bold text-brand-red hover:underline">Try again</a> : null}
-            <Link href="/shop" className="inline-flex min-h-11 items-center gap-2 text-sm font-bold text-brand-red hover:underline"><ArrowLeft size={16} aria-hidden="true" /> Back to shop</Link>
+            {result.state === 'unavailable' ? <a href={productHref(id, context)} className="inline-flex min-h-11 items-center text-sm font-bold text-brand-red hover:underline">Try again</a> : null}
+            <Link href={returnHref} className="inline-flex min-h-11 items-center gap-2 text-sm font-bold text-brand-red hover:underline"><ArrowLeft size={16} aria-hidden="true" /> {backLabel}</Link>
           </div>
         </div>
       </Shell>
@@ -50,6 +54,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   return (
     <Shell>
+      <Link href={returnHref} className="mb-4 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-brand-red hover:underline"><ArrowLeft size={16} aria-hidden="true" /> {backLabel}</Link>
       <nav aria-label="Breadcrumb" className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-neutral-600 [overflow-wrap:anywhere]">
         <Link href="/shop" className="hover:text-brand-red">Shop</Link>
         {product.category ? <><span aria-hidden="true" className="text-neutral-400">/</span><Link href={`/shop?${new URLSearchParams({ categoryId: product.category.id }).toString()}`} className="hover:text-brand-red">{product.category.name}</Link></> : null}

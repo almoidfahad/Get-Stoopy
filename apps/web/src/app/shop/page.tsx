@@ -3,24 +3,9 @@ import { ArrowRight, PackageSearch, Search } from 'lucide-react';
 import { Shell } from '@/components/shell';
 import { ProductCard } from '@/components/product-card';
 import { fetchCategories, fetchProducts, type PublicCategory } from '@/lib/catalog';
-import { isValidShopCursor, normalizeShopQuery } from '@/lib/shop-query';
+import { isValidShopCursor, normalizeShopQuery, shopHref } from '@/lib/shop-query';
 
 export const dynamic = 'force-dynamic';
-
-interface ShopSearchParams {
-  q?: string | undefined;
-  categoryId?: string | undefined;
-  cursor?: string | undefined;
-}
-
-function shopHref(params: ShopSearchParams): string {
-  const search = new URLSearchParams();
-  if (params.q) search.set('q', params.q);
-  if (params.categoryId) search.set('categoryId', params.categoryId);
-  if (params.cursor) search.set('cursor', params.cursor);
-  const query = search.toString();
-  return query ? `/shop?${query}` : '/shop';
-}
 
 /** Shared category links retain search while returning to the first page. */
 function CategoryLinks({ categories, q, categoryId }: { categories: PublicCategory[]; q: string | undefined; categoryId: string | undefined }) {
@@ -98,7 +83,7 @@ export default async function ShopPage({
             ) : products.data.items.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-8"><PackageSearch size={28} className="text-brand-red" aria-hidden="true" /><h3 className="mt-4 text-lg font-bold">No products found</h3><p className="mt-2 break-words text-sm leading-6 text-neutral-700 [overflow-wrap:anywhere]">{cursor ? 'There are no products on this page.' : q ? `Nothing matched “${q}”.` : categoryId ? 'No published products were found in this category.' : 'No published products are available in this market yet.'}</p>{cursor ? <Link href={shopHref({ ...(q ? { q } : {}), ...(categoryId ? { categoryId } : {}) })} className="mt-4 inline-block text-sm font-bold text-brand-red hover:underline">Back to first page</Link> : q || categoryId ? <Link href="/shop" className="mt-4 inline-block text-sm font-bold text-brand-red hover:underline">Clear filters</Link> : null}</div>
             ) : (
-              <><p className="mb-4 text-sm text-neutral-600">Showing {products.data.items.length} {products.data.items.length === 1 ? 'product' : 'products'} on this page.</p><ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">{products.data.items.map(product => <ProductCard key={product.id} product={product} />)}</ul>
+              <><p className="mb-4 text-sm text-neutral-600">Showing {products.data.items.length} {products.data.items.length === 1 ? 'product' : 'products'} on this page.</p><ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">{products.data.items.map(product => <ProductCard key={product.id} product={product} shopContext={{ q, categoryId, cursor }} />)}</ul>
                 {cursor || products.data.nextCursor ? <nav aria-label="Product pages" className="mt-8 flex flex-wrap items-center gap-3">{cursor ? <Link href={shopHref({ ...(q ? { q } : {}), ...(categoryId ? { categoryId } : {}) })} className="inline-flex min-h-12 items-center rounded-full border border-neutral-300 px-6 py-3 text-sm font-bold hover:border-neutral-900">First page</Link> : null}{products.data.nextCursor && isValidShopCursor(products.data.nextCursor) ? <Link href={shopHref({ ...(q ? { q } : {}), ...(categoryId ? { categoryId } : {}), cursor: products.data.nextCursor })} className="inline-flex min-h-12 items-center gap-2 rounded-full border border-neutral-300 px-6 py-3 text-sm font-bold hover:border-neutral-900" rel="next">Next page <ArrowRight size={16} /></Link> : null}{products.data.nextCursor && !isValidShopCursor(products.data.nextCursor) ? <p role="status" className="text-sm text-neutral-700">The next page is temporarily unavailable. Please try again later.</p> : null}</nav> : null}
               </>
             )}

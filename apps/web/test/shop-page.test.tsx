@@ -24,6 +24,14 @@ describe('shop page', () => {
     expect(html).toContain('rel="next"');
   });
 
+  it('keeps the applied search, category and current page on product links', async () => {
+    mocks.products.mockResolvedValue({ state: 'ok', data: { items: [{ id: 'p1', title: 'Item', currency: 'BDT', variants: [], images: [] }], nextCursor: null } });
+    const cursor = '00000000-0000-4000-8000-000000000003';
+    const html = await render({ q: 'chair & table', categoryId: category.id, cursor, ignored: 'https://evil.example' });
+    expect(html).toContain(`/shop/p1?q=chair+%26+table&amp;categoryId=${category.id}&amp;cursor=${cursor}`);
+    expect(html).not.toContain('evil.example');
+  });
+
   it('offers a mobile category disclosure and individually removable applied filters', async () => {
     mocks.products.mockResolvedValue({ state: 'ok', data: { items: [], nextCursor: null } });
     const html = await render({ q: 'chair & table', categoryId: category.id, cursor: '00000000-0000-4000-8000-000000000003' });

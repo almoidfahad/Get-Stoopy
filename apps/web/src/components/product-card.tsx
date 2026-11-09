@@ -3,12 +3,13 @@ import { summarizeVariantPrices } from '@getstoopy/core';
 import { formatCatalogPrice } from '@/lib/catalog-price';
 import type { PublicProduct } from '@/lib/catalog';
 import { ProductCardImage } from '@/components/product-card-image';
+import { productHref, type ShopInput } from '@/lib/shop-query';
 
 /**
  * A catalog card. Renders no price at all when nothing is orderable, rather than
  * a misleading zero, and states out-of-stock explicitly.
  */
-export function ProductCard({ product }: { product: PublicProduct }) {
+export function ProductCard({ product, shopContext }: { product: PublicProduct; shopContext?: ShopInput }) {
   const currency = product.currency;
   const summary = summarizeVariantPrices(product.variants.filter(variant => formatCatalogPrice(variant.priceAmountMinor, currency) !== null));
   const anyInStock = product.variants.some(variant => variant.inStock && variant.availableToPromise > 0);
@@ -19,7 +20,7 @@ export function ProductCard({ product }: { product: PublicProduct }) {
   return (
     <li className="group flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white">
       <Link
-        href={`/shop/${product.id}`}
+        href={productHref(product.id, shopContext)}
         className="flex h-full flex-col"
         aria-label={`${product.title}${anyInStock ? '' : ' — out of stock'}`}
       >
