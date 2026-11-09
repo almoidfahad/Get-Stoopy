@@ -109,7 +109,13 @@ export class StorageService {
     if (typeof input.reason !== 'string' || input.reason.trim().length < 8 || input.reason.length > 512) throw new BadRequestException({ code: 'REVIEW_REASON_REQUIRED', message: 'A review reason is required' });
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
-      const obj = await tx.storageObject.findUnique({ where: { id: objectId } });
+      // A decision must be made against the latest committed state. Without a
+      // row lock two reviewers can both see QUARANTINED and overwrite each
+      // other's decision while each emits a successful audit record.
+      const rows = await tx.$queryRaw<Array<{ ownerUserId: string; purpose: string; state: string }>>`
+        SELECT "ownerUserId", "purpose", "state" FROM "StorageObject"
+        WHERE "id"=${objectId}::uuid FOR UPDATE`;
+      const obj = rows[0];
       if (!obj || !['kyc-document', 'payout-destination-proof'].includes(obj.purpose)) throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
       if (obj.ownerUserId === ctx.userId) throw new ForbiddenException({ code: 'SELF_REVIEW_DENIED', message: 'Reviewer cannot review their own object' });
       if (obj.state !== 'QUARANTINED') throw new BadRequestException({ code: 'OBJECT_NOT_QUARANTINED', message: 'Object is not quarantined' });
