@@ -2,6 +2,7 @@
 // imports next/headers and cannot be bundled into a client component.
 import { buildShopQuery, type PublicVariant } from '@getstoopy/core';
 import { apiFetch } from './bff';
+import { isProductPage, isPublicCategories, isPublicProduct } from './catalog-validation';
 
 /**
  * Server-side reads of the public catalog API.
@@ -51,14 +52,15 @@ export function marketCountryId(): string | null {
   return value && UUID_RE.test(value) ? value : null;
 }
 
-async function readJson<T>(path: string): Promise<CatalogResult<T>> {
+async function readJson<T>(path: string, validate: (value: unknown) => value is T): Promise<CatalogResult<T>> {
   try {
     // The deadline also covers body consumption; never follow an upstream
     // redirect and mistake its destination for the requested catalog resource.
     const res = await apiFetch(path, { redirect: 'manual', signal: AbortSignal.timeout(8_000) });
     if (res.status === 404) return { state: 'not-found' };
     if (res.status !== 200) return { state: 'unavailable' };
-    return { state: 'ok', data: (await res.json()) as T };
+    const data: unknown = await res.json();
+    return validate(data) ? { state: 'ok', data } : { state: 'unavailable' };
   } catch {
     return { state: 'unavailable' };
   }
@@ -78,20 +80,21 @@ export async function fetchProducts(input: {
   if (!countryId) return { state: 'not-configured' };
   const params = buildShopQuery(input);
   params.set('countryId', countryId);
-  return readJson<ProductPage>(`/public/catalog/products?${params.toString()}`);
+  return readJson(`/public/catalog/products?${params.toString()}`, isProductPage);
 }
 
 export async function fetchCategories(): Promise<CatalogResult<PublicCategory[]>> {
   const countryId = marketCountryId();
   if (!countryId) return { state: 'not-configured' };
-  return readJson<PublicCategory[]>(`/public/catalog/categories?countryId=${countryId}`);
+  return readJson(`/public/catalog/categories?countryId=${countryId}`, isPublicCategories);
 }
 
 export async function fetchProduct(id: string): Promise<CatalogResult<PublicProduct>> {
   const countryId = marketCountryId();
   if (!countryId) return { state: 'not-configured' };
   if (!UUID_RE.test(id)) return { state: 'not-found' };
-  return readJson<PublicProduct>(`/public/catalog/products/${id}?countryId=${countryId}`);
+  return readJson(`/public/catalog/products/${id}?countryId=${countryId}`, (value): value is PublicProduct =>
+    isPublicProduct(value) && value.id.toLowerCase() === id.toLowerCase());
 }
 
 export { imageProxyUrl } from './catalog-image';

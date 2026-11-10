@@ -1,0 +1,10 @@
+# Public catalog response validation
+
+Public product lists, details and categories now validate their JSON before treating a direct 200 as usable. Invalid shapes, invalid routing IDs, duplicate IDs, invalid nested entries, inconsistent stock, variant/product or variant/currency mismatches, and a detail response for a different product become unavailable rather than a partial or empty catalog. Categories fail independently of products. Existing transport deadlines, direct 404 behavior, filter-preserving retry links and separate image route are unchanged.
+
+The validator follows the current public serializer and Prisma schema for the fields consumed by the storefront. Nullable description, brand, category and publication time, missing store, and empty variants/images remain supported. Additional backend fields are tolerated. Price strings and product currency still pass through the existing price formatter; invalid prices show the established price-unavailable fallback rather than becoming free or falsely out of stock. Malformed string cursors retain the existing page-level pagination recovery. This is presentation validation, not proof of a product's publication, stock, price, or authorization; the backend must enforce those independently. No automatic retry is added.
+
+## Verification and limitations
+
+- 1,046 local tests, typecheck and an isolated production web build passed. Forty new response-validation cases cover backend-shaped responses, null/empty values, malformed nesting, duplicates, routing and detail mismatches, and stock/currency inconsistencies. Three server-rendered page tests cover recovery and independent category failure.
+- These are mocked responses and server rendering, not a real API or end-to-end browser test for this increment. Compatibility with a live catalog remains to be verified once backend/database work is authorized. The checks cannot detect plausible but incorrect upstream values, enforce a body-size limit, or validate image content. No Supabase database or production deployment was touched.
