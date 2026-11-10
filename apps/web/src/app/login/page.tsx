@@ -29,7 +29,12 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
                 </div>
               ) : (
                 <>
-                  {sp.error ? <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-brand-red"><p className="font-bold">{sp.error === 'unavailable' ? 'Sign-in service unavailable' : 'Sign-in could not be completed'}</p><p className="mt-1">{sp.error === 'unavailable' ? 'The sign-in service could not be reached or is not configured. Please try again later.' : 'Please try again. If the problem continues, return to the shop and try later.'}</p></div> : null}
+                  {sp.error ? (
+                    <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-brand-red">
+                      <p className="font-bold">{sp.error === 'unavailable' ? 'Sign-in service unavailable' : sp.error === 'session' ? 'Sign-in could not be confirmed' : 'Sign-in could not be completed'}</p>
+                      <p className="mt-1">{sp.error === 'unavailable' ? 'The sign-in service could not be reached or is not configured. Please try again later.' : sp.error === 'session' ? 'No new browser session was set. An earlier session may still be signed in. The server may have created another session that remains active until it expires or is revoked. Please try again.' : 'Please try again. If the problem continues, return to the shop and try later.'}</p>
+                    </div>
+                  ) : null}
                   <a href="/api/auth/login" className="mt-7 flex min-h-12 items-center justify-center gap-3 rounded-full bg-brand-red px-6 py-3 text-sm font-bold text-white hover:bg-brand-red-hover">Continue to sign in <ArrowRight size={17} aria-hidden="true" /></a>
                   <p className="mt-4 text-center text-xs leading-5 text-neutral-600">You’ll continue to the sign-in service to access your account.</p>
                 </>

@@ -55,6 +55,15 @@ describe('storefront UI', () => {
     expect(html).not.toContain('secret configuration detail');
     expect(html).toContain('href="/shop"');
   });
+  it('explains an unconfirmed session without claiming that an earlier session disappeared', async () => {
+    const html = renderToStaticMarkup(await Login({ searchParams: Promise.resolve({ error: 'session' }) }));
+    expect(html).toContain('Sign-in could not be confirmed');
+    expect(html).toContain('No new browser session was set');
+    expect(html).toContain('An earlier session may still be signed in');
+    expect(html).toContain('server may have created another session');
+    expect(html).toContain('href="/api/auth/login"');
+    expect(html).toContain('role="alert"');
+  });
   it('shows a safe recovery message when sign-in cannot start', async () => {
     const html = renderToStaticMarkup(await Login({ searchParams: Promise.resolve({ error: 'unavailable' }) }));
     expect(html).toContain('Sign-in service unavailable');
