@@ -181,7 +181,14 @@ describe('store serviceability and rider eligibility foundation', () => {
       expect((await review(1, 'REJECT', 201)).body.status).toBe('REJECTED');
       await invalid(2, 'APPROVE', 'REJECT', 'SUSPEND');
       const retried = await post(`/api/v1/catalog/stores/${storeId}/service-areas`, owner, { serviceZoneId: zone }).expect(201);
-      expect(retried.body).toMatchObject({ status: 'DRAFT', version: 3 });
+      expect(retried.body).toMatchObject({ status: 'DRAFT', version: 3, duplicate: false });
+      const duplicate = await post(`/api/v1/catalog/stores/${storeId}/service-areas`, owner, { serviceZoneId: zone }).expect(201);
+      expect(duplicate.body).toMatchObject({ status: 'DRAFT', version: 3, duplicate: true });
+      const proposalRecords = await asSuper(u.privileged, c => c.query(`SELECT
+        (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$1 AND "actorId"=$2 AND action='catalog.store.service_area.proposed') AS audits,
+        (SELECT count(*)::int FROM "OutboxEvent" WHERE "eventKey" IN ($3,$4)) AS events`,
+        [areaId, owner.userId, `store-service-area-proposed-${areaId}`, `store-service-area-proposed-${areaId}-3`]));
+      expect(proposalRecords.rows[0]).toEqual({ audits: 2, events: 2 });
       expect((await review(3, 'APPROVE', 201)).body.status).toBe('APPROVED');
       await invalid(4, 'APPROVE', 'REJECT');
       const stale = await review(3, 'SUSPEND', 409);
@@ -195,6 +202,55 @@ describe('store serviceability and rider eligibility foundation', () => {
       expect(counts.rows[0]).toEqual({ audits: 3, events: 3 });
     } finally {
       // Avoid leaving additional approved coverage that affects later tests.
+      await asSuper(u.privileged, c => c.query('UPDATE "ServiceZone" SET status=\'INACTIVE\' WHERE id=$1', [zone]));
+    }
+  });
+
+  it('serializes a duplicate proposal with an overlapping area review', async () => {
+    const zone = await asSuper(u.privileged, async c => (await c.query(
+      `INSERT INTO "ServiceZone"(id,"cityId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`,
+      [randomUUID(), cityId, `proposal-race-${randomUUID().slice(0, 8)}`, 'Proposal race zone'],
+    )).rows[0].id as string);
+    try {
+      const proposal = await post(`/api/v1/catalog/stores/${storeId}/service-areas`, owner, { serviceZoneId: zone }).expect(201);
+      const areaId = proposal.body.serviceAreaId as string;
+      const holder = new pg.Client({ connectionString: u.privileged });
+      const monitor = new pg.Client({ connectionString: u.privileged });
+      await holder.connect(); await monitor.connect();
+      let duplicate: Promise<any> | undefined; let review: Promise<any> | undefined;
+      try {
+        await holder.query('BEGIN');
+        await holder.query("SELECT set_config('app.is_super','true',true)");
+        await holder.query('SELECT id FROM "StoreServiceArea" WHERE id=$1 FOR UPDATE', [areaId]);
+        duplicate = post(`/api/v1/catalog/stores/${storeId}/service-areas`, owner, { serviceZoneId: zone }).then((r: any) => r);
+        review = post(`/api/v1/catalog/admin/service-areas/${areaId}/review`, serviceabilityAdmin, { version: 1, decision: 'APPROVE', reason: 'verified coverage area' }).then((r: any) => r);
+        const deadline = Date.now() + 10000;
+        let count = 0;
+        while (Date.now() < deadline) {
+          count = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+            WHERE state='active' AND wait_event_type='Lock' AND query LIKE '%StoreServiceArea%' AND query LIKE '%FOR UPDATE%'`)).rows[0].n;
+          if (count >= 2) break;
+          await new Promise(resolve => setTimeout(resolve, 40));
+        }
+        expect(count).toBe(2);
+        await holder.query('COMMIT');
+      } finally {
+        await holder.query('ROLLBACK').catch(() => undefined);
+        await holder.end(); await monitor.end();
+      }
+      const [duplicateResult, reviewResult] = await Promise.all([duplicate!, review!]);
+      expect(reviewResult.status).toBe(201);
+      expect(reviewResult.body).toMatchObject({ status: 'APPROVED', version: 2 });
+      if (duplicateResult.status === 201) expect(duplicateResult.body).toMatchObject({ status: 'DRAFT', version: 1, duplicate: true });
+      else { expect(duplicateResult.status).toBe(409); expect(duplicateResult.body.code).toBe('SERVICE_AREA_EXISTS'); }
+      const rows = await asSuper(u.privileged, c => c.query(`SELECT
+        (SELECT count(*)::int FROM "StoreServiceArea" WHERE id=$1 AND status='APPROVED' AND version=2) AS areas,
+        (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$1 AND action='catalog.store.service_area.proposed') AS proposals,
+        (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$1 AND action='catalog.store.service_area.approved') AS approvals,
+        (SELECT count(*)::int FROM "OutboxEvent" WHERE "eventKey" IN ($2,$3)) AS events`,
+        [areaId, `store-service-area-proposed-${areaId}`, `store-service-area-approved-${areaId}-2`]));
+      expect(rows.rows[0]).toEqual({ areas: 1, proposals: 1, approvals: 1, events: 2 });
+    } finally {
       await asSuper(u.privileged, c => c.query('UPDATE "ServiceZone" SET status=\'INACTIVE\' WHERE id=$1', [zone]));
     }
   });

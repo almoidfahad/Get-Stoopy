@@ -162,11 +162,18 @@ export class ServiceabilityService {
       this.vendorWrite(ctx, store.vendorId, store.countryId, store.id);
       const zone = await tx.serviceZone.findUnique({ where: { id: serviceZoneId } });
       if (!zone || zone.status !== 'ACTIVE' || zone.cityId !== store.cityId) throw new BadRequestException({ code: 'SERVICE_ZONE_MISMATCH', message: 'Service zone must be active and in the store city' });
-      const existing = await tx.storeServiceArea.findUnique({ where: { storeId_serviceZoneId: { storeId, serviceZoneId } } });
+      // Store lock serializes first proposals; this area lock also serializes
+      // duplicate/rejected proposals with an overlapping reviewer. The review
+      // path locks the area but never locks the store, preserving lock order.
+      const locked = await tx.$queryRaw`SELECT "id" FROM "StoreServiceArea" WHERE "storeId"=${storeId}::uuid AND "serviceZoneId"=${serviceZoneId}::uuid FOR UPDATE`;
+      const existingId = (locked as { id: string }[])[0]?.id;
+      const existing = existingId ? await tx.storeServiceArea.findUniqueOrThrow({ where: { id: existingId } }) : null;
       if (existing) {
         if (existing.status === 'DRAFT') return { serviceAreaId: existing.id, status: existing.status, version: existing.version, duplicate: true };
         if (existing.status !== 'REJECTED') throw new ConflictException({ code: 'SERVICE_AREA_EXISTS', message: 'Service area already exists' });
         const updated = await tx.storeServiceArea.update({ where: { id: existing.id }, data: { status: 'DRAFT', reviewedByUserId: null, reviewReason: null, reviewedAt: null, version: { increment: 1 } } });
+        await this.audit(tx, ctx, 'catalog.store.service_area.proposed', 'StoreServiceArea', updated.id, store.countryId);
+        await this.outbox(tx, 'Store', storeId, 'catalog.store.service_area.proposed', `store-service-area-proposed-${updated.id}-${updated.version}`, store.countryId, { serviceZoneId, version: updated.version });
         return { serviceAreaId: updated.id, status: updated.status, version: updated.version, duplicate: false };
       }
       const area = await tx.storeServiceArea.create({ data: { storeId, serviceZoneId, proposedByUserId: ctx.userId } });
