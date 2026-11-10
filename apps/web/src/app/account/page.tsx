@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight, CircleUserRound, LogOut, ShoppingBag, ShoppingCart } from 'lucide-react';
 import { Shell } from '@/components/shell';
-import { apiFetch } from '@/lib/bff';
+import { readSession } from '@/lib/session-read';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,12 +18,10 @@ type AccountResult =
 /** The session endpoint is the source of truth; never turn a service failure into a sign-out claim. */
 async function loadAccount(): Promise<AccountResult> {
   try {
-    const response = await apiFetch('/auth/me');
-    if (response.status === 401) return { state: 'signed-out' };
-    if (!response.ok) return { state: 'unavailable' };
-    const data: unknown = await response.json();
-    if (!data || typeof data !== 'object') return { state: 'unavailable' };
-    const account = data as { user?: { id?: unknown; assurance?: unknown }; permissions?: unknown };
+    const result = await readSession();
+    if (result.state === 'signed-out') return { state: 'signed-out' };
+    if (result.state !== 'ok') return { state: 'unavailable' };
+    const account = result.data as { user?: { id?: unknown; assurance?: unknown }; permissions?: unknown };
     if (!account.user || typeof account.user.id !== 'string' || !account.user.id ||
         typeof account.user.assurance !== 'string' || !account.user.assurance ||
         !Array.isArray(account.permissions) || !account.permissions.every(permission => typeof permission === 'string')) {

@@ -12,12 +12,12 @@ describe('account page', () => {
   it('shows signed-out state only for an unauthenticated response', async () => {
     mocks.apiFetch.mockResolvedValue(new Response(null, { status: 401 }));
     const html = await render();
-    expect(mocks.apiFetch).toHaveBeenCalledWith('/auth/me');
+    expect(mocks.apiFetch).toHaveBeenCalledWith('/auth/me', expect.objectContaining({ redirect: 'manual', signal: expect.any(AbortSignal) }));
     expect(html).toContain('Sign in to your account');
     expect(html).toContain('href="/login"');
     expect(html).not.toContain('Account temporarily unavailable');
   });
-  it.each([403, 500])('shows an unavailable state for HTTP %s, not a false signed-out state', async status => {
+  it.each([201, 302, 403, 429, 500])('shows an unavailable state for HTTP %s, not a false signed-out state', async status => {
     mocks.apiFetch.mockResolvedValue(new Response(null, { status }));
     const html = await render();
     expect(html).toContain('Account temporarily unavailable');

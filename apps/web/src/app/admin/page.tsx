@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Activity, ArrowRight, BarChart3, Bike, Boxes, CircleDollarSign, ClipboardList, Globe2, LayoutDashboard, Package, Settings, Shield, ShoppingBag, Store, Tags, Users, WalletCards } from 'lucide-react';
-import { apiFetch } from '@/lib/bff';
+import { readSession } from '@/lib/session-read';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,12 +9,10 @@ type SessionState = 'signed-out' | 'unavailable' | 'session';
 /** A session check is not an admin authorization or a scope check. */
 async function accountSession(): Promise<SessionState> {
   try {
-    const response = await apiFetch('/auth/me');
-    if (response.status === 401) return 'signed-out';
-    if (!response.ok) return 'unavailable';
-    const data: unknown = await response.json();
-    if (!data || typeof data !== 'object') return 'unavailable';
-    const session = data as { user?: { id?: unknown } };
+    const result = await readSession();
+    if (result.state === 'signed-out') return 'signed-out';
+    if (result.state !== 'ok') return 'unavailable';
+    const session = result.data as { user?: { id?: unknown } };
     if (!session.user || typeof session.user.id !== 'string' || !session.user.id) return 'unavailable';
     return 'session';
   } catch {

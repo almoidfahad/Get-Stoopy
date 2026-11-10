@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ArrowRight, BarChart3, Boxes, CircleDollarSign, ClipboardList, LayoutDashboard, Package, RotateCcw, Settings, ShoppingBag, Store, Star, WalletCards } from 'lucide-react';
-import { apiFetch } from '@/lib/bff';
+import { readSession } from '@/lib/session-read';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,12 +9,10 @@ type SessionState = 'signed-out' | 'unavailable' | 'no-membership' | 'has-member
 /** This is presentation only. Any future vendor data endpoint must authorize independently. */
 async function vendorSession(): Promise<SessionState> {
   try {
-    const response = await apiFetch('/auth/me');
-    if (response.status === 401) return 'signed-out';
-    if (!response.ok) return 'unavailable';
-    const data: unknown = await response.json();
-    if (!data || typeof data !== 'object') return 'unavailable';
-    const session = data as { user?: { id?: unknown }; vendorMemberships?: unknown };
+    const result = await readSession();
+    if (result.state === 'signed-out') return 'signed-out';
+    if (result.state !== 'ok') return 'unavailable';
+    const session = result.data as { user?: { id?: unknown }; vendorMemberships?: unknown };
     if (!session.user || typeof session.user.id !== 'string' || !session.user.id || !Array.isArray(session.vendorMemberships)) return 'unavailable';
     if (!session.vendorMemberships.every(item => item && typeof item === 'object' && typeof item.vendorId === 'string' && item.vendorId && typeof item.countryId === 'string' && item.countryId && (item.storeId === undefined || typeof item.storeId === 'string'))) return 'unavailable';
     return session.vendorMemberships.length ? 'has-membership' : 'no-membership';
