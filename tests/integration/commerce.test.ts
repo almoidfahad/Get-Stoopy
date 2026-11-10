@@ -249,61 +249,77 @@ describe('cart and checkout quote orchestration', () => {
     expect(quotes.rows[0].n).toBe(0);
   });
 
-  it('diagnoses partial expiry and expiry-versus-release lock ordering', async () => {
-    const buyer = await makeUser('expiry-diagnostic');
-    const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
-    let version = cart.body.version;
-    for (const variantId of [variantA, variantB]) {
-      const added = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId, quantity: 1, expectedVersion: version }).expect(201);
-      version = added.body.version;
+  it('expires whole quotes in small batches and coordinates with release and other workers', async () => {
+    const fixtures: { buyer: any; quoteId: string; reservations: string[] }[] = [];
+    for (let n = 0; n < 3; n++) {
+      const buyer = await makeUser(`expiry-race-${n}`);
+      const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+      let version = cart.body.version;
+      for (const variantId of [variantA, variantB]) {
+        const added = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId, quantity: 1, expectedVersion: version }).expect(201);
+        version = added.body.version;
+      }
+      const quote = await post(`/api/v1/commerce/carts/${cart.body.cartId}/quotes`, buyer, { expectedVersion: version, destinationCityId: cityId, commandKey: `expiry-${randomUUID()}`, ttlSeconds: 60 }).expect(201);
+      fixtures.push({ buyer, quoteId: quote.body.quoteId, reservations: quote.body.items.map((i: any) => i.reservationId) });
     }
-    const quote = await post(`/api/v1/commerce/carts/${cart.body.cartId}/quotes`, buyer, { expectedVersion: version, destinationCityId: cityId, commandKey: `quote-${randomUUID().slice(0, 8)}`, ttlSeconds: 60 }).expect(201);
+    // Wait until both lines of each quote have expired, using the same real
+    // clock as the API and PostgreSQL rather than disabling integrity triggers.
     await new Promise(resolve => setTimeout(resolve, 61000));
-
-    // A batch of one cannot commit a partial closure of a two-line quote.
-    await expect(asSuper(u.privileged, c => c.query('SELECT gs_expire_inventory_reservations(1)'))).rejects.toThrow(/checkout_quote_reservation_not_active/);
-    let state = await get(`/api/v1/commerce/quotes/${quote.body.quoteId}`, buyer).expect(200);
-    expect(state.body.state).toBe('RESERVED');
-    const ids = await asSuper(u.privileged, c => c.query(`SELECT r."inventoryId" FROM "InventoryReservation" r
-      JOIN "CheckoutQuoteItem" qi ON qi."reservationId"=r.id WHERE qi."quoteId"=$1 ORDER BY r."expiresAt",r.id LIMIT 1`, [quote.body.quoteId]));
-    const holder = new pg.Client({ connectionString: u.privileged });
-    const expiry = new pg.Client({ connectionString: u.privileged });
-    await holder.connect(); await expiry.connect();
+    const releaseHolder = new pg.Client({ connectionString: u.privileged });
+    const workerHolder = new pg.Client({ connectionString: u.privileged });
+    await releaseHolder.connect(); await workerHolder.connect();
+    const errors: string[] = [];
+    const log = { info: () => undefined, error: (_name: string, fields: any) => errors.push(fields.error) } as any;
     try {
-      await holder.query('BEGIN'); await holder.query("SELECT set_config('app.is_super','true',true)");
-      await holder.query('SELECT id FROM "CheckoutQuote" WHERE id=$1 FOR UPDATE', [quote.body.quoteId]);
-      await expiry.query('BEGIN'); await expiry.query("SELECT set_config('app.is_super','true',true)");
-      const pid = (await expiry.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
-      const expireAttempt = expiry.query('SELECT gs_expire_inventory_reservations(1)').then(() => null, err => err);
+      for (const [holder, fixture] of [[releaseHolder, fixtures[1]!], [workerHolder, fixtures[2]!]] as const) {
+        await holder.query('BEGIN');
+        await holder.query("SELECT set_config('app.is_super','true',true)");
+        await holder.query('SELECT id FROM "CheckoutQuote" WHERE id=$1 FOR UPDATE', [fixture.quoteId]);
+      }
+      // A limit of one is a soft budget: all lines in one quote close together.
+      expect(await runInventoryExpiryTick(privilegedPool, log, 1)).toBe(2);
+      expect((await get(`/api/v1/commerce/quotes/${fixtures[0]!.quoteId}`, fixtures[0]!.buyer).expect(200)).body).toMatchObject({ state: 'EXPIRED', version: 2 });
+      // Both remaining quotes are held: expiry must skip them, without taking
+      // an inventory lock that would deadlock the release path.
+      expect(await runInventoryExpiryTick(privilegedPool, log, 1)).toBe(0);
+      const release = post(`/api/v1/commerce/quotes/${fixtures[1]!.quoteId}/release`, fixtures[1]!.buyer, { version: 1, reason: 'release during expiry race' }).then((r: any) => r);
       const deadline = Date.now() + 10000;
       let blocked = false;
       while (Date.now() < deadline) {
-        blocked = (await privilegedPool.query('SELECT cardinality(pg_blocking_pids($1)) > 0 AS blocked', [pid])).rows[0].blocked;
+        blocked = (await privilegedPool.query(`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE state='active' AND wait_event_type='Lock' AND query LIKE '%FROM "CheckoutQuote"%FOR UPDATE%') AS blocked`)).rows[0].blocked;
         if (blocked) break;
         await new Promise(resolve => setTimeout(resolve, 50));
       }
       expect(blocked).toBe(true);
-      // The release path already owns quote, then attempts the same inventory
-      // row held by expiry: one transaction must be chosen as deadlock victim.
-      const releaseAttempt = await holder.query('SELECT id FROM "Inventory" WHERE id=$1 FOR UPDATE', [ids.rows[0].inventoryId]).then(() => null, err => err);
-      const expiryError = await expireAttempt;
-      expect([releaseAttempt?.code, expiryError?.code]).toContain('40P01');
+      expect(await runInventoryExpiryTick(privilegedPool, log, 1)).toBe(0);
+      await releaseHolder.query('COMMIT');
+      const released = await release;
+      expect(released.status).toBe(201);
+      expect(released.body.state).toBe('RELEASED');
+      await workerHolder.query('COMMIT');
+      const parallel = await Promise.all([runInventoryExpiryTick(privilegedPool, log, 1), runInventoryExpiryTick(privilegedPool, log, 1)]);
+      expect(parallel.reduce((a, b) => a + b, 0)).toBe(2);
+      expect((await get(`/api/v1/commerce/quotes/${fixtures[2]!.quoteId}`, fixtures[2]!.buyer).expect(200)).body).toMatchObject({ state: 'EXPIRED', version: 2 });
+      const afterExpiry = await post(`/api/v1/commerce/quotes/${fixtures[2]!.quoteId}/release`, fixtures[2]!.buyer, { version: 1, reason: 'late release after expiry' }).expect(201);
+      expect(afterExpiry.body).toMatchObject({ state: 'EXPIRED', duplicate: true });
+      expect(errors).toEqual([]);
     } finally {
-      await holder.query('ROLLBACK').catch(() => undefined);
-      await expiry.query('ROLLBACK').catch(() => undefined);
-      await holder.end(); await expiry.end();
+      await releaseHolder.query('ROLLBACK').catch(() => undefined);
+      await workerHolder.query('ROLLBACK').catch(() => undefined);
+      await releaseHolder.end(); await workerHolder.end();
     }
-    state = await get(`/api/v1/commerce/quotes/${quote.body.quoteId}`, buyer).expect(200);
-    expect(state.body.state).toBe('RESERVED');
-    const log = { info: () => undefined, error: () => undefined } as any;
-    expect(await runInventoryExpiryTick(privilegedPool, log, 100)).toBeGreaterThanOrEqual(2);
-    state = await get(`/api/v1/commerce/quotes/${quote.body.quoteId}`, buyer).expect(200);
-    expect(state.body.state).toBe('EXPIRED');
-    expect(state.body.version).toBe(2);
+    for (const [index, fixture] of fixtures.entries()) {
+      const records = await asSuper(u.privileged, c => c.query(`SELECT
+        (SELECT count(*)::int FROM "InventoryReservation" WHERE id=ANY($1::uuid[]) AND state=$2::"InventoryReservationState") AS closed,
+        (SELECT count(*)::int FROM "InventoryMovement" WHERE "reservationId"=ANY($1::uuid[]) AND kind=$3::"InventoryMovementKind") AS movements,
+        (SELECT count(*)::int FROM "OutboxEvent" WHERE "eventKey"=$4) AS quote_events`,
+        [fixture.reservations, index === 1 ? 'RELEASED' : 'EXPIRED', index === 1 ? 'RELEASE' : 'EXPIRE', index === 1 ? `checkout-quote-released-${fixture.quoteId}` : `checkout-quote-expired-${fixture.quoteId}`]));
+      expect(records.rows[0]).toEqual({ closed: 2, movements: 2, quote_events: 1 });
+    }
     expect((await get(`/api/v1/inventory/variants/${variantA}`, vendorA.owner).expect(200)).body.reserved).toBe(0);
     expect((await get(`/api/v1/inventory/variants/${variantB}`, vendorB.owner).expect(200)).body.reserved).toBe(0);
     expect(await runInventoryExpiryTick(privilegedPool, log, 100)).toBe(0);
-  }, 90000);
+  }, 100000);
 
   it('enforces RLS, append-only quote snapshots and deferred total/reservation consistency', async () => {
     const cart = await post('/api/v1/commerce/carts', customer, { countryId }).expect(201);

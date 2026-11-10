@@ -156,6 +156,10 @@ export class InventoryService {
     {
       const probe = await tx.inventoryReservation.findUnique({ where: { id: reservationId } });
       if (!probe) throw new NotFoundException({ code: 'RESERVATION_NOT_FOUND', message: 'Reservation not found' });
+      // Quote-backed reservations must lock the quote before inventory, matching
+      // checkout release, order creation and the expiry routine. Standalone
+      // reservations have no quote row. The caller still owns authorization.
+      await tx.$queryRaw`SELECT q."id" FROM "CheckoutQuote" q JOIN "CheckoutQuoteItem" qi ON qi."quoteId"=q."id" WHERE qi."reservationId"=${reservationId}::uuid FOR UPDATE OF q`;
       const invRows = await tx.$queryRaw`SELECT * FROM "Inventory" WHERE "id"=${probe.inventoryId}::uuid FOR UPDATE`;
       const inventory = (invRows as any[])[0];
       const rows = await tx.$queryRaw`SELECT * FROM "InventoryReservation" WHERE "id"=${reservationId}::uuid FOR UPDATE`;
@@ -178,11 +182,19 @@ export class InventoryService {
 
   async expireDueReservations(limit = 100) {
     if (!Number.isInteger(limit) || limit < 1 || limit > 500) throw new BadRequestException({ code: 'EXPIRY_BATCH_INVALID', message: 'Invalid expiry batch size' });
-    return this.privileged.$transaction(async tx => {
-      await setRls(tx, { userId: '00000000-0000-0000-0000-000000000000', authorizationVersion: 0, isSuper: true });
-      const rows = await tx.$queryRaw`SELECT gs_expire_inventory_reservations(${limit}) AS expired`;
-      return { expired: Number((rows as any[])[0]?.expired ?? 0) };
-    });
+    let expired = 0;
+    // Separate transactions ensure a batch never holds inventory locks while
+    // acquiring another quote lock. The budget is soft for a whole quote.
+    for (let unit = 0; unit < 500 && expired < limit; unit++) {
+      const count = await this.privileged.$transaction(async tx => {
+        await setRls(tx, { userId: '00000000-0000-0000-0000-000000000000', authorizationVersion: 0, isSuper: true });
+        const rows = await tx.$queryRaw`SELECT gs_expire_inventory_reservations(${limit}) AS expired`;
+        return Number((rows as any[])[0]?.expired ?? 0);
+      });
+      expired += count;
+      if (count === 0) break;
+    }
+    return { expired };
   }
 
 }
