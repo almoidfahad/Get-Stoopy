@@ -564,3 +564,56 @@ describe('concurrent checkout reservation idempotency', () => {
     await overlapQuoteRequests(true);
   });
 });
+
+describe('competing buyers reserving the last unit', () => {
+  it('creates only one quote and never over-reserves stock', async () => {
+    const vendor = await setupVendor(`last-unit-${randomUUID().slice(0, 8)}`, '199', 1);
+    const buyers = await Promise.all([makeUser('stock-race-a'), makeUser('stock-race-b')]);
+    const carts = [];
+    for (const buyer of buyers) {
+      const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+      const added = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId: vendor.variantId, quantity: 1, expectedVersion: cart.body.version }).expect(201);
+      carts.push({ id: cart.body.cartId as string, version: added.body.version as number });
+    }
+    const holder = new pg.Client({ connectionString: u.privileged });
+    await holder.connect();
+    let requests: Promise<any>[] = [];
+    try {
+      await holder.query('BEGIN');
+      await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('SELECT id FROM "Inventory" WHERE "variantId"=$1 FOR UPDATE', [vendor.variantId]);
+      requests = buyers.map((buyer, i) => post(`/api/v1/commerce/carts/${carts[i]!.id}/quotes`, buyer, {
+        expectedVersion: carts[i]!.version, destinationCityId: cityId, commandKey: `last-unit-${randomUUID()}`,
+      }).then((res: any) => res));
+      const deadline = Date.now() + 10000;
+      let waiting = 0;
+      while (Date.now() < deadline) {
+        waiting = (await privilegedPool.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+          WHERE pid <> pg_backend_pid() AND state='active' AND wait_event_type='Lock'
+            AND (query LIKE '%FROM "Inventory"%FOR UPDATE%' OR query LIKE '%FROM "ProductVariant"%FOR UPDATE%')`)).rows[0].n;
+        if (waiting >= 2) break;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      expect(waiting).toBeGreaterThanOrEqual(2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end();
+    }
+    const results = await Promise.all(requests);
+    expect(results.map(r => r.status).sort()).toEqual([201, 409]);
+    const winnerIndex = results.findIndex(r => r.status === 201);
+    const winner = results[winnerIndex];
+    const loser = results.find(r => r.status === 409);
+    expect(loser.body.code).toBe('INSUFFICIENT_STOCK');
+    expect(winner.body.state).toBe('RESERVED');
+    const stock = await asSuper(u.privileged, c => c.query(`SELECT i."onHand", i.reserved,
+      (SELECT count(*)::int FROM "InventoryReservation" r WHERE r."inventoryId"=i.id AND r.state='ACTIVE') AS active,
+      (SELECT count(*)::int FROM "CheckoutQuoteItem" qi JOIN "CheckoutQuote" q ON q.id=qi."quoteId" WHERE qi."variantId"=i."variantId" AND q.state='RESERVED') AS quotes
+      FROM "Inventory" i WHERE i."variantId"=$1`, [vendor.variantId]));
+    expect(stock.rows[0]).toEqual({ onHand: 1, reserved: 1, active: 1, quotes: 1 });
+    await post(`/api/v1/commerce/quotes/${winner.body.quoteId}/release`, buyers[winnerIndex], { version: winner.body.version, reason: 'last unit test cleanup' }).expect(201);
+    const after = await get(`/api/v1/inventory/variants/${vendor.variantId}`, vendor.owner).expect(200);
+    expect(after.body).toMatchObject({ onHand: 1, reserved: 0, availableToPromise: 1 });
+  }, 120000);
+});
