@@ -53,9 +53,11 @@ export function marketCountryId(): string | null {
 
 async function readJson<T>(path: string): Promise<CatalogResult<T>> {
   try {
-    const res = await apiFetch(path);
+    // The deadline also covers body consumption; never follow an upstream
+    // redirect and mistake its destination for the requested catalog resource.
+    const res = await apiFetch(path, { redirect: 'manual', signal: AbortSignal.timeout(8_000) });
     if (res.status === 404) return { state: 'not-found' };
-    if (!res.ok) return { state: 'unavailable' };
+    if (res.status !== 200) return { state: 'unavailable' };
     return { state: 'ok', data: (await res.json()) as T };
   } catch {
     return { state: 'unavailable' };

@@ -55,8 +55,8 @@ export async function fetchServiceableCities(): Promise<CitiesResult> {
   const countryId = marketCountryId();
   if (!countryId) return { state: 'not-configured' };
   try {
-    const res = await apiFetch(`/public/serviceability/cities?countryId=${encodeURIComponent(countryId)}`);
-    if (!res.ok) return { state: 'unavailable' };
+    const res = await apiFetch(`/public/serviceability/cities?countryId=${encodeURIComponent(countryId)}`, { redirect: 'manual', signal: AbortSignal.timeout(8_000) });
+    if (res.status !== 200) return { state: 'unavailable' };
     const data: unknown = await res.json();
     if (!isServiceableCities(data, countryId)) return { state: 'unavailable' };
     // UUIDs can arrive in either case. Canonicalize them for selection and
