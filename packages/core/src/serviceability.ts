@@ -4,6 +4,17 @@ export const LOCATION_MAX_ACCURACY_METERS = 100;
 export const LOCATION_FRESHNESS_SECONDS = 120;
 export const LOCATION_MAX_FUTURE_SKEW_SECONDS = 30;
 
+/** Match the database transition guard; unknown states/decisions fail closed. */
+export function isAllowedServiceAreaReview(status: string, decision: string): boolean {
+  return (status === 'DRAFT' && (decision === 'APPROVE' || decision === 'REJECT')) ||
+    (status === 'APPROVED' && decision === 'SUSPEND') ||
+    (status === 'SUSPENDED' && decision === 'APPROVE');
+}
+
+export function isAllowedPickupReview(status: string, decision: string): boolean {
+  return status === 'DRAFT' && (decision === 'APPROVE' || decision === 'REJECT');
+}
+
 export function assertLatitudeLongitude(latitude: number, longitude: number): void {
   if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) throw new Error('LATITUDE_INVALID');
   if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) throw new Error('LONGITUDE_INVALID');

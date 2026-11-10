@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrivilegedPrismaService, setRls } from '../common/prisma.js';
-import { assertLatitudeLongitude, assertOperatingHours, authorize, hasPermission, inGeographicScope, isStoreDispatchServiceable, type AccessContext, type OperatingHourInput } from '@getstoopy/core';
+import { assertLatitudeLongitude, assertOperatingHours, authorize, hasPermission, inGeographicScope, isAllowedPickupReview, isAllowedServiceAreaReview, isStoreDispatchServiceable, type AccessContext, type OperatingHourInput } from '@getstoopy/core';
 import { MAX_PUBLIC_SERVICEABLE_CITIES, serviceableStoreWhere } from './serviceable-store.js';
 
 function reasonText(reason: string): string {
@@ -125,6 +125,7 @@ export class ServiceabilityService {
       if (!pickup) throw new NotFoundException({ code: 'PICKUP_NOT_FOUND', message: 'Pickup point not found' });
       if (pickup.proposedByUserId === ctx.userId || store.ownerUserId === ctx.userId) throw new ForbiddenException({ code: 'SELF_REVIEW_DENIED', message: 'Proposer/owner cannot review their own pickup point' });
       if (pickup.version !== input.version) throw new ConflictException({ code: 'PICKUP_VERSION_CONFLICT', message: 'Pickup version conflict' });
+      if (!isAllowedPickupReview(pickup.status, input.decision)) throw new ConflictException({ code: 'PICKUP_INVALID_TRANSITION', message: 'Pickup review is not allowed in its current state' });
       const status = input.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
       const updated = await tx.storePickupPoint.update({ where: { id: pickup.id }, data: { status, reviewedByUserId: ctx.userId, reviewReason: reason, reviewedAt: new Date(), version: { increment: 1 } } });
       await this.audit(tx, ctx, `catalog.store.pickup.${status.toLowerCase()}`, 'StorePickupPoint', pickup.id, store.countryId, reason);
@@ -190,6 +191,7 @@ export class ServiceabilityService {
       this.requireAdmin(ctx, 'catalog:store:serviceability:review', area.store.countryId);
       if (area.proposedByUserId === ctx.userId || area.store.vendor.ownerUserId === ctx.userId) throw new ForbiddenException({ code: 'SELF_REVIEW_DENIED', message: 'Proposer/owner cannot review their own service area' });
       if (area.version !== input.version) throw new ConflictException({ code: 'SERVICE_AREA_VERSION_CONFLICT', message: 'Service area version conflict' });
+      if (!isAllowedServiceAreaReview(area.status, input.decision)) throw new ConflictException({ code: 'SERVICE_AREA_INVALID_TRANSITION', message: 'Service area review is not allowed in its current state' });
       const status = input.decision === 'APPROVE' ? 'APPROVED' : input.decision === 'REJECT' ? 'REJECTED' : 'SUSPENDED';
       const updated = await tx.storeServiceArea.update({ where: { id: serviceAreaId }, data: { status, reviewedByUserId: ctx.userId, reviewReason: reason, reviewedAt: new Date(), version: { increment: 1 } } });
       await this.audit(tx, ctx, `catalog.store.service_area.${status.toLowerCase()}`, 'StoreServiceArea', serviceAreaId, area.store.countryId, reason);

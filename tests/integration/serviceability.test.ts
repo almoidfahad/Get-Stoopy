@@ -152,6 +152,53 @@ describe('store serviceability and rider eligibility foundation', () => {
     expect(suspended.body.serviceable).toBe(false);
   });
 
+  it('rejects invalid review transitions without changing state or recording decisions', async () => {
+    const current = await get(`/api/v1/catalog/stores/${storeId}/serviceability`, owner).expect(200);
+    expect(current.body.pickup.status).toBe('APPROVED');
+    const pickupPath = `/api/v1/catalog/admin/stores/${storeId}/pickup-point/review`;
+    for (const decision of ['APPROVE', 'REJECT']) {
+      const res = await post(pickupPath, serviceabilityAdmin, { version: current.body.pickup.version, decision, reason: 'invalid pickup transition' }).expect(409);
+      expect(res.body.code).toBe('PICKUP_INVALID_TRANSITION');
+    }
+    const afterPickup = await get(`/api/v1/catalog/stores/${storeId}/serviceability`, owner).expect(200);
+    expect(afterPickup.body.pickup).toEqual(current.body.pickup);
+
+    const zone = await asSuper(u.privileged, async c => (await c.query(
+      `INSERT INTO "ServiceZone"(id,"cityId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`,
+      [randomUUID(), cityId, `transition-${randomUUID().slice(0, 8)}`, 'Transition test zone'],
+    )).rows[0].id as string);
+    const proposal = await post(`/api/v1/catalog/stores/${storeId}/service-areas`, owner, { serviceZoneId: zone }).expect(201);
+    const areaId = proposal.body.serviceAreaId as string;
+    const path = `/api/v1/catalog/admin/service-areas/${areaId}/review`;
+    async function review(version: number, decision: string, status: number) {
+      return post(path, serviceabilityAdmin, { version, decision, reason: 'check review transition' }).expect(status);
+    }
+    async function invalid(version: number, ...decisions: string[]) {
+      for (const decision of decisions) expect((await review(version, decision, 409)).body.code).toBe('SERVICE_AREA_INVALID_TRANSITION');
+    }
+    try {
+      await invalid(1, 'SUSPEND');
+      expect((await review(1, 'REJECT', 201)).body.status).toBe('REJECTED');
+      await invalid(2, 'APPROVE', 'REJECT', 'SUSPEND');
+      const retried = await post(`/api/v1/catalog/stores/${storeId}/service-areas`, owner, { serviceZoneId: zone }).expect(201);
+      expect(retried.body).toMatchObject({ status: 'DRAFT', version: 3 });
+      expect((await review(3, 'APPROVE', 201)).body.status).toBe('APPROVED');
+      await invalid(4, 'APPROVE', 'REJECT');
+      const stale = await review(3, 'SUSPEND', 409);
+      expect(stale.body.code).toBe('SERVICE_AREA_VERSION_CONFLICT');
+      expect((await review(4, 'SUSPEND', 201)).body.status).toBe('SUSPENDED');
+      await invalid(5, 'REJECT', 'SUSPEND');
+      const counts = await asSuper(u.privileged, c => c.query(`SELECT
+        (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$1 AND action IN ('catalog.store.service_area.approved','catalog.store.service_area.rejected','catalog.store.service_area.suspended')) AS audits,
+        (SELECT count(*)::int FROM "OutboxEvent" WHERE "aggregateId"=$2 AND "eventKey" IN ($3,$4,$5)) AS events`,
+        [areaId, storeId, `store-service-area-rejected-${areaId}-2`, `store-service-area-approved-${areaId}-4`, `store-service-area-suspended-${areaId}-5`]));
+      expect(counts.rows[0]).toEqual({ audits: 3, events: 3 });
+    } finally {
+      // Avoid leaving additional approved coverage that affects later tests.
+      await asSuper(u.privileged, c => c.query('UPDATE "ServiceZone" SET status=\'INACTIVE\' WHERE id=$1', [zone]));
+    }
+  });
+
   it('serializes opposing reviews so the same area version succeeds only once', async () => {
     const zone = await asSuper(u.privileged, async c => (await c.query(
       `INSERT INTO "ServiceZone"(id,"cityId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`,

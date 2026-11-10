@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertLatitudeLongitude, assertOperatingHours, isOpenAt, isStoreDispatchServiceable } from '../src/index.js';
+import { assertLatitudeLongitude, assertOperatingHours, isAllowedPickupReview, isAllowedServiceAreaReview, isOpenAt, isStoreDispatchServiceable } from '../src/index.js';
 
 describe('store serviceability helpers', () => {
   it('validates coordinates and operating windows', () => {
@@ -27,6 +27,15 @@ describe('store serviceability helpers', () => {
     expect(isOpenAt(hours, 1, 1019)).toBe(true);
     expect(isOpenAt(hours, 1, 1020)).toBe(false);
     expect(isOpenAt(hours, 0, 600)).toBe(false);
+  });
+  it('allows only the database-supported service-area and pickup review transitions', () => {
+    const allowed = new Set(['DRAFT:APPROVE', 'DRAFT:REJECT', 'APPROVED:SUSPEND', 'SUSPENDED:APPROVE']);
+    for (const state of ['DRAFT', 'APPROVED', 'REJECTED', 'SUSPENDED', 'UNKNOWN']) {
+      for (const decision of ['APPROVE', 'REJECT', 'SUSPEND', 'UNKNOWN']) {
+        expect(isAllowedServiceAreaReview(state, decision)).toBe(allowed.has(`${state}:${decision}`));
+        expect(isAllowedPickupReview(state, decision)).toBe(state === 'DRAFT' && ['APPROVE', 'REJECT'].includes(decision));
+      }
+    }
   });
   it('fails closed unless pickup, hours and an approved service area exist', () => {
     const base = { storeStatus: 'ACTIVE', vendorEligible: true, pickupStatus: 'APPROVED', serviceAreaStatuses: ['APPROVED'], operatingHourCount: 1 };
