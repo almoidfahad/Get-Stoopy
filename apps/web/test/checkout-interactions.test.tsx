@@ -403,6 +403,9 @@ describe('uncertain reservation requests', () => {
     fireEvent.change(screen.getByLabelText('City'), { target: { value: cityA } });
     fireEvent.click(screen.getByRole('button', { name: 'Reserve stock and get quote' }));
     await screen.findByRole('button', { name: 'Retry same reservation request' });
+    expect(screen.getByRole('link', { name: 'Go to sign in' }).getAttribute('href')).toBe('/login');
+    expect(screen.getByText(/may lose its saved retry request/)).toBeTruthy();
+    expect(screen.getByText(/earlier request may still finish later/)).toBeTruthy();
     rerender(<CheckoutPanel {...props} initialQuote={quote} />);
     expect(await screen.findByRole('button', { name: 'Release reserved stock' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Retry same reservation request' }).getAttribute('aria-disabled')).toBe('true');

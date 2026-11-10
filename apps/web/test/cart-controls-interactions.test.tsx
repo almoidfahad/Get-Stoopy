@@ -163,6 +163,37 @@ describe('cart controls interactions', () => {
     expect(screen.getByRole('link', { name: 'Reload cart' })).toBeTruthy();
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
+  it('offers sign-in after an expired-session preflight on the product without losing focus', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'SIGN_IN_REQUIRED' }), { status: 401 })));
+    render(<AddToCart variants={variants} signedIn />);
+    fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'one' } });
+    const add = screen.getByRole('button', { name: 'Add to cart' });
+    add.focus(); fireEvent.click(add);
+    expect((await screen.findByRole('alert')).textContent).toContain('Please sign in');
+    expect(document.activeElement).toBe(add);
+    expect(screen.getByRole('link', { name: 'Go to sign in' }).getAttribute('href')).toBe('/login');
+    expect(screen.queryByText('Added.', { exact: false })).toBeNull();
+    fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: '2' } });
+    expect(screen.queryByRole('link', { name: 'Go to sign in' })).toBeNull();
+  });
+  it('offers sign-in after an expired-session preflight while editing a cart line', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'SIGN_IN_REQUIRED' }), { status: 401 })));
+    render(<CartLineControls variantId="one" productTitle="Item" quantity={2} version={7} />);
+    const increase = screen.getByRole('button', { name: 'Increase quantity for Item' });
+    increase.focus(); fireEvent.click(increase);
+    expect((await screen.findByRole('alert')).textContent).toContain('Please sign in');
+    expect(document.activeElement).toBe(increase);
+    expect(screen.getByRole('link', { name: 'Go to sign in' }).getAttribute('href')).toBe('/login');
+    expect(screen.queryByRole('link', { name: 'Reload cart' })).toBeNull();
+  });
+  it('does not claim authentication is needed for a service outage', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 503 })));
+    render(<AddToCart variants={variants} signedIn />);
+    fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'one' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add to cart' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('result is unknown');
+    expect(screen.queryByRole('link', { name: 'Go to sign in' })).toBeNull();
+  });
   it('does not mark an explicit rejected request as an unknown outcome', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'CART_VARIANT_NOT_SELLABLE' }), { status: 409 })));
     render(<AddToCart variants={variants} signedIn />);

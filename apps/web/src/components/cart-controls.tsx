@@ -37,11 +37,12 @@ export function useCartMutation() {
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signInRequired, setSignInRequired] = useState(false);
   const [done, setDone] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const inFlight = useRef(false);
 
-  function clearFeedback() { if (!uncertain) setError(null); setDone(false); }
+  function clearFeedback() { if (!uncertain) { setError(null); setSignInRequired(false); } setDone(false); }
   function acknowledgeUncertain() { setUncertain(false); setError(null); }
 
   async function send(method: 'POST' | 'PATCH' | 'DELETE', body: Record<string, unknown>, onSuccess?: () => void): Promise<boolean> {
@@ -49,6 +50,7 @@ export function useCartMutation() {
     inFlight.current = true;
     setBusy(true);
     setError(null);
+    setSignInRequired(false);
     setDone(false);
     try {
       const res = await fetch('/api/cart/items', {
@@ -62,7 +64,10 @@ export function useCartMutation() {
         if (res.status >= 500) {
           setUncertain(true);
           setError('The request may have succeeded, but its result is unknown. It may still complete later.');
-        } else setError(messageFor(payload.code, res.status));
+        } else {
+          setError(messageFor(payload.code, res.status));
+          if (res.status === 401 && payload.code === 'SIGN_IN_REQUIRED') setSignInRequired(true);
+        }
         if (payload.code === 'CART_VERSION_CONFLICT') startTransition(() => router.refresh());
         return false;
       }
@@ -87,7 +92,7 @@ export function useCartMutation() {
     }
   }
 
-  return { send, error, done, uncertain, working: busy || pending, clearFeedback, acknowledgeUncertain };
+  return { send, error, signInRequired, done, uncertain, working: busy || pending, clearFeedback, acknowledgeUncertain };
 }
 
 export interface OrderableVariant {
@@ -103,7 +108,7 @@ export function AddToCart({
   variants: readonly OrderableVariant[];
   signedIn: boolean;
 }) {
-  const { send, error, done, uncertain, working, clearFeedback, acknowledgeUncertain } = useCartMutation();
+  const { send, error, signInRequired, done, uncertain, working, clearFeedback, acknowledgeUncertain } = useCartMutation();
   const quantityHelpId = useId();
   const selectionHelpId = useId();
   const uncertainHelpId = useId();
@@ -174,6 +179,7 @@ export function AddToCart({
       {!validQuantity ? <p id={quantityHelpId} className="text-sm font-medium text-brand-red">Enter a whole number between 1 and 100.</p> : null}
       {working ? <p role="status" className="sr-only">Adding to cart…</p> : null}
       {error ? <p role="alert" className="text-sm font-medium text-brand-red">{error}</p> : null}
+      {signInRequired ? <a href="/login" className="inline-flex min-h-11 items-center self-start text-sm font-bold text-brand-red underline">Go to sign in</a> : null}
       {uncertain ? (
         <div id={uncertainHelpId} className="rounded-xl border border-red-200 bg-white p-4 text-sm leading-6 text-neutral-800">
           <p>Check your cart before adding again. A reload cannot guarantee that an earlier request won’t finish later.</p>
@@ -203,7 +209,7 @@ export function CartLineControls({
   quantity: number;
   version: number;
 }) {
-  const { send, error, uncertain, working } = useCartMutation();
+  const { send, error, signInRequired, uncertain, working } = useCartMutation();
   const removeButtonRef = useRef<HTMLButtonElement>(null);
 
   function recoverFocusAfterRemoval() {
@@ -246,6 +252,7 @@ export function CartLineControls({
       </div>
       {working ? <p role="status" className="text-sm text-neutral-700">Updating cart…</p> : null}
       {error ? <p role="alert" className="max-w-xs text-left text-sm font-medium text-brand-red sm:text-right">{error}</p> : null}
+      {signInRequired ? <a href="/login" className="inline-flex min-h-11 items-center text-sm font-bold text-brand-red underline">Go to sign in</a> : null}
       {uncertain ? <p className="max-w-xs text-left text-sm leading-6 text-neutral-700 sm:text-right">Review your cart before making another change. <a href="/cart" className="font-bold text-brand-red underline">Reload cart</a>; an earlier request may still complete later.</p> : null}
     </div>
   );

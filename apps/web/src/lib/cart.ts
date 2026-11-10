@@ -102,7 +102,7 @@ export async function getOrCreateCart(): Promise<CartResult> {
   if (!countryId) return { state: 'not-configured' };
   try {
     const res = await cartFetch('/commerce/carts', { method: 'POST', body: JSON.stringify({ countryId }) });
-    if (!res) return { state: 'sign-in' };
+    if (!res || res.status === 401) return { state: 'sign-in' };
     if (!res.ok) return { state: 'unavailable' };
     const cart: unknown = await res.json();
     if (!isCartResponse(cart, countryId)) return { state: 'unavailable' };

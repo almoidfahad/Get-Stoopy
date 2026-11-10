@@ -66,6 +66,37 @@ describe('cart API response validation', () => {
     mocks.session.mockReturnValue(undefined);
     expect(await getOrCreateCart()).toEqual({ state: 'sign-in' });
   });
+  it('treats an expired or invalid session rejected by the cart API as sign-in required', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'UNAUTHENTICATED' }), { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await getOrCreateCart()).toEqual({ state: 'sign-in' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it.each([403, 429, 500, 503])('does not mistake HTTP %s for sign-out', async status => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status })));
+    expect(await getOrCreateCart()).toEqual({ state: 'unavailable' });
+  });
+  it.each(['add', 'update', 'remove'] as const)('does not issue %s after the cart preflight returns 401', async op => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await mutateCart(op, { variantId: variant, quantity: 1, expectedVersion: 1 })).toEqual({ status: 401, body: { code: 'SIGN_IN_REQUIRED' } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('does not issue a quote request after the cart preflight returns 401', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await createQuote({ destinationCityId: country, expectedVersion: 1, commandKey: 'web-test' })).toEqual({ status: 401, body: { code: 'SIGN_IN_REQUIRED' } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('returns a sign-in response through the cart BFF instead of a mutation', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const req = new Request('https://shop.test/api/cart/items', { method: 'POST', headers: { origin: 'https://shop.test', 'content-type': 'application/json' }, body: JSON.stringify({ variantId: variant, quantity: 1 }) });
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ code: 'SIGN_IN_REQUIRED' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it.each(['add', 'update', 'remove'] as const)('does not send a %s mutation when cart data is malformed', async op => {
     const fetchMock = vi.fn().mockResolvedValue(reply({ ...cart, items: [null] })); vi.stubGlobal('fetch', fetchMock);
     expect(await mutateCart(op, { variantId: variant, quantity: 1, expectedVersion: 1 })).toMatchObject({ status: 502, body: { code: 'CART_UNAVAILABLE' } });

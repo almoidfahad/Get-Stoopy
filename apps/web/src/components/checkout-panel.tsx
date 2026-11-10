@@ -53,6 +53,7 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
   const [cityId, setCityId] = useState('');
   const [quote, setQuote] = useState<QuoteInput | null>(initialQuote);
   const [error, setError] = useState<string | null>(null);
+  const [signInRequired, setSignInRequired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState<number | null>(null);
   // An uncertain response must be retried with the *entire* original payload,
@@ -124,6 +125,7 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
     inFlight.current = true;
     setBusy(true);
     setError(null);
+    setSignInRequired(false);
     try {
       attempt.current ??= { cartId, destinationCityId: cityId, expectedVersion: cartVersion, attemptId: newAttemptId() };
       const request = attempt.current;
@@ -134,6 +136,7 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
       });
       const payload = (await res.json().catch(() => ({}))) as QuoteInput & { code?: string };
       if (!res.ok) {
+        if (res.status === 401 && payload.code === 'SIGN_IN_REQUIRED') setSignInRequired(true);
         // Only a first, explicit rejection resolves the attempt. After an
         // uncertain response the earlier request may still be in flight even if
         // a retry receives a conflict, so keep the original payload in that case.
@@ -293,6 +296,13 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
           <p role="alert" className="mt-4 rounded-lg border border-brand-red bg-red-50 p-3 text-sm font-medium text-brand-red">
             {error}
           </p>
+        ) : null}
+
+        {signInRequired && error ? (
+          <div className="mt-4 rounded-lg border border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-800">
+            <p>Signing in leaves this page and may lose its saved retry request. After signing in, check checkout for a reserved quote; an earlier request may still finish later.</p>
+            <a href="/login" className="mt-2 inline-flex min-h-11 items-center font-bold text-brand-red underline">Go to sign in</a>
+          </div>
         ) : null}
 
         {quoteStatusUncertain ? (
