@@ -191,6 +191,9 @@ describe('store serviceability and rider eligibility foundation', () => {
       await holder.end(); await monitor.end();
     }
     const results = await Promise.all([first!, second!]);
+    // Keep this extra fixture zone from making later coverage tests pass for
+    // the wrong reason if APPROVE won the race.
+    await asSuper(u.privileged, c => c.query('UPDATE "ServiceZone" SET status=\'INACTIVE\' WHERE id=$1', [zone]));
     expect(results.map(r => r.status).sort()).toEqual([201, 409]);
     expect(results.find(r => r.status === 409).body.code).toBe('SERVICE_AREA_VERSION_CONFLICT');
     const winner = results.find(r => r.status === 201).body;
