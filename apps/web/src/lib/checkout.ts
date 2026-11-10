@@ -1,5 +1,6 @@
 import type { QuoteCreateValue, QuoteReleaseValue } from '@getstoopy/core';
 import { cartFetch, getOrCreateCart } from './cart';
+import { commerceFailure } from './commerce-response';
 
 /**
  * Server-side access to the checkout quote API.
@@ -53,6 +54,14 @@ async function call(path: string, init: RequestInit): Promise<QuoteCallResult> {
     return { status: 502, body: { code: 'QUOTE_UNAVAILABLE' } };
   }
   if (!res) return { status: 401, body: { code: 'SIGN_IN_REQUIRED' } };
-  const body = await res.json().catch(() => ({ code: 'QUOTE_UNAVAILABLE' }));
-  return { status: res.status, body };
+  const expectedSuccess = res.status === 200 || (init.method === 'POST' && res.status === 201);
+  if (!expectedSuccess) return commerceFailure(res, 'QUOTE_UNAVAILABLE');
+  try {
+    const body: unknown = await res.json();
+    return { status: res.status, body };
+  } catch {
+    // Even with successful headers, a stalled or unreadable body cannot prove
+    // the result of a reservation or release.
+    return { status: 502, body: { code: 'QUOTE_UNAVAILABLE' } };
+  }
 }

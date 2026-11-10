@@ -3,6 +3,7 @@ import { csrfTokenForSession } from '@getstoopy/bff';
 import type { CartLineInput } from '@getstoopy/core';
 import { webConfig } from './config';
 import { marketCountryId } from './catalog';
+import { commerceFailure } from './commerce-response';
 
 /**
  * Server-side access to the session-scoped cart API.
@@ -88,7 +89,11 @@ export async function cartFetch(path: string, init: RequestInit = {}): Promise<R
     headers.set('x-csrf-token', csrfTokenForSession(token));
     if (init.body) headers.set('content-type', 'application/json');
   }
-  return fetch(`${cfg.apiUrl}/api/v1${path}`, { ...init, headers, cache: 'no-store' });
+  // Do not forward session or CSRF credentials to a redirect target. The
+  // deadline remains active while callers consume the response body.
+  const timeout = AbortSignal.timeout(8_000);
+  const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+  return fetch(`${cfg.apiUrl}/api/v1${path}`, { ...init, headers, cache: 'no-store', redirect: 'manual', signal });
 }
 
 /** Whether a session cookie is present. Authorization is still decided by the API. */
@@ -103,7 +108,7 @@ export async function getOrCreateCart(): Promise<CartResult> {
   try {
     const res = await cartFetch('/commerce/carts', { method: 'POST', body: JSON.stringify({ countryId }) });
     if (!res || res.status === 401) return { state: 'sign-in' };
-    if (!res.ok) return { state: 'unavailable' };
+    if (res.status !== 200 && res.status !== 201) return { state: 'unavailable' };
     const cart: unknown = await res.json();
     if (!isCartResponse(cart, countryId)) return { state: 'unavailable' };
     return { state: 'ok', cart };
@@ -162,11 +167,12 @@ export async function mutateCart(
       res = await cartFetch(`${base}/${input.variantId}?expectedVersion=${expectedVersion}`, { method: 'DELETE' });
     }
   } catch {
-    return { status: 502, body: { code: 'CART_UNAVAILABLE' } };
+    return { status: 502, body: { code: 'CART_RESULT_UNKNOWN' } };
   }
   if (!res) return { status: 401, body: { code: 'SIGN_IN_REQUIRED' } };
+  const expectedSuccess = res.status === 200 || (op === 'add' && res.status === 201);
+  if (!expectedSuccess) return commerceFailure(res, 'CART_RESULT_UNKNOWN');
   const body: unknown = await res.json().catch(() => null);
-  if (!res.ok) return { status: res.status, body: body ?? { code: 'CART_UNAVAILABLE' } };
 
   // A successful HTTP status does not establish what the mutation did. Check
   // the returned cart and the specific line before confirming it to the client.
