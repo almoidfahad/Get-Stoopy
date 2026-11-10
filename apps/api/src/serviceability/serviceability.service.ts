@@ -170,6 +170,12 @@ export class ServiceabilityService {
     assertVersion(input.version); const reason = reasonText(input.reason);
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      // Lock before reading the version and review metadata. Without this, two
+      // reviewers can both accept the same version before either update commits.
+      // The later update might otherwise apply a different decision or fail as
+      // an opaque database error rather than a stable version conflict.
+      const locked = await tx.$queryRaw`SELECT "id" FROM "StoreServiceArea" WHERE "id"=${serviceAreaId}::uuid FOR UPDATE`;
+      if (!(locked as unknown[]).length) throw new NotFoundException({ code: 'SERVICE_AREA_NOT_FOUND', message: 'Service area not found' });
       const area = await tx.storeServiceArea.findUnique({ where: { id: serviceAreaId }, include: { store: { include: { vendor: true } } } });
       if (!area) throw new NotFoundException({ code: 'SERVICE_AREA_NOT_FOUND', message: 'Service area not found' });
       this.requireAdmin(ctx, 'catalog:store:serviceability:review', area.store.countryId);

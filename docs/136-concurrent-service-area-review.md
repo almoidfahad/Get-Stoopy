@@ -1,0 +1,7 @@
+# Concurrent service-area reviews
+
+The service-area review endpoint previously loaded an area and checked its version without locking it before updating. Overlapping reviewers could both accept the same version. Depending on decision order and database transition guards, a stale review could be applied as a later valid transition or return an opaque database failure instead of a version conflict. This is a race found in code review, not evidence of an actual incident.
+
+Review now locks the `StoreServiceArea` row before reading review metadata and comparing versions. Existing permission, step-up, geographic-scope, owner/proposer exclusion and database transition checks remain in force. A second reviewer sees the updated version and receives `SERVICE_AREA_VERSION_CONFLICT`. Review updates, audit records and outbox events still commit atomically. The vendor's rejected-area resubmission is also serialized against this row, although its broader interactions are not exhaustively tested here.
+
+The integration test holds a fixture row while two authorized reviewers submit opposing decisions at the same version; it checks exactly one success, one conflict, one version increment and one matching audit/outbox event. This uses isolated PostgreSQL/Redis CI infrastructure. No Supabase migration, remote data change or production deployment is included. Other review workflows have not been assessed by this change.

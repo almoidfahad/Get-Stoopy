@@ -152,6 +152,55 @@ describe('store serviceability and rider eligibility foundation', () => {
     expect(suspended.body.serviceable).toBe(false);
   });
 
+  it('serializes opposing reviews so the same area version succeeds only once', async () => {
+    const zone = await asSuper(u.privileged, async c => (await c.query(
+      `INSERT INTO "ServiceZone"(id,"cityId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`,
+      [randomUUID(), cityId, `review-race-${randomUUID().slice(0, 8)}`, 'Review race zone'],
+    )).rows[0].id as string);
+    const proposal = await post(`/api/v1/catalog/stores/${storeId}/service-areas`, owner, { serviceZoneId: zone }).expect(201);
+    const areaId = proposal.body.serviceAreaId as string;
+    const reviewer2 = await makeUser('second-serviceability-reviewer');
+    await grantKeys(reviewer2, ['catalog:store:serviceability:review']);
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let first: Promise<any> | undefined; let second: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN');
+      await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('SELECT id FROM "StoreServiceArea" WHERE id=$1 FOR UPDATE', [areaId]);
+      const pid = (await holder.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      const path = `/api/v1/catalog/admin/service-areas/${areaId}/review`;
+      first = post(path, serviceabilityAdmin, { version: 1, decision: 'APPROVE', reason: 'verified coverage area' }).then((r: any) => r);
+      second = post(path, reviewer2, { version: 1, decision: 'REJECT', reason: 'coverage needs correction' }).then((r: any) => r);
+      const deadline = Date.now() + 10000;
+      let count = 0;
+      while (Date.now() < deadline) {
+        count = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+          WHERE state='active' AND wait_event_type='Lock' AND $1=ANY(pg_blocking_pids(pid))`, [pid])).rows[0].n;
+        if (count >= 2) break;
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      expect(count).toBe(2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const results = await Promise.all([first!, second!]);
+    expect(results.map(r => r.status).sort()).toEqual([201, 409]);
+    expect(results.find(r => r.status === 409).body.code).toBe('SERVICE_AREA_VERSION_CONFLICT');
+    const winner = results.find(r => r.status === 201).body;
+    expect(['APPROVED', 'REJECTED']).toContain(winner.status);
+    expect(winner.version).toBe(2);
+    const rows = await asSuper(u.privileged, c => c.query(`SELECT
+      (SELECT count(*)::int FROM "StoreServiceArea" WHERE id=$1 AND version=2 AND status=$2::"StoreServiceAreaStatus") AS areas,
+      (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$1 AND action IN ('catalog.store.service_area.approved','catalog.store.service_area.rejected')) AS audits,
+      (SELECT count(*)::int FROM "OutboxEvent" WHERE "eventKey" IN ($3,$4)) AS events`,
+      [areaId, winner.status, `store-service-area-approved-${areaId}-2`, `store-service-area-rejected-${areaId}-2`]));
+    expect(rows.rows[0]).toEqual({ areas: 1, audits: 1, events: 1 });
+  });
+
   it('validates operating hours and keeps location samples append-only', async () => {
     await put(`/api/v1/catalog/stores/${storeId}/operating-hours`, owner, { hours: [{ dayOfWeek: 0, openMinute: 540, closeMinute: 1020 }, { dayOfWeek: 0, openMinute: 1000, closeMinute: 1200 }] }).expect(400);
     await put(`/api/v1/catalog/stores/${storeId}/operating-hours`, owner, { hours: [] }).expect(400);
