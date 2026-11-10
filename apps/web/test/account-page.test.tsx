@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({ apiFetch: vi.fn() }));
 vi.mock('@/lib/bff', () => ({ apiFetch: mocks.apiFetch }));
 import Account from '../src/app/account/page';
 
-async function render() { return renderToStaticMarkup(await Account()); }
+async function render() { return renderToStaticMarkup(await Account({})); }
 beforeEach(() => vi.resetAllMocks());
 
 describe('account page', () => {
@@ -51,6 +51,27 @@ describe('account page', () => {
     expect(html).toContain('href="/cart"');
     expect(html).not.toContain('do-not-render');
     expect(html).not.toContain('href="/orders"');
+  });
+  it.each([
+    ['unavailable', 'Account linking is unavailable', 'No link request was sent'],
+    ['failed', 'Account linking did not start or could not be completed', 'No link request was sent'],
+    ['unconfirmed', 'Account linking could not be confirmed', 'Do not repeat it until'],
+    ['success', 'Account linking response received', 'cannot independently verify'],
+  ])('shows an honest %s linking outcome even if account is unavailable', async (outcome, title, explanation) => {
+    mocks.apiFetch.mockRejectedValue(new Error('offline'));
+    const html = renderToStaticMarkup(await Account({ searchParams: Promise.resolve({ link: outcome }) }));
+    expect(html).toContain(title);
+    expect(html).toContain(explanation);
+    expect(html).toContain('role="status"');
+    expect(html).not.toContain('href="/api/auth/link/start"');
+  });
+  it('does not render a linking outcome for unrecognised or repeated parameters', async () => {
+    mocks.apiFetch.mockResolvedValue(new Response(null, { status: 401 }));
+    for (const link of ['attacker text', ['success', 'failed']]) {
+      const html = renderToStaticMarkup(await Account({ searchParams: Promise.resolve({ link }) }));
+      expect(html).not.toContain('attacker text');
+      expect(html).not.toContain('link-result-heading');
+    }
   });
   it('states when no permissions are assigned', async () => {
     mocks.apiFetch.mockResolvedValue(Response.json({ user: { id: 'u', assurance: 'PASSWORD' }, permissions: [] }));

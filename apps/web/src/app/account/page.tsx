@@ -35,8 +35,9 @@ async function loadAccount(): Promise<AccountResult> {
   }
 }
 
-export default async function Account() {
+export default async function Account({ searchParams }: { searchParams?: Promise<{ link?: string | string[] }> }) {
   const result = await loadAccount();
+  const link = (await searchParams)?.link;
   return (
     <Shell>
       <nav aria-label="Breadcrumb" className="mb-6 text-sm text-neutral-600"><Link href="/" className="hover:text-brand-red">Home</Link><span aria-hidden="true" className="mx-2 text-neutral-400">/</span><span aria-current="page" className="font-semibold text-neutral-900">Account</span></nav>
@@ -45,6 +46,13 @@ export default async function Account() {
         <h1 className="mt-2 text-3xl font-black tracking-[-.035em] text-neutral-950 sm:text-4xl">Your account<span className="text-brand-red">.</span></h1>
         <p className="mt-3 max-w-xl text-sm leading-6 text-neutral-600">A place to access your session and continue shopping.</p>
       </header>
+
+      {link === 'unavailable' || link === 'failed' || link === 'unconfirmed' || link === 'success' ? (
+        <section aria-labelledby="link-result-heading" role="status" className="mt-6 max-w-2xl rounded-xl border border-neutral-300 bg-neutral-50 p-5 text-sm leading-6 text-neutral-800">
+          <h2 id="link-result-heading" className="font-bold">{link === 'unavailable' ? 'Account linking is unavailable' : link === 'failed' ? 'Account linking did not start or could not be completed' : link === 'unconfirmed' ? 'Account linking could not be confirmed' : 'Account linking response received'}</h2>
+          <p className="mt-1">{link === 'unconfirmed' ? 'The request may have completed even though its response was unavailable. Do not repeat it until the linked identity can be verified with the service.' : link === 'success' ? 'The return URL indicates success, but this page cannot independently verify linked identities. Account linking is not yet available to manage here.' : 'No link request was sent. Please return to your account; account linking is not yet available to manage here.'}</p>
+        </section>
+      ) : null}
 
       {result.state !== 'signed-in' ? (
         <section aria-labelledby="account-notice" className="mt-8 max-w-2xl rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-8 sm:p-10">

@@ -33,7 +33,9 @@ export async function GET(req: Request) {
   let sessionRequested = false;
   try {
     const tx = await readTransactionCookie();
-    if (!tx) return failed('oidc');
+    // Link and sign-in share a transient cookie; never turn a link transaction
+    // into a new sign-in session (or accept a transaction for another callback).
+    if (!tx || tx.purpose !== undefined || tx.redirectUri !== cfg.redirectUri) return failed('oidc');
     const url = new URL(cfg.redirectUri);
     url.search = new URL(req.url).search;
     const tokens = await completeLogin({ issuer: cfg.issuer, clientId: cfg.clientId, clientSecret: cfg.clientSecret, redirectUri: cfg.redirectUri, allowInsecureHttp: cfg.allowInsecureHttp }, url, tx);

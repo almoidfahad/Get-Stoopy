@@ -1,0 +1,18 @@
+# Account-link session binding and recovery
+
+## Problem and changes
+
+The existing account-link callback accepted whichever browser session was present after returning from the identity provider. If the session changed in another tab, the link could be submitted for a different session from the one that started it. The sign-in callback also accepted a link transaction because both flows use the same transient cookie. Furthermore, link-start errors could become server errors or incorrectly imply sign-out, and link callback failures were redirected to an account page that did not explain them.
+
+A link transaction now contains the hash of the valid opaque session token and the link purpose and callback URI. The callback rejects missing, malformed, old unbound or mismatched transactions and sessions before provider exchange or the link request. The ordinary sign-in callback rejects link-purpose or wrong-callback transactions. No session token is stored in the transaction. Start distinguishes a 401 from service failure, and uses an eight-second session-read timeout and manual redirects.
+
+The link callback derives the CSRF header from the bound session and sends the ID token only to the configured API with manual redirect handling and an eight-second timeout. It treats only API HTTP 201 with `linked: true` and the configured issuer as a successful response. Once the link request starts, errors, timeouts, unexpected statuses and malformed responses are **unconfirmed**, not proof that no mutation occurred. There is no automatic retry. The account page explains this uncertainty and that its return URL is not independent evidence of linked identity state; the page offers no linking action, retry or linked-identities management. Relative, non-cacheable recovery redirects and a no-referrer callback policy avoid reflecting request hosts, callback codes or error details.
+
+The server still enforces session validity, authorization, ID-token verification, issuer conflicts and admin step-up. Binding to a session does not solve distributed idempotency, provider/account ownership verification, or an uncertain server-side commit. A result query can be forged and is not an authorization decision. Existing in-flight link transactions created before this change are safely rejected and must be started again; normal sign-in transactions for the configured callback remain compatible.
+
+## Verification and limitations
+
+- 861 local tests, typecheck and an isolated production web build passed. Route tests include session switches, missing/wrong-purpose/wrong-callback transactions, provider and cookie failures, 401 versus service failures, unexpected link statuses, malformed results and no automatic retry.
+- A synthetic local OIDC provider and session/link API exercised the real BFF routes. At 320, 390 and 1440 CSS pixels a malformed response after a committed fixture link produced the warning and retained the session, while a valid response produced the bounded success notice. The unconfirmed screen had no detected Axe violations or horizontal overflow. A JavaScript-disabled check rendered the warning. Switching session between start and callback sent no link request.
+- An actual eight-second upstream timeout after a synthetic committed link returned an unconfirmed result; the fixture received one request, with no automatic retry.
+- These are isolated synthetic tests, not proof of real account linking, complete accessibility, or a production-ready linking workflow. There is currently no account-link management UI or independent verification mechanism, and real provider/backend testing remains necessary. No production deployment, user database or Supabase connection was made.

@@ -58,6 +58,14 @@ describe('sign-in callback recovery', () => {
       if (failure !== 'session-cookie') expect(mocks.setSessionCookie).not.toHaveBeenCalled();
     },
   );
+  it.each([{ purpose: 'link' }, { redirectUri: 'https://shop.example.test/api/auth/link/callback' }])('rejects a link or wrong-callback transaction before provider exchange', async changes => {
+    mocks.readTransactionCookie.mockResolvedValue({ ...transaction, ...changes });
+    const res = await GET(req());
+    expect(res.headers.get('location')).toBe('/login?error=oidc');
+    expect(mocks.completeLogin).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(mocks.setSessionCookie).not.toHaveBeenCalled();
+  });
   it.each([
     ['null', null], ['empty body', {}], ['token missing', { expiresAt: validSession.expiresAt }],
     ['token wrong type', { ...validSession, sessionToken: {} }], ['token empty', { ...validSession, sessionToken: '' }],
