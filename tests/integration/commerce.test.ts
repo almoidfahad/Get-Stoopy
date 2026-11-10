@@ -321,6 +321,61 @@ describe('cart and checkout quote orchestration', () => {
     expect(await runInventoryExpiryTick(privilegedPool, log, 100)).toBe(0);
   }, 100000);
 
+  it('waits for every quote line to expire while processing an older standalone hold', async () => {
+    const buyer = await makeUser('staggered-expiry');
+    const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    let version = cart.body.version;
+    for (const variantId of [variantA, variantB]) {
+      const added = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId, quantity: 1, expectedVersion: version }).expect(201);
+      version = added.body.version;
+    }
+    const quoteId = randomUUID();
+    const standaloneId = randomUUID();
+    const firstId = randomUUID(); const secondId = randomUUID();
+    // Time-offset fixtures are inserted through all normal PostgreSQL guards;
+    // no trigger disabling or production data is involved.
+    await asSuper(u.privileged, async c => {
+      async function reserve(variantId: string, reservationId: string, expiry: string) {
+        const inv = (await c.query('SELECT * FROM "Inventory" WHERE "variantId"=$1 FOR UPDATE', [variantId])).rows[0];
+        const key = `fixture-${reservationId}`;
+        const hash = createHash('sha256').update(key).digest('hex');
+        await c.query(`INSERT INTO "InventoryReservation"(id,"inventoryId","userId","commandKey","payloadHash",quantity,"createdAt","expiresAt","updatedAt")
+          VALUES ($1,$2,$3,$4,$5,1,now()-interval '61 seconds',now()+$6::interval,now())`, [reservationId, inv.id, buyer.userId, key, hash, expiry]);
+        const updated = (await c.query('UPDATE "Inventory" SET reserved=reserved+1,version=version+1,"updatedAt"=now() WHERE id=$1 RETURNING *', [inv.id])).rows[0];
+        await c.query(`INSERT INTO "InventoryMovement"(id,"inventoryId","inventoryVersion",kind,"commandKey","payloadHash","reservationId","onHandDelta","reservedDelta","onHandAfter","reservedAfter",reason,"actorUserId")
+          VALUES (gen_random_uuid(),$1,$2,'RESERVE',$3,$4,$5,0,1,$6,$7,'checkout stock reservation',$8)`, [inv.id, updated.version, `reserve:${reservationId}`, hash, reservationId, updated.onHand, updated.reserved, buyer.userId]);
+      }
+      await reserve(variantA, firstId, '-1 second');
+      await reserve(variantB, secondId, '120 seconds');
+      await reserve(variantA, standaloneId, '-2 seconds');
+      const key = `fixture-quote-${quoteId}`;
+      await c.query(`INSERT INTO "CheckoutQuote"(id,"userId","countryId","cartId","cartVersion","destinationCityId","commandKey","payloadHash",currency,"subtotalMinor","createdAt","expiresAt","updatedAt")
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'BDT',1250,now()-interval '61 seconds',now()-interval '1 second',now())`,
+        [quoteId, buyer.userId, countryId, cart.body.cartId, version, cityId, key, createHash('sha256').update(key).digest('hex')]);
+      for (const [vendor, reservationId] of [[vendorA, firstId], [vendorB, secondId]] as const) {
+        const v = (await c.query(`SELECT v.id,v.sku,v."priceAmountMinor",v.currency,p.id AS "productId",p.title
+          FROM "ProductVariant" v JOIN "Product" p ON p.id=v."productId" WHERE v.id=$1`, [vendor.variantId])).rows[0];
+        const groupId = randomUUID();
+        await c.query(`INSERT INTO "CheckoutQuoteGroup"(id,"quoteId","vendorId","storeId",currency,"subtotalMinor") VALUES ($1,$2,$3,$4,$5,$6)`, [groupId, quoteId, vendor.vendorId, vendor.storeId, v.currency, v.priceAmountMinor]);
+        await c.query(`INSERT INTO "CheckoutQuoteItem"(id,"quoteId","groupId","reservationId","variantId","productId","productTitle",sku,quantity,"unitPriceMinor","lineTotalMinor",currency)
+          VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,1,$8,$8,$9)`, [quoteId, groupId, reservationId, v.id, v.productId, v.title, v.sku, v.priceAmountMinor, v.currency]);
+      }
+    });
+    try {
+      const errors: string[] = [];
+      const log = { info: () => undefined, error: (_name: string, fields: any) => errors.push(fields.error) } as any;
+      expect(await runInventoryExpiryTick(privilegedPool, log, 10)).toBe(1);
+      const state = await asSuper(u.privileged, c => c.query(`SELECT id,state FROM "InventoryReservation" WHERE id=ANY($1::uuid[]) ORDER BY id`, [[firstId, secondId, standaloneId]]));
+      expect(state.rows.find((r: any) => r.id === standaloneId)?.state).toBe('EXPIRED');
+      expect(state.rows.find((r: any) => r.id === firstId)?.state).toBe('ACTIVE');
+      expect(state.rows.find((r: any) => r.id === secondId)?.state).toBe('ACTIVE');
+      expect((await get(`/api/v1/commerce/quotes/${quoteId}`, buyer).expect(200)).body.state).toBe('RESERVED');
+      expect(errors).toEqual([]);
+    } finally {
+      await post(`/api/v1/commerce/quotes/${quoteId}/release`, buyer, { version: 1, reason: 'staggered expiry test cleanup' }).expect(201);
+    }
+  });
+
   it('enforces RLS, append-only quote snapshots and deferred total/reservation consistency', async () => {
     const cart = await post('/api/v1/commerce/carts', customer, { countryId }).expect(201);
     const cartId = cart.body.cartId;
