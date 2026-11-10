@@ -152,6 +152,43 @@ describe('store serviceability and rider eligibility foundation', () => {
     expect(suspended.body.serviceable).toBe(false);
   });
 
+  it('denies recorded pickup and service-area contributors from reviewing their own amendments', async () => {
+    const manager = await makeUser('manager-reviewer');
+    await grantKeys(manager, ['catalog:store:serviceability:review']);
+    await setStepUp(owner);
+    const membership = await post(`/api/v1/parties/vendors/${vendorId}/memberships`, owner, { userId: manager.userId, role: 'MANAGER' }).expect(201);
+    const activationAdmin = await makeUser('second-store-admin');
+    await grantKeys(activationAdmin, ['catalog:store:activate']);
+    const created = await post('/api/v1/catalog/stores', owner, { vendorId, cityId, name: 'Amendment Store', slug: `amend-${randomUUID().slice(0, 8)}`, addressLine: '456 Pilot Road' }).expect(201);
+    const secondStoreId = created.body.storeId as string;
+    await post(`/api/v1/catalog/admin/stores/${secondStoreId}/activate`, activationAdmin, { version: 1, reason: 'store evidence verified' }).expect(201);
+    const pickupPath = `/api/v1/catalog/stores/${secondStoreId}/pickup-point`;
+    const pickupReview = `/api/v1/catalog/admin/stores/${secondStoreId}/pickup-point/review`;
+    const initial = await post(pickupPath, owner, { latitude: 24.75, longitude: 90.4 }).expect(201);
+    await post(pickupPath, manager, { latitude: 24.76, longitude: 90.41, expectedVersion: 1 }).expect(201);
+    // Even after another contributor makes the latest edit, the prior editor
+    // cannot review this record. Revoking membership must not erase history.
+    await post(pickupPath, owner, { latitude: 24.77, longitude: 90.42, expectedVersion: 2 }).expect(201);
+    const areaPath = `/api/v1/catalog/stores/${secondStoreId}/service-areas`;
+    const area = await post(areaPath, owner, { serviceZoneId: zoneId }).expect(201);
+    const areaReview = `/api/v1/catalog/admin/service-areas/${area.body.serviceAreaId}/review`;
+    await post(areaReview, serviceabilityAdmin, { version: 1, decision: 'REJECT', reason: 'coverage requires correction' }).expect(201);
+    await post(areaPath, manager, { serviceZoneId: zoneId }).expect(201);
+    await post(`/api/v1/parties/vendors/${vendorId}/memberships/${membership.body.membershipId}/revoke`, owner).expect(201);
+    for (const [path, version] of [[pickupReview, 3], [areaReview, 3]] as const) {
+      const response = await post(path, manager, { version, decision: 'APPROVE', reason: 'attempted self review' }).expect(403);
+      expect(response.body.code).toBe('SELF_REVIEW_DENIED');
+    }
+    const beforeIndependent = await asSuper(u.privileged, c => c.query(`SELECT
+      (SELECT count(*)::int FROM "AuditLog" WHERE "actorId"=$1 AND action IN ('catalog.store.pickup.approved','catalog.store.service_area.approved')) AS audits,
+      (SELECT count(*)::int FROM "StorePickupPoint" WHERE id=$2 AND status='DRAFT' AND version=3) AS pickup,
+      (SELECT count(*)::int FROM "StoreServiceArea" WHERE id=$3 AND status='DRAFT' AND version=3) AS area`,
+      [manager.userId, initial.body.pickupId, area.body.serviceAreaId]));
+    expect(beforeIndependent.rows[0]).toEqual({ audits: 0, pickup: 1, area: 1 });
+    await post(pickupReview, serviceabilityAdmin, { version: 3, decision: 'APPROVE', reason: 'independent pickup review' }).expect(201);
+    await post(areaReview, serviceabilityAdmin, { version: 3, decision: 'APPROVE', reason: 'independent coverage review' }).expect(201);
+  });
+
   it('rejects invalid review transitions without changing state or recording decisions', async () => {
     const current = await get(`/api/v1/catalog/stores/${storeId}/serviceability`, owner).expect(200);
     expect(current.body.pickup.status).toBe('APPROVED');

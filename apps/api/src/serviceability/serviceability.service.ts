@@ -62,6 +62,12 @@ export class ServiceabilityService {
   private async audit(tx: any, ctx: AccessContext, action: string, resourceType: string, resourceId: string, countryId: string, reason?: string) {
     await tx.$executeRaw`INSERT INTO "AuditLog"(id,"actorId","actorType","sessionId",action,"resourceType","resourceId","scopeSnapshot",reason,"requestId") VALUES (gen_random_uuid(), ${ctx.userId}::uuid, 'USER'::"ActorType", ${ctx.sessionId}::uuid, ${action}, ${resourceType}, ${resourceId}::uuid, ${JSON.stringify({ countryId })}::jsonb, ${reason ?? null}, ${randomUUID()}::uuid)`;
   }
+  // proposedByUserId is immutable and identifies only the first submitter.
+  // Deny every recorded contributor, not just the latest, to keep review
+  // independent even after a later amendment by a different vendor member.
+  private async hasProposed(tx: any, userId: string, resourceType: string, resourceId: string, action: string): Promise<boolean> {
+    return (await tx.auditLog.findFirst({ where: { actorId: userId, resourceType, resourceId, action }, select: { id: true } })) !== null;
+  }
   private async outbox(tx: any, aggregateType: string, aggregateId: string, eventType: string, eventKey: string, countryId: string, data: Record<string, unknown>) {
     const occurredAt = new Date();
     await tx.outboxEvent.create({ data: { aggregateType, aggregateId, eventKey, eventType, occurredAt, payload: { schemaVersion: 1, eventKey, eventType, occurredAt: occurredAt.toISOString(), aggregateType, aggregateId, countryId, data } } });
@@ -123,7 +129,7 @@ export class ServiceabilityService {
       this.requireAdmin(ctx, 'catalog:store:serviceability:review', store.countryId);
       const pickup = await tx.storePickupPoint.findUnique({ where: { storeId } });
       if (!pickup) throw new NotFoundException({ code: 'PICKUP_NOT_FOUND', message: 'Pickup point not found' });
-      if (pickup.proposedByUserId === ctx.userId || store.ownerUserId === ctx.userId) throw new ForbiddenException({ code: 'SELF_REVIEW_DENIED', message: 'Proposer/owner cannot review their own pickup point' });
+      if (pickup.proposedByUserId === ctx.userId || store.ownerUserId === ctx.userId || await this.hasProposed(tx, ctx.userId, 'StorePickupPoint', pickup.id, 'catalog.store.pickup.proposed')) throw new ForbiddenException({ code: 'SELF_REVIEW_DENIED', message: 'Proposer/owner cannot review their own pickup point' });
       if (pickup.version !== input.version) throw new ConflictException({ code: 'PICKUP_VERSION_CONFLICT', message: 'Pickup version conflict' });
       if (!isAllowedPickupReview(pickup.status, input.decision)) throw new ConflictException({ code: 'PICKUP_INVALID_TRANSITION', message: 'Pickup review is not allowed in its current state' });
       const status = input.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
@@ -196,7 +202,7 @@ export class ServiceabilityService {
       const area = await tx.storeServiceArea.findUnique({ where: { id: serviceAreaId }, include: { store: { include: { vendor: true } } } });
       if (!area) throw new NotFoundException({ code: 'SERVICE_AREA_NOT_FOUND', message: 'Service area not found' });
       this.requireAdmin(ctx, 'catalog:store:serviceability:review', area.store.countryId);
-      if (area.proposedByUserId === ctx.userId || area.store.vendor.ownerUserId === ctx.userId) throw new ForbiddenException({ code: 'SELF_REVIEW_DENIED', message: 'Proposer/owner cannot review their own service area' });
+      if (area.proposedByUserId === ctx.userId || area.store.vendor.ownerUserId === ctx.userId || await this.hasProposed(tx, ctx.userId, 'StoreServiceArea', serviceAreaId, 'catalog.store.service_area.proposed')) throw new ForbiddenException({ code: 'SELF_REVIEW_DENIED', message: 'Proposer/owner cannot review their own service area' });
       if (area.version !== input.version) throw new ConflictException({ code: 'SERVICE_AREA_VERSION_CONFLICT', message: 'Service area version conflict' });
       if (!isAllowedServiceAreaReview(area.status, input.decision)) throw new ConflictException({ code: 'SERVICE_AREA_INVALID_TRANSITION', message: 'Service area review is not allowed in its current state' });
       const status = input.decision === 'APPROVE' ? 'APPROVED' : input.decision === 'REJECT' ? 'REJECTED' : 'SUSPENDED';
