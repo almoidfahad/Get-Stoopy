@@ -6,6 +6,7 @@ import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { publishOutboxBatch } from '../../packages/events/src/index';
 import { urls, asSuper, asUser } from './helpers';
+import { isProductPage, isPublicProduct } from '../../apps/web/src/lib/catalog-validation';
 import { runInventoryExpiryTick } from '../../apps/worker/src/inventory-expiry';
 
 const u = urls();
@@ -156,6 +157,14 @@ afterAll(async () => {
 });
 
 describe('cart and checkout quote orchestration', () => {
+  it('returns stocked product data accepted by the storefront contract', async () => {
+    const detail = await request(app.getHttpServer()).get(`/api/v1/public/catalog/products/${productA}?countryId=${countryId}`).expect(200);
+    expect(isPublicProduct(detail.body)).toBe(true);
+    expect(detail.body.variants.find((v: any) => v.id === variantA)).toMatchObject({ priceAmountMinor: '1000', availableToPromise: 10, inStock: true });
+    const page = await request(app.getHttpServer()).get(`/api/v1/public/catalog/products?countryId=${countryId}`).expect(200);
+    expect(isProductPage(page.body)).toBe(true);
+    expect(page.body.items.some((p: any) => p.id === productA)).toBe(true);
+  });
   it('creates owner-scoped carts and enforces versioned item mutations and sellability', async () => {
     const created = await post('/api/v1/commerce/carts', customer, { countryId }).expect(201);
     expect(created.body.duplicate).toBe(false);

@@ -6,6 +6,7 @@ import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { publishOutboxBatch } from '../../packages/events/src/index';
 import { urls, asSuper, asUser } from './helpers';
+import { isProductPage, isPublicCategories, isPublicProduct } from '../../apps/web/src/lib/catalog-validation';
 
 const u = urls();
 let app: any;
@@ -165,6 +166,8 @@ describe('category taxonomy and product image foundation', () => {
     const tooDeep = await post('/api/v1/catalog/admin/categories', taxonomyCreator, { countryId, parentId: grandchild.body.id, name: `Too Deep ${suffix}`, slug: `too-deep-${suffix}` }).expect(409);
     expect(tooDeep.body.code).toBe('CATEGORY_DEPTH_INVALID');
     const publicAfter = await publicGet(`/api/v1/public/catalog/categories?countryId=${countryId}`).expect(200);
+    // The web validator must accept actual API serialization, not just mocks.
+    expect(isPublicCategories(publicAfter.body)).toBe(true);
     expect(publicAfter.body.some((c: any) => c.id === childCategoryId)).toBe(true);
     await expect(asUser(u.runtime, owner.userId, c => c.query(`UPDATE "Category" SET status='SUSPENDED', version=2 WHERE id=$1`, [rootCategoryId]))).rejects.toThrow(/permission denied/);
     await expect(asSuper(u.privileged, c => c.query(`UPDATE "Category" SET status='DRAFT', version=3 WHERE id=$1`, [rootCategoryId]))).rejects.toThrow(/category_invalid_transition/);
@@ -197,12 +200,14 @@ describe('category taxonomy and product image foundation', () => {
     await post(`/api/v1/catalog/admin/products/${productId}/publish`, productModerator, { version: 4, reason: 'approved for public catalog' }).expect(201);
     publishedProductId = productId;
     const detail = await publicGet(`/api/v1/public/catalog/products/${productId}?countryId=${countryId}`).expect(200);
+    expect(isPublicProduct(detail.body)).toBe(true);
     expect(detail.body.category.id).toBe(childCategoryId);
     expect(detail.body.images).toHaveLength(1);
     const imageBytes = await publicGet(detail.body.images[0].url).expect(200);
     expect(imageBytes.headers['cache-control']).toBe('no-store');
     expect(Buffer.from(imageBytes.body).equals(png)).toBe(true);
     const filtered = await publicGet(`/api/v1/public/catalog/products?countryId=${countryId}&categoryId=${childCategoryId}`).expect(200);
+    expect(isProductPage(filtered.body)).toBe(true);
     expect(filtered.body.items.some((p: any) => p.id === productId)).toBe(true);
     const images = await get(`/api/v1/catalog/products/${productId}/images`, owner).expect(200);
     expect(images.body[0].state).toBe('APPROVED');
