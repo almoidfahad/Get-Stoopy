@@ -361,7 +361,9 @@ describe('cart and checkout quote orchestration', () => {
     await ownerClient.connect();
     try {
       await ownerClient.query('BEGIN');
-      await ownerClient.query("SELECT set_config('app.is_super','true',true)");
+      // gs_owner is not gs_privileged; FORCE RLS permits this buyer's quote
+      // only with the correct actor context, not an app.is_super flag.
+      await ownerClient.query("SELECT set_config('app.user_id',$1,true)", [buyer.userId]);
       const priorMigration = readFileSync(new URL('../../packages/db/prisma/migrations/0020_inventory_reservation_foundation/migration.sql', import.meta.url), 'utf8');
       const marker = 'CREATE OR REPLACE FUNCTION gs_expire_inventory_reservations(batch_limit INTEGER)';
       const start = priorMigration.indexOf(marker);
@@ -370,12 +372,17 @@ describe('cart and checkout quote orchestration', () => {
       // Replacement and rehearsal are rolled back, so no other test sees a
       // legacy function. The pre-existing quote models an in-flight rollout.
       await ownerClient.query(priorMigration.slice(start));
-      const snapshot = async () => (await ownerClient.query(`SELECT q.state,q.version,
-        (SELECT count(*)::int FROM "InventoryReservation" r JOIN "CheckoutQuoteItem" qi ON qi."reservationId"=r.id WHERE qi."quoteId"=q.id AND r.state='ACTIVE') AS active,
-        (SELECT sum(i.reserved)::int FROM "Inventory" i JOIN "InventoryReservation" r ON r."inventoryId"=i.id JOIN "CheckoutQuoteItem" qi ON qi."reservationId"=r.id WHERE qi."quoteId"=q.id) AS reserved,
-        has_function_privilege('gs_privileged','gs_expire_inventory_reservations(integer)','EXECUTE') AS privileged_execute,
-        has_function_privilege('gs_runtime','gs_expire_inventory_reservations(integer)','EXECUTE') AS runtime_execute
-        FROM "CheckoutQuote" q WHERE q.id=$1`, [quote.body.quoteId])).rows[0];
+      const snapshot = async () => {
+        const row = (await ownerClient.query(`SELECT q.state,q.version,
+          (SELECT count(*)::int FROM "InventoryReservation" r JOIN "CheckoutQuoteItem" qi ON qi."reservationId"=r.id WHERE qi."quoteId"=q.id AND r.state='ACTIVE') AS active,
+          has_function_privilege('gs_privileged','gs_expire_inventory_reservations(integer)','EXECUTE') AS privileged_execute,
+          has_function_privilege('gs_runtime','gs_expire_inventory_reservations(integer)','EXECUTE') AS runtime_execute
+          FROM "CheckoutQuote" q WHERE q.id=$1`, [quote.body.quoteId])).rows[0];
+        // Inventory is vendor-scoped. Inspect it using the separate privileged
+        // connection; owner and buyer RLS must not be bypassed in the rehearsal.
+        const stock = await asSuper(u.privileged, c => c.query('SELECT reserved FROM "Inventory" WHERE "variantId"=$1', [variantA]));
+        return { ...row, reserved: stock.rows[0].reserved };
+      };
       const before = await snapshot();
       expect(before).toMatchObject({ state: 'RESERVED', version: 1, active: 1, privileged_execute: true });
       await ownerClient.query(newMigration);
