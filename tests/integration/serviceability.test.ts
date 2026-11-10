@@ -169,15 +169,18 @@ describe('store serviceability and rider eligibility foundation', () => {
       await holder.query('BEGIN');
       await holder.query("SELECT set_config('app.is_super','true',true)");
       await holder.query('SELECT id FROM "StoreServiceArea" WHERE id=$1 FOR UPDATE', [areaId]);
-      const pid = (await holder.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
       const path = `/api/v1/catalog/admin/service-areas/${areaId}/review`;
       first = post(path, serviceabilityAdmin, { version: 1, decision: 'APPROVE', reason: 'verified coverage area' }).then((r: any) => r);
       second = post(path, reviewer2, { version: 1, decision: 'REJECT', reason: 'coverage needs correction' }).then((r: any) => r);
       const deadline = Date.now() + 10000;
       let count = 0;
       while (Date.now() < deadline) {
+        // PostgreSQL can queue the second waiter behind the first waiter
+        // rather than directly behind the holder. Observe both lock-waiting
+        // review queries, not just processes directly blocked by the holder.
         count = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity
-          WHERE state='active' AND wait_event_type='Lock' AND $1=ANY(pg_blocking_pids(pid))`, [pid])).rows[0].n;
+          WHERE state='active' AND wait_event_type='Lock'
+            AND query LIKE '%StoreServiceArea%' AND query LIKE '%FOR UPDATE%'`)).rows[0].n;
         if (count >= 2) break;
         await new Promise(resolve => setTimeout(resolve, 40));
       }
