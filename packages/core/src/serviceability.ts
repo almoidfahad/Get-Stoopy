@@ -13,6 +13,9 @@ export function assertOperatingHours(hours: OperatingHourInput[]): void {
   if (!Array.isArray(hours) || hours.length === 0 || hours.length > MAX_OPERATING_HOUR_ROWS) throw new Error('OPERATING_HOURS_INVALID');
   const byDay = new Map<number, OperatingHourInput[]>();
   for (const h of hours) {
+    // Callers may pass untrusted JSON despite the TypeScript annotation. Do
+    // not dereference null or accept an array/primitive as a window.
+    if (!h || typeof h !== 'object' || Array.isArray(h)) throw new Error('OPERATING_HOURS_INVALID');
     if (!Number.isInteger(h.dayOfWeek) || h.dayOfWeek < 0 || h.dayOfWeek > 6) throw new Error('OPERATING_DAY_INVALID');
     if (!Number.isInteger(h.openMinute) || h.openMinute < 0 || h.openMinute > 1439) throw new Error('OPERATING_OPEN_INVALID');
     if (!Number.isInteger(h.closeMinute) || h.closeMinute < 1 || h.closeMinute > 1440) throw new Error('OPERATING_CLOSE_INVALID');

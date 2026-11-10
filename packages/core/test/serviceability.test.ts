@@ -11,6 +11,16 @@ describe('store serviceability helpers', () => {
     expect(() => assertOperatingHours([{ dayOfWeek: 0, openMinute: 540, closeMinute: 540 }])).toThrow('OPERATING_WINDOW_INVALID');
     expect(() => assertOperatingHours([{ dayOfWeek: 0, openMinute: 540, closeMinute: 1020 }, { dayOfWeek: 0, openMinute: 1000, closeMinute: 1200 }])).toThrow('OPERATING_HOURS_OVERLAP');
   });
+  it.each([null, undefined, false, 5, 'bad', []])('rejects malformed operating window %s with a stable domain error', value => {
+    expect(() => assertOperatingHours([value] as any)).toThrow('OPERATING_HOURS_INVALID');
+  });
+  it.each([
+    [{ openMinute: 1, closeMinute: 2 }, 'OPERATING_DAY_INVALID'],
+    [{ dayOfWeek: 0, openMinute: '540', closeMinute: 600 }, 'OPERATING_OPEN_INVALID'],
+    [{ dayOfWeek: 0, openMinute: 540, closeMinute: null }, 'OPERATING_CLOSE_INVALID'],
+  ])('rejects incomplete or nonnumeric fields', (window, code) => {
+    expect(() => assertOperatingHours([window] as any)).toThrow(code as string);
+  });
   it('uses lower-inclusive upper-exclusive local windows', () => {
     const hours = [{ dayOfWeek: 1, openMinute: 540, closeMinute: 1020 }];
     expect(isOpenAt(hours, 1, 540)).toBe(true);

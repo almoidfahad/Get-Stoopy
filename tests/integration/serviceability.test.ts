@@ -207,6 +207,25 @@ describe('store serviceability and rider eligibility foundation', () => {
     expect(rows.rows[0]).toEqual({ areas: 1, audits: 1, events: 1 });
   });
 
+  it('rejects malformed operating windows without changing the existing schedule or writing audit events', async () => {
+    const path = `/api/v1/catalog/stores/${storeId}/operating-hours`;
+    const before = (await get(`/api/v1/catalog/stores/${storeId}/serviceability`, owner).expect(200)).body.operatingHours;
+    const countRecords = async () => (await asSuper(u.privileged, c => c.query(`SELECT
+      (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$1 AND action='catalog.store.hours.replaced') AS audits,
+      (SELECT count(*)::int FROM "OutboxEvent" WHERE "aggregateId"=$1 AND "eventType"='catalog.store.hours.replaced') AS events`, [storeId]))).rows[0];
+    const counts = await countRecords();
+    for (const window of [null, false, 42, 'invalid', []]) {
+      const res = await put(path, owner, { hours: [window] }).expect(400);
+      expect(res.body.code).toBe('OPERATING_HOURS_INVALID');
+      expect(res.body.message).toBe('Invalid operating hours');
+      expect(Object.keys(res.body).sort()).toEqual(['code', 'message', 'requestId']);
+    }
+    const missingDay = await put(path, owner, { hours: [{ openMinute: 540, closeMinute: 1020 }] }).expect(400);
+    expect(missingDay.body.code).toBe('OPERATING_DAY_INVALID');
+    expect((await get(`/api/v1/catalog/stores/${storeId}/serviceability`, owner).expect(200)).body.operatingHours).toEqual(before);
+    expect(await countRecords()).toEqual(counts);
+  });
+
   it('validates operating hours and keeps location samples append-only', async () => {
     await put(`/api/v1/catalog/stores/${storeId}/operating-hours`, owner, { hours: [{ dayOfWeek: 0, openMinute: 540, closeMinute: 1020 }, { dayOfWeek: 0, openMinute: 1000, closeMinute: 1200 }] }).expect(400);
     await put(`/api/v1/catalog/stores/${storeId}/operating-hours`, owner, { hours: [] }).expect(400);

@@ -12,6 +12,10 @@ function reasonText(reason: string): string {
 function assertVersion(version: number): void {
   if (!Number.isInteger(version) || version < 1) throw new BadRequestException({ code: 'VERSION_INVALID', message: 'Invalid version' });
 }
+const OPERATING_HOURS_ERRORS = new Set([
+  'OPERATING_HOURS_INVALID', 'OPERATING_DAY_INVALID', 'OPERATING_OPEN_INVALID',
+  'OPERATING_CLOSE_INVALID', 'OPERATING_WINDOW_INVALID', 'OPERATING_HOURS_OVERLAP',
+]);
 
 @Injectable()
 export class ServiceabilityService {
@@ -130,7 +134,12 @@ export class ServiceabilityService {
   }
 
   async replaceOperatingHours(ctx: AccessContext, storeId: string, hours: OperatingHourInput[]) {
-    try { assertOperatingHours(hours); } catch (e: any) { throw new BadRequestException({ code: e.message ?? 'OPERATING_HOURS_INVALID', message: 'Invalid operating hours' }); }
+    try { assertOperatingHours(hours); } catch (error: unknown) {
+      // Only known domain codes are client errors. Unexpected internal errors
+      // must go through the generic exception filter, not into the response.
+      if (!(error instanceof Error) || !OPERATING_HOURS_ERRORS.has(error.message)) throw error;
+      throw new BadRequestException({ code: error.message, message: 'Invalid operating hours' });
+    }
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
       const store = await this.lockStore(tx, storeId);
