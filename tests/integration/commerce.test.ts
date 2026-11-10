@@ -249,23 +249,60 @@ describe('cart and checkout quote orchestration', () => {
     expect(quotes.rows[0].n).toBe(0);
   });
 
-  it('expires quote reservations through the worker and closes the quote exactly once', async () => {
-    const cart = await post('/api/v1/commerce/carts', customer, { countryId }).expect(201);
-    const cartId = cart.body.cartId;
-    let v = cart.body.version;
-    const a = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId: variantA, quantity: 1, expectedVersion: v }).expect(201); v = a.body.version;
-    const quote = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, { expectedVersion: v, destinationCityId: cityId, commandKey: `quote-${randomUUID().slice(0, 8)}`, ttlSeconds: 60 }).expect(201);
+  it('diagnoses partial expiry and expiry-versus-release lock ordering', async () => {
+    const buyer = await makeUser('expiry-diagnostic');
+    const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    let version = cart.body.version;
+    for (const variantId of [variantA, variantB]) {
+      const added = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId, quantity: 1, expectedVersion: version }).expect(201);
+      version = added.body.version;
+    }
+    const quote = await post(`/api/v1/commerce/carts/${cart.body.cartId}/quotes`, buyer, { expectedVersion: version, destinationCityId: cityId, commandKey: `quote-${randomUUID().slice(0, 8)}`, ttlSeconds: 60 }).expect(201);
     await new Promise(resolve => setTimeout(resolve, 61000));
+
+    // A batch of one cannot commit a partial closure of a two-line quote.
+    await expect(asSuper(u.privileged, c => c.query('SELECT gs_expire_inventory_reservations(1)'))).rejects.toThrow(/checkout_quote_reservation_not_active/);
+    let state = await get(`/api/v1/commerce/quotes/${quote.body.quoteId}`, buyer).expect(200);
+    expect(state.body.state).toBe('RESERVED');
+    const ids = await asSuper(u.privileged, c => c.query(`SELECT r."inventoryId" FROM "InventoryReservation" r
+      JOIN "CheckoutQuoteItem" qi ON qi."reservationId"=r.id WHERE qi."quoteId"=$1 ORDER BY r."expiresAt",r.id LIMIT 1`, [quote.body.quoteId]));
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const expiry = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await expiry.connect();
+    try {
+      await holder.query('BEGIN'); await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('SELECT id FROM "CheckoutQuote" WHERE id=$1 FOR UPDATE', [quote.body.quoteId]);
+      await expiry.query('BEGIN'); await expiry.query("SELECT set_config('app.is_super','true',true)");
+      const pid = (await expiry.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      const expireAttempt = expiry.query('SELECT gs_expire_inventory_reservations(1)').then(() => null, err => err);
+      const deadline = Date.now() + 10000;
+      let blocked = false;
+      while (Date.now() < deadline) {
+        blocked = (await privilegedPool.query('SELECT cardinality(pg_blocking_pids($1)) > 0 AS blocked', [pid])).rows[0].blocked;
+        if (blocked) break;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      expect(blocked).toBe(true);
+      // The release path already owns quote, then attempts the same inventory
+      // row held by expiry: one transaction must be chosen as deadlock victim.
+      const releaseAttempt = await holder.query('SELECT id FROM "Inventory" WHERE id=$1 FOR UPDATE', [ids.rows[0].inventoryId]).then(() => null, err => err);
+      const expiryError = await expireAttempt;
+      expect([releaseAttempt?.code, expiryError?.code]).toContain('40P01');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await expiry.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await expiry.end();
+    }
+    state = await get(`/api/v1/commerce/quotes/${quote.body.quoteId}`, buyer).expect(200);
+    expect(state.body.state).toBe('RESERVED');
     const log = { info: () => undefined, error: () => undefined } as any;
-    const expired = await runInventoryExpiryTick(privilegedPool, log, 100);
-    expect(expired).toBeGreaterThanOrEqual(1);
-    const state = await get(`/api/v1/commerce/quotes/${quote.body.quoteId}`, customer).expect(200);
+    expect(await runInventoryExpiryTick(privilegedPool, log, 100)).toBeGreaterThanOrEqual(2);
+    state = await get(`/api/v1/commerce/quotes/${quote.body.quoteId}`, buyer).expect(200);
     expect(state.body.state).toBe('EXPIRED');
     expect(state.body.version).toBe(2);
-    const inv = await get(`/api/v1/inventory/variants/${variantA}`, vendorA.owner).expect(200);
-    expect(inv.body.reserved).toBe(0);
-    const again = await runInventoryExpiryTick(privilegedPool, log, 100);
-    expect(again).toBe(0);
+    expect((await get(`/api/v1/inventory/variants/${variantA}`, vendorA.owner).expect(200)).body.reserved).toBe(0);
+    expect((await get(`/api/v1/inventory/variants/${variantB}`, vendorB.owner).expect(200)).body.reserved).toBe(0);
+    expect(await runInventoryExpiryTick(privilegedPool, log, 100)).toBe(0);
   }, 90000);
 
   it('enforces RLS, append-only quote snapshots and deferred total/reservation consistency', async () => {
