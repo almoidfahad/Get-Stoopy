@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID, createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import request from 'supertest';
 import pg from 'pg';
 import { Queue } from 'bullmq';
@@ -251,7 +252,7 @@ describe('cart and checkout quote orchestration', () => {
 
   it('expires whole quotes in small batches and coordinates with release and other workers', async () => {
     const fixtures: { buyer: any; quoteId: string; reservations: string[] }[] = [];
-    for (let n = 0; n < 3; n++) {
+    for (let n = 0; n < 4; n++) {
       const buyer = await makeUser(`expiry-race-${n}`);
       const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
       let version = cart.body.version;
@@ -267,11 +268,14 @@ describe('cart and checkout quote orchestration', () => {
     await new Promise(resolve => setTimeout(resolve, 61000));
     const releaseHolder = new pg.Client({ connectionString: u.privileged });
     const workerHolder = new pg.Client({ connectionString: u.privileged });
+    const secondWorkerHolder = new pg.Client({ connectionString: u.privileged });
+    const stockHolder = new pg.Client({ connectionString: u.privileged });
     await releaseHolder.connect(); await workerHolder.connect();
+    await secondWorkerHolder.connect(); await stockHolder.connect();
     const errors: string[] = [];
     const log = { info: () => undefined, error: (_name: string, fields: any) => errors.push(fields.error) } as any;
     try {
-      for (const [holder, fixture] of [[releaseHolder, fixtures[1]!], [workerHolder, fixtures[2]!]] as const) {
+      for (const [holder, fixture] of [[releaseHolder, fixtures[1]!], [workerHolder, fixtures[2]!], [secondWorkerHolder, fixtures[3]!]] as const) {
         await holder.query('BEGIN');
         await holder.query("SELECT set_config('app.is_super','true',true)");
         await holder.query('SELECT id FROM "CheckoutQuote" WHERE id=$1 FOR UPDATE', [fixture.quoteId]);
@@ -279,7 +283,7 @@ describe('cart and checkout quote orchestration', () => {
       // A limit of one is a soft budget: all lines in one quote close together.
       expect(await runInventoryExpiryTick(privilegedPool, log, 1)).toBe(2);
       expect((await get(`/api/v1/commerce/quotes/${fixtures[0]!.quoteId}`, fixtures[0]!.buyer).expect(200)).body).toMatchObject({ state: 'EXPIRED', version: 2 });
-      // Both remaining quotes are held: expiry must skip them, without taking
+      // All remaining quotes are held: expiry must skip them, without taking
       // an inventory lock that would deadlock the release path.
       expect(await runInventoryExpiryTick(privilegedPool, log, 1)).toBe(0);
       const release = post(`/api/v1/commerce/quotes/${fixtures[1]!.quoteId}/release`, fixtures[1]!.buyer, { version: 1, reason: 'release during expiry race' }).then((r: any) => r);
@@ -296,17 +300,40 @@ describe('cart and checkout quote orchestration', () => {
       const released = await release;
       expect(released.status).toBe(201);
       expect(released.body.state).toBe('RELEASED');
+      // Force separate expiry workers to hold different quote locks and then
+      // wait on the same lowest-ordered inventory row. This is not merely a
+      // sequential retry: both transactions must overlap before release.
+      await stockHolder.query('BEGIN');
+      await stockHolder.query("SELECT set_config('app.is_super','true',true)");
+      await stockHolder.query('SELECT id FROM "Inventory" WHERE "variantId"=$1 FOR UPDATE', [[variantA, variantB].sort()[0]]);
       await workerHolder.query('COMMIT');
-      const parallel = await Promise.all([runInventoryExpiryTick(privilegedPool, log, 1), runInventoryExpiryTick(privilegedPool, log, 1)]);
-      expect(parallel.reduce((a, b) => a + b, 0)).toBe(2);
-      expect((await get(`/api/v1/commerce/quotes/${fixtures[2]!.quoteId}`, fixtures[2]!.buyer).expect(200)).body).toMatchObject({ state: 'EXPIRED', version: 2 });
+      await secondWorkerHolder.query('COMMIT');
+      const work = [runInventoryExpiryTick(privilegedPool, log, 1), runInventoryExpiryTick(privilegedPool, log, 1)];
+      const workDeadline = Date.now() + 10000;
+      let workWaiters = 0;
+      while (Date.now() < workDeadline) {
+        workWaiters = (await privilegedPool.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+          WHERE state='active' AND wait_event_type='Lock' AND query LIKE '%gs_expire_inventory_reservations%'`)).rows[0].n;
+        if (workWaiters >= 2) break;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      expect(workWaiters).toBeGreaterThanOrEqual(2);
+      await stockHolder.query('COMMIT');
+      const parallel = await Promise.all(work);
+      expect(parallel.sort()).toEqual([2, 2]);
+      for (const fixture of fixtures.slice(2)) {
+        expect((await get(`/api/v1/commerce/quotes/${fixture.quoteId}`, fixture.buyer).expect(200)).body).toMatchObject({ state: 'EXPIRED', version: 2 });
+      }
       const afterExpiry = await post(`/api/v1/commerce/quotes/${fixtures[2]!.quoteId}/release`, fixtures[2]!.buyer, { version: 1, reason: 'late release after expiry' }).expect(201);
       expect(afterExpiry.body).toMatchObject({ state: 'EXPIRED', duplicate: true });
       expect(errors).toEqual([]);
     } finally {
       await releaseHolder.query('ROLLBACK').catch(() => undefined);
       await workerHolder.query('ROLLBACK').catch(() => undefined);
+      await secondWorkerHolder.query('ROLLBACK').catch(() => undefined);
+      await stockHolder.query('ROLLBACK').catch(() => undefined);
       await releaseHolder.end(); await workerHolder.end();
+      await secondWorkerHolder.end(); await stockHolder.end();
     }
     for (const [index, fixture] of fixtures.entries()) {
       const records = await asSuper(u.privileged, c => c.query(`SELECT
@@ -320,6 +347,48 @@ describe('cart and checkout quote orchestration', () => {
     expect((await get(`/api/v1/inventory/variants/${variantB}`, vendorB.owner).expect(200)).body.reserved).toBe(0);
     expect(await runInventoryExpiryTick(privilegedPool, log, 100)).toBe(0);
   }, 100000);
+
+  it('rehearses the function upgrade with an existing reserved quote without changing state or grants', async () => {
+    const target = new URL(u.owner);
+    if (!['localhost', '127.0.0.1', '[::1]'].includes(target.hostname) || target.pathname !== '/getstoopy_test') {
+      throw new Error('Migration rehearsal requires the local disposable getstoopy_test database');
+    }
+    const buyer = await makeUser('expiry-upgrade');
+    const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    const added = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId: variantA, quantity: 1, expectedVersion: cart.body.version }).expect(201);
+    const quote = await post(`/api/v1/commerce/carts/${cart.body.cartId}/quotes`, buyer, { expectedVersion: added.body.version, destinationCityId: cityId, commandKey: `upgrade-${randomUUID()}` }).expect(201);
+    const ownerClient = new pg.Client({ connectionString: u.owner });
+    await ownerClient.connect();
+    try {
+      await ownerClient.query('BEGIN');
+      await ownerClient.query("SELECT set_config('app.is_super','true',true)");
+      const priorMigration = readFileSync(new URL('../../packages/db/prisma/migrations/0020_inventory_reservation_foundation/migration.sql', import.meta.url), 'utf8');
+      const marker = 'CREATE OR REPLACE FUNCTION gs_expire_inventory_reservations(batch_limit INTEGER)';
+      const start = priorMigration.indexOf(marker);
+      expect(start).toBeGreaterThan(0);
+      const newMigration = readFileSync(new URL('../../packages/db/prisma/migrations/0073_quote_expiry_locking/migration.sql', import.meta.url), 'utf8');
+      // Replacement and rehearsal are rolled back, so no other test sees a
+      // legacy function. The pre-existing quote models an in-flight rollout.
+      await ownerClient.query(priorMigration.slice(start));
+      const snapshot = async () => (await ownerClient.query(`SELECT q.state,q.version,
+        (SELECT count(*)::int FROM "InventoryReservation" r JOIN "CheckoutQuoteItem" qi ON qi."reservationId"=r.id WHERE qi."quoteId"=q.id AND r.state='ACTIVE') AS active,
+        (SELECT sum(i.reserved)::int FROM "Inventory" i JOIN "InventoryReservation" r ON r."inventoryId"=i.id JOIN "CheckoutQuoteItem" qi ON qi."reservationId"=r.id WHERE qi."quoteId"=q.id) AS reserved,
+        has_function_privilege('gs_privileged','gs_expire_inventory_reservations(integer)','EXECUTE') AS privileged_execute,
+        has_function_privilege('gs_runtime','gs_expire_inventory_reservations(integer)','EXECUTE') AS runtime_execute
+        FROM "CheckoutQuote" q WHERE q.id=$1`, [quote.body.quoteId])).rows[0];
+      const before = await snapshot();
+      expect(before).toMatchObject({ state: 'RESERVED', version: 1, active: 1, privileged_execute: true });
+      await ownerClient.query(newMigration);
+      expect(await snapshot()).toEqual(before);
+      const definition = (await ownerClient.query(`SELECT pg_get_functiondef('gs_expire_inventory_reservations(integer)'::regprocedure) AS body`)).rows[0].body;
+      expect(definition).toContain('SKIP LOCKED');
+      expect(definition).toContain('expiry_quote_item_limit');
+    } finally {
+      await ownerClient.query('ROLLBACK').catch(() => undefined);
+      await ownerClient.end();
+      await post(`/api/v1/commerce/quotes/${quote.body.quoteId}/release`, buyer, { version: 1, reason: 'migration rehearsal cleanup' }).expect(201);
+    }
+  });
 
   it('waits for every quote line to expire while processing an older standalone hold', async () => {
     const buyer = await makeUser('staggered-expiry');
