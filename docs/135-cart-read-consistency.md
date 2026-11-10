@@ -1,0 +1,9 @@
+# Consistent cart reads under concurrent updates
+
+Cart responses are assembled from multiple SQL statements: the cart version, its lines, prices/availability and a reserved quote. Under PostgreSQL's default READ COMMITTED isolation a concurrent mutation could commit between those statements, returning an old cart version with newer lines. A subsequent buyer action would then use a stale version and receive a conflict. A duplicate get-or-create request could similarly read a cart before a concurrent item update and serialize the new lines with the old version.
+
+`GET /commerce/carts/:id` now uses a repeatable-read transaction, so its statements observe one database snapshot. Existing-cart get-or-create now re-reads the cart under the same row lock used for item mutations before serializing it. First-cart creation keeps its existing transaction/advisory-lock behavior, avoiding the stale-snapshot race that a blanket repeatable-read change could introduce. Ownership filtering remains in place.
+
+PostgreSQL integration regressions deliberately block a read between statements and commit a line update, and separately overlap an existing-cart request with a locked update. The tests check that the GET returns the coherent earlier snapshot and that get-or-create returns the updated version/line. They use isolated CI fixtures, not customer data.
+
+A coherent snapshot may already be stale by the time it reaches the buyer: version conflicts and inventory/price revalidation remain necessary. The get-or-create row lock coordinates cart mutations, not all independent product, inventory or quote state changes. No durable mutation idempotency is added, and release, payment and order workflows are not completed by this change. No remote database migration or production deployment was performed.

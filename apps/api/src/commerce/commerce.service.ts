@@ -92,7 +92,13 @@ export class CommerceService {
       // This is coordination, not authorization; ownership checks remain required.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`cart-create:${ctx.userId.toLowerCase()}:${countryId.toLowerCase()}`}, 0))`;
       const existing = await tx.cart.findUnique({ where: { userId_countryId: { userId: ctx.userId, countryId } } });
-      if (existing) return { ...(await this.cartJson(tx, existing)), duplicate: true };
+      // Re-read under the same cart-row lock used by mutations. Otherwise a
+      // concurrent change between the lookup and cartJson can pair an old
+      // version with new lines in this get-or-create response.
+      if (existing) {
+        const locked = await this.lockCart(tx, ctx.userId, existing.id);
+        return { ...(await this.cartJson(tx, locked)), duplicate: true };
+      }
       const country = await tx.country.findFirst({ where: { id: countryId, status: 'ACTIVE' } });
       if (!country) throw new NotFoundException({ code: 'COUNTRY_NOT_AVAILABLE', message: 'Country is not available' });
       const cart = await tx.cart.create({ data: { userId: ctx.userId, countryId, currency: country.currencyCode } });
@@ -103,12 +109,14 @@ export class CommerceService {
   }
 
   async getCart(ctx: AccessContext, cartId: string) {
+    // Version, lines, stock and active quote are read in separate statements.
+    // A single snapshot prevents a concurrent commit from mixing their states.
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
       const cart = await tx.cart.findFirst({ where: { id: cartId, userId: ctx.userId } });
       if (!cart) throw new NotFoundException({ code: 'CART_NOT_FOUND', message: 'Cart not found' });
       return this.cartJson(tx, cart);
-    });
+    }, { isolationLevel: 'RepeatableRead' });
   }
 
   async addItem(ctx: AccessContext, cartId: string, input: { variantId: string; quantity: number; expectedVersion: number }) {

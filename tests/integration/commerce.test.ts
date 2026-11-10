@@ -424,6 +424,77 @@ describe('concurrent cart creation', () => {
   });
 });
 
+describe('concurrent cart read consistency', () => {
+  async function setup() {
+    const buyer = await makeUser(`cart-read-${randomUUID().slice(0, 8)}`);
+    const created = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    const cartId = created.body.cartId as string;
+    const added = await post(`/api/v1/commerce/carts/${cartId}/items`, buyer, { variantId: variantA, quantity: 1, expectedVersion: created.body.version }).expect(201);
+    return { buyer, cartId, version: added.body.version as number };
+  }
+  async function waitForBlockedBy(pid: number) {
+    const deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      const rows = await privilegedPool.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+        WHERE state='active' AND wait_event_type='Lock' AND $1 = ANY(pg_blocking_pids(pid))`, [pid]);
+      if (rows.rows[0].n >= 1) return;
+      await new Promise(resolve => setTimeout(resolve, 40));
+    }
+    throw new Error('Expected the cart request to wait for the fixture lock');
+  }
+  it('GET uses one snapshot when an item and cart version change mid-read', async () => {
+    const { buyer, cartId, version } = await setup();
+    const holder = new pg.Client({ connectionString: u.privileged });
+    await holder.connect();
+    let pending: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN');
+      await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('LOCK TABLE "CartItem" IN ACCESS EXCLUSIVE MODE');
+      const pid = (await holder.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      pending = get(`/api/v1/commerce/carts/${cartId}`, buyer).then((res: any) => res);
+      await waitForBlockedBy(pid);
+      // The trigger advances the cart version with this line update.
+      await holder.query('UPDATE "CartItem" SET quantity=2 WHERE "cartId"=$1 AND "variantId"=$2', [cartId, variantA]);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end();
+    }
+    const response = await pending!;
+    expect(response.status).toBe(200);
+    expect(response.body.version).toBe(version);
+    expect(response.body.items[0].quantity).toBe(1);
+    const fresh = await get(`/api/v1/commerce/carts/${cartId}`, buyer).expect(200);
+    expect(fresh.body.version).toBe(version + 1);
+    expect(fresh.body.items[0].quantity).toBe(2);
+  });
+  it('get-or-create waits for the cart lock and returns the updated version and lines', async () => {
+    const { buyer, cartId, version } = await setup();
+    const holder = new pg.Client({ connectionString: u.privileged });
+    await holder.connect();
+    let pending: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN');
+      await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('SELECT id FROM "Cart" WHERE id=$1 FOR UPDATE', [cartId]);
+      const pid = (await holder.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      pending = post('/api/v1/commerce/carts', buyer, { countryId }).then((res: any) => res);
+      await waitForBlockedBy(pid);
+      await holder.query('UPDATE "CartItem" SET quantity=2 WHERE "cartId"=$1 AND "variantId"=$2', [cartId, variantA]);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end();
+    }
+    const response = await pending!;
+    expect(response.status).toBe(201);
+    expect(response.body.duplicate).toBe(true);
+    expect(response.body.version).toBe(version + 1);
+    expect(response.body.items[0].quantity).toBe(2);
+  });
+});
+
 describe('concurrent checkout reservation idempotency', () => {
   // Hold the cart row until both HTTP requests have reached the database. This
   // forces the second request to overlap the first, rather than relying on timing
