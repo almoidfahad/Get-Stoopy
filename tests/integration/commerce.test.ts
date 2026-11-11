@@ -201,6 +201,31 @@ describe('cart and checkout quote orchestration', () => {
     expect(notSellable.body.code).toBe('CART_VARIANT_NOT_SELLABLE');
   });
 
+  it('prevents caching of private commerce successes and early errors', async () => {
+    const buyer = await makeUser('commerce-no-store');
+    const created = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    expect(created.headers['cache-control']).toBe('no-store');
+    const cartPath = `/api/v1/commerce/carts/${created.body.cartId}`;
+    const draft = `${cartPath}/recipient-draft`;
+    const preview = `${cartPath}/delivery-preview`;
+    const savedPreview = `${draft}/preview`;
+    const responses = [
+      await get(cartPath, buyer).expect(200),
+      await get(draft, buyer).expect(200),
+      await request(app.getHttpServer()).get(draft).expect(401),
+      await request(app.getHttpServer()).post(preview).send({}).expect(401),
+      await request(app.getHttpServer()).put(draft).set('Cookie', `gs_session_dev=${buyer.token}`).set('Origin', origin).send({}).expect(403),
+      await request(app.getHttpServer()).post(savedPreview).set('Cookie', `gs_session_dev=${buyer.token}`).set('Origin', origin).send({}).expect(403),
+      await post(preview, buyer, {}).expect(400),
+      await post('/api/v1/commerce/carts/not-a-uuid/delivery-preview', buyer, {}).expect(400),
+      await get(`/api/v1/commerce/carts/${randomUUID()}/recipient-draft`, buyer).expect(404),
+      await get('/api/v1/commerce/not-an-endpoint', buyer).expect(404),
+      await request(app.getHttpServer()).post(preview).set('Cookie', `gs_session_dev=${buyer.token}`).set('Origin', origin).set('X-CSRF-Token', buyer.csrf).set('Content-Type', 'application/json').send('{"invalid":').expect(400),
+      await request(app.getHttpServer()).options(preview).set('Origin', origin).set('Access-Control-Request-Method', 'POST').expect(204),
+    ];
+    for (const response of responses) expect(response.headers['cache-control']).toBe('no-store');
+  });
+
   it('previews recipient and exact-zone coverage without storing details or reserving stock', async () => {
     const buyer = await makeUser('delivery-preview');
     const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
@@ -225,6 +250,7 @@ describe('cart and checkout quote orchestration', () => {
     await request(app.getHttpServer()).post(path).set('Cookie', `gs_session_dev=${buyer.token}`).set('Origin', origin).send(body).expect(403);
     await post(path, stranger, body).expect(404);
     const stale = await post(path, buyer, { ...body, expectedVersion: first.body.version }).expect(409);
+    expect(stale.headers['cache-control']).toBe('no-store');
     expect(stale.body.code).toBe('CHECKOUT_CART_VERSION_CONFLICT');
     const invalidName = await post(path, buyer, { ...body, name: '  ' }).expect(400);
     expect(invalidName.body.code).toBe('RECIPIENT_NAME_INVALID');
@@ -536,6 +562,7 @@ describe('cart and checkout quote orchestration', () => {
     await asSuper(u.privileged, async c => { await c.query(`SELECT set_config('app.user_id',$1,true)`, [buyer.userId]); await c.query(`UPDATE "CheckoutRecipientDraft" SET envelope=$2, version=version+1 WHERE "cartId"=$1`, [cart.body.cartId, Buffer.from(corrupt)]); });
     for (const response of [await get(draftPath, buyer).expect(503), await post(previewPath, buyer, { ...previewBody, expectedDraftVersion: 4 }).expect(503)]) {
       expect(response.body.code).toBe('CHECKOUT_DRAFT_UNREADABLE');
+      expect(response.headers['cache-control']).toBe('no-store');
       expect(JSON.stringify(response.body)).not.toContain(corrupt);
       expect(JSON.stringify(response.body)).not.toContain(body.name);
     }

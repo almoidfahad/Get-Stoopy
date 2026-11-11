@@ -6,12 +6,25 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import { loadApiEnv } from '@getstoopy/config';
+import type { NextFunction, Request, Response } from 'express';
+
+const API_PREFIX = 'api/v1';
+
+/** Set before body parsing, CORS, authentication and validation can fail. */
+function privateCommerceNoStore(_req: Request, res: Response, next: NextFunction): void {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+}
+
 export async function createApp() {
   const env = loadApiEnv(process.env);
   const app = await NestFactory.create(AppModule, { logger: ['error','warn','log'], rawBody: true });
+  // Commerce responses are buyer-specific, including errors and early parser
+  // failures. Controller decorators alone do not cover guards and exceptions.
+  app.use(`/${API_PREFIX}/commerce`, privateCommerceNoStore);
   app.use(helmet());
   app.enableCors({ origin: env.WEB_ORIGIN, credentials: true });
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix(API_PREFIX);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   const config = new DocumentBuilder().setTitle('Get Stoopy API').setVersion('0.2.0').addBearerAuth().build();
   const document = SwaggerModule.createDocument(app, config);
