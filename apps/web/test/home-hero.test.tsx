@@ -50,6 +50,8 @@ describe('homepage hero', () => {
     fireEvent.touchEnd(stage, { changedTouches: [{ clientX: 90, clientY: 180 }] });
     expect(current()).toBe(2);
     fireEvent.click(screen.getByRole('button', { name: /Show slide 1/ })); expect(current()).toBe(1);
+    expect(screen.getByRole('region', { name: 'Featured collections' }).getAttribute('data-slide')).toBe('0');
     fireEvent.click(screen.getByRole('button', { name: 'Previous slide' })); expect(current()).toBe(2);
+    expect(screen.getByRole('region', { name: 'Featured collections' }).getAttribute('data-slide')).toBe('1');
   });
 });

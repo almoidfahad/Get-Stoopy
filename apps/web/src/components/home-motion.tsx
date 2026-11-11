@@ -8,7 +8,7 @@ export function HomeMotion() {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
     const finePointer = window.matchMedia('(min-width: 768px) and (hover: hover) and (pointer: fine)');
     const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-home-reveal]'));
-    const hero = document.querySelector<HTMLElement>('.hero-bottom');
+    const hero = document.querySelector<HTMLElement>('.home-hero');
     let observer: IntersectionObserver | undefined;
     let frame = 0;
     const revealAll = () => { observer?.disconnect(); observer = undefined; sections.forEach(section => section.removeAttribute('data-reveal-pending')); };

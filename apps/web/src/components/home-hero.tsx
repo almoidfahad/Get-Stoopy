@@ -44,7 +44,7 @@ export function HomeHero() {
   }
 
   return (
-    <section className="home-hero" aria-label="Featured collections" aria-roledescription="carousel" data-motion={eligible && !paused && !hovered && !focused && visible ? 'running' : 'paused'}
+    <section className="home-hero" aria-label="Featured collections" aria-roledescription="carousel" data-slide={active} data-motion={eligible && !paused && !hovered && !focused && visible ? 'running' : 'paused'}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       onFocus={() => setFocused(true)} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false); }}>
       <div className="hero-stage" onTouchStart={event => { const point = event.touches[0]; touch.current = point ? { x: point.clientX, y: point.clientY } : null; }}
