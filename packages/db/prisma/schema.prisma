@@ -514,6 +514,7 @@ model ServiceZone {
   deliveryDestinations    OrderDeliveryDestination[]
   pickupDispatchRuns      DispatchRun[]              @relation("DispatchPickupZone")
   destinationDispatchRuns DispatchRun[]              @relation("DispatchDestinationZone")
+  boundaryPointer         ZoneBoundaryPointer?
 
   @@unique([cityId, code])
 }
@@ -541,8 +542,18 @@ model BoundaryVersion {
   createdAt   DateTime                                   @default(now())
 
   deliveryDestinations OrderDeliveryDestination[]
+  zonePointers         ZoneBoundaryPointer[]
 
   @@unique([ownerType, ownerId, version])
+}
+
+// Owner-only, isolated foundation; not used for live serviceability.
+model ZoneBoundaryPointer {
+  zoneId     String          @id @db.Uuid
+  boundaryId String          @db.Uuid
+  version    Int
+  zone       ServiceZone     @relation(fields: [zoneId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  boundary   BoundaryVersion @relation(fields: [boundaryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 }
 
 model StorePickupPoint {
