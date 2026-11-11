@@ -1,6 +1,6 @@
-import { BadRequestException, Body, Controller, Delete, Get, Inject, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Header, Inject, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import type { Request } from 'express';
 import { SessionGuard } from '../auth/session.guard.js';
 import { CsrfGuard } from '../common/csrf.js';
@@ -18,6 +18,16 @@ class AddCartItemDto {
 class UpdateCartItemDto {
   @IsInt() @Min(1) @Max(100) quantity!: number;
   @IsInt() @Min(1) expectedVersion!: number;
+}
+class PreviewDeliveryDto {
+  @IsInt() @Min(1) expectedVersion!: number;
+  @IsUUID() serviceZoneId!: string;
+  @IsUUID() boundaryVersionId!: string;
+  @IsNumber() @Min(-90) @Max(90) latitude!: number;
+  @IsNumber() @Min(-180) @Max(180) longitude!: number;
+  @IsString() @MinLength(2) @MaxLength(120) name!: string;
+  @IsString() @MinLength(8) @MaxLength(20) phone!: string;
+  @IsString() @MinLength(5) @MaxLength(500) addressLine!: string;
 }
 class CreateQuoteDto {
   @IsInt() @Min(1) expectedVersion!: number;
@@ -51,6 +61,8 @@ export class CommerceController {
     if (!Number.isInteger(version) || version < 1) throw new BadRequestException({ code: 'VERSION_INVALID', message: 'expectedVersion query parameter is required' });
     return this.commerce.removeItem(this.ctx(req), cartId, variantId, version);
   }
+  @Post('carts/:cartId/delivery-preview') @Header('Cache-Control', 'no-store') @UseGuards(CsrfGuard)
+  previewDelivery(@Req() req: Request, @Param('cartId', ParseUUIDPipe) cartId: string, @Body() body: PreviewDeliveryDto) { return this.commerce.previewDelivery(this.ctx(req), cartId, body); }
   @Post('carts/:cartId/quotes') @UseGuards(CsrfGuard)
   createQuote(@Req() req: Request, @Param('cartId', ParseUUIDPipe) cartId: string, @Body() body: CreateQuoteDto) { return this.commerce.createQuote(this.ctx(req), cartId, body); }
   @Get('quotes/:quoteId')

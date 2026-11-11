@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { serviceableStoreWhere } from '../serviceability/serviceable-store.js';
 import { PrismaService, PrivilegedPrismaService, setRls } from '../common/prisma.js';
 import { InventoryService } from '../inventory/inventory.service.js';
-import { assertCartItemCount, assertCartQuantity, groupQuoteItems, MAX_ACTIVE_QUOTES_PER_USER, MAX_CART_ITEMS, type AccessContext, type QuotePricedItem } from '@getstoopy/core';
+import { assertCartItemCount, assertCartQuantity, assertLatitudeLongitude, groupQuoteItems, MAX_ACTIVE_QUOTES_PER_USER, MAX_CART_ITEMS, normalizeRecipientPhone, type AccessContext, type QuotePricedItem } from '@getstoopy/core';
 
 function hashPayload(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 function assertCommandKey(key: string): void { if (!/^[A-Za-z0-9:_-]{8,128}$/.test(key)) throw new BadRequestException({ code: 'CHECKOUT_COMMAND_KEY_INVALID', message: 'Invalid checkout command key' }); }
@@ -179,6 +179,44 @@ export class CommerceService {
       await this.outbox(tx, 'Cart', cartId, 'commerce.cart.item.removed', `cart-item-removed-${cartId}-${updated.version}`, cart.countryId, { variantId, version: updated.version });
       return this.cartJson(tx, updated);
     });
+  }
+
+  /** Validate recipient input and zone coverage without saving PII or reserving stock. */
+  async previewDelivery(ctx: AccessContext, cartId: string, input: { expectedVersion: number; serviceZoneId: string; boundaryVersionId: string; latitude: number; longitude: number; name: string; phone: string; addressLine: string }) {
+    assertVersion(input.expectedVersion);
+    try { assertLatitudeLongitude(input.latitude, input.longitude); } catch (e: any) { throw new BadRequestException({ code: e.message ?? 'COORDINATE_INVALID', message: 'Invalid destination coordinates' }); }
+    const name = input.name?.trim(); const addressLine = input.addressLine?.trim();
+    if (!name || name.length < 2 || name.length > 120) throw new BadRequestException({ code: 'RECIPIENT_NAME_INVALID', message: 'Recipient name is invalid' });
+    if (!addressLine || addressLine.length < 5 || addressLine.length > 500) throw new BadRequestException({ code: 'ADDRESS_INVALID', message: 'Destination address is invalid' });
+    return this.privileged.$transaction(async tx => {
+      await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      const cart = await tx.cart.findFirst({ where: { id: cartId, userId: ctx.userId }, include: { country: true } });
+      if (!cart) throw new NotFoundException({ code: 'CART_NOT_FOUND', message: 'Cart not found' });
+      if (cart.version !== input.expectedVersion) throw new ConflictException({ code: 'CHECKOUT_CART_VERSION_CONFLICT', message: 'Cart changed; refresh before checking delivery' });
+      try { normalizeRecipientPhone(input.phone, cart.country.callingCode); } catch (e: any) { throw new BadRequestException({ code: e.message ?? 'RECIPIENT_PHONE_INVALID', message: 'Recipient phone is invalid' }); }
+      const items = await tx.cartItem.findMany({ where: { cartId }, select: { storeId: true } });
+      if (!items.length) throw new ConflictException({ code: 'CART_EMPTY', message: 'Cart is empty' });
+      if (items.length > MAX_CART_ITEMS) throw new ConflictException({ code: 'CART_ITEM_LIMIT', message: 'Cart item limit exceeded' });
+      // Only the coordinates reach PostGIS; contact/address are validated in
+      // memory and are neither stored nor echoed. No buyer location is used.
+      const rows = await tx.$queryRaw<{ cityId: string; covered: boolean }[]>`
+        SELECT z."cityId", ST_Covers(b."boundary", ST_SetSRID(ST_MakePoint(${input.longitude}, ${input.latitude}), 4326)) AS covered
+        FROM "ServiceZone" z JOIN "City" c ON c."id"=z."cityId"
+        JOIN "District" d ON d."id"=c."districtId" JOIN "Region" r ON r."id"=d."regionId"
+        JOIN "BoundaryVersion" b ON b."id"=${input.boundaryVersionId}::uuid
+        WHERE z."id"=${input.serviceZoneId}::uuid AND z.status='ACTIVE' AND c.status='ACTIVE'
+          AND r."countryId"=${cart.countryId}::uuid AND b."ownerType"='ZONE' AND b."ownerId"=z.id
+          AND b."approvedBy" IS NOT NULL AND b."validFrom"<=gs_dispatch_now()`;
+      const zone = rows[0];
+      if (!zone?.covered) throw new ConflictException({ code: 'CHECKOUT_DESTINATION_NOT_SERVICEABLE', message: 'Destination is not currently covered by an approved zone' });
+      const storeIds = [...new Set(items.map(item => item.storeId))];
+      const stores = await tx.store.findMany({ where: {
+        ...serviceableStoreWhere(cart.countryId, new Date()), id: { in: storeIds }, cityId: zone.cityId,
+        serviceAreas: { some: { status: 'APPROVED', serviceZoneId: input.serviceZoneId, serviceZone: { status: 'ACTIVE' } } },
+      }, select: { id: true } });
+      if (stores.length !== storeIds.length) throw new ConflictException({ code: 'CHECKOUT_DESTINATION_NOT_SERVICEABLE', message: 'Destination zone is not served by every store in this cart' });
+      return { cartId: cart.id, cartVersion: cart.version, destinationCityId: zone.cityId, serviceZoneId: input.serviceZoneId, boundaryVersionId: input.boundaryVersionId, status: 'PREVIEW_ONLY', recipientSaved: false, stockReserved: false, orderAvailable: false, deliveryFeeMinor: null, totalMinor: null };
+    }, { isolationLevel: 'RepeatableRead' });
   }
 
   async createQuote(ctx: AccessContext, cartId: string, input: { expectedVersion: number; destinationCityId: string; commandKey: string; ttlSeconds?: number }) {

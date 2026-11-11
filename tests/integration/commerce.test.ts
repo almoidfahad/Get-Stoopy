@@ -193,6 +193,63 @@ describe('cart and checkout quote orchestration', () => {
     expect(notSellable.body.code).toBe('CART_VARIANT_NOT_SELLABLE');
   });
 
+  it('previews recipient and exact-zone coverage without storing details or reserving stock', async () => {
+    const buyer = await makeUser('delivery-preview');
+    const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    const first = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId: variantA, quantity: 1, expectedVersion: cart.body.version }).expect(201);
+    const second = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId: variantB, quantity: 1, expectedVersion: first.body.version }).expect(201);
+    const boundaryId = randomUUID();
+    const alternateZone = randomUUID(); const alternateBoundary = randomUUID(); const futureBoundary = randomUUID(); const unapprovedBoundary = randomUUID();
+    await asSuper(u.privileged, async c => {
+      await c.query(`INSERT INTO "ServiceZone"(id,"cityId",code,name,status) VALUES ($1,$2,$3,'Partial Coverage','ACTIVE')`, [alternateZone, cityId, `alt-${randomUUID()}`]);
+      for (const [id, zone, future] of [[boundaryId, zoneId, false], [alternateBoundary, alternateZone, false], [futureBoundary, zoneId, true]] as const) {
+        await c.query(`INSERT INTO "BoundaryVersion"(id,"ownerType","ownerId",version,boundary,source,"validFrom","approvedBy","contentHash") VALUES ($1,'ZONE',$2,$3,ST_GeomFromEWKT('SRID=4326;MULTIPOLYGON(((90.39 24.74,90.41 24.74,90.41 24.76,90.39 24.76,90.39 24.74)))'),'integration-test', CASE WHEN $4 THEN now()+interval '1 day' ELSE now()-interval '1 day' END,$5,$6)`, [id, zone, future ? 2 : 1, future, serviceabilityAdmin.userId, createHash('sha256').update(id).digest('hex')]);
+      }
+      await c.query(`INSERT INTO "BoundaryVersion"(id,"ownerType","ownerId",version,boundary,source,"validFrom","approvedBy","contentHash") VALUES ($1,'ZONE',$2,3,ST_GeomFromEWKT('SRID=4326;MULTIPOLYGON(((90.39 24.74,90.41 24.74,90.41 24.76,90.39 24.76,90.39 24.74)))'),'integration-test',now()-interval '1 day',NULL,$3)`, [unapprovedBoundary, zoneId, createHash('sha256').update(unapprovedBoundary).digest('hex')]);
+    });
+    const area = await post(`/api/v1/catalog/stores/${storeA}/service-areas`, vendorA.owner, { serviceZoneId: alternateZone }).expect(201);
+    await post(`/api/v1/catalog/admin/service-areas/${area.body.serviceAreaId}/review`, serviceabilityAdmin, { version: 1, decision: 'APPROVE', reason: 'partial zone approved for test' }).expect(201);
+    const path = `/api/v1/commerce/carts/${cart.body.cartId}/delivery-preview`;
+    const body = { expectedVersion: second.body.version, serviceZoneId: zoneId, boundaryVersionId: boundaryId, latitude: 24.751, longitude: 90.401, name: 'Preview Private Name', phone: '+8801712345678', addressLine: 'Preview private address, Pilot Zone' };
+    const counts = () => asSuper(u.privileged, c => c.query(`SELECT (SELECT count(*)::int FROM "InventoryReservation" WHERE "userId"=$1) AS reservations, (SELECT count(*)::int FROM "CheckoutQuote" WHERE "userId"=$1) AS quotes, (SELECT count(*)::int FROM "AuditLog" WHERE "actorId"=$1) AS audits, (SELECT count(*)::int FROM "OutboxEvent" WHERE "aggregateId"=$2) AS outbox`, [buyer.userId, cart.body.cartId]));
+    const before = await counts();
+    await request(app.getHttpServer()).post(path).send(body).expect(401);
+    await request(app.getHttpServer()).post(path).set('Cookie', `gs_session_dev=${buyer.token}`).set('Origin', origin).send(body).expect(403);
+    await post(path, stranger, body).expect(404);
+    const stale = await post(path, buyer, { ...body, expectedVersion: first.body.version }).expect(409);
+    expect(stale.body.code).toBe('CHECKOUT_CART_VERSION_CONFLICT');
+    const invalidName = await post(path, buyer, { ...body, name: '  ' }).expect(400);
+    expect(invalidName.body.code).toBe('RECIPIENT_NAME_INVALID');
+    const invalidAddress = await post(path, buyer, { ...body, addressLine: '     ' }).expect(400);
+    expect(invalidAddress.body.code).toBe('ADDRESS_INVALID');
+    const invalidPhone = await post(path, buyer, { ...body, phone: '+12025550123' }).expect(400);
+    expect(invalidPhone.body.code).toBe('RECIPIENT_PHONE_COUNTRY_MISMATCH');
+    await post(path, buyer, { ...body, latitude: 91 }).expect(400);
+    for (const changed of [
+      { latitude: 25.0 },
+      { boundaryVersionId: futureBoundary },
+      { boundaryVersionId: unapprovedBoundary },
+      { boundaryVersionId: randomUUID() },
+      { serviceZoneId: alternateZone, boundaryVersionId: boundaryId },
+      { serviceZoneId: alternateZone, boundaryVersionId: alternateBoundary },
+      { serviceZoneId: randomUUID() },
+    ]) {
+      const denied = await post(path, buyer, { ...body, ...changed }).expect(409);
+      expect(denied.body.code).toBe('CHECKOUT_DESTINATION_NOT_SERVICEABLE');
+    }
+    const result = await post(path, buyer, body).expect(201);
+    expect(result.headers['cache-control']).toBe('no-store');
+    expect(result.body).toEqual({ cartId: cart.body.cartId, cartVersion: second.body.version, destinationCityId: cityId, serviceZoneId: zoneId, boundaryVersionId: boundaryId, status: 'PREVIEW_ONLY', recipientSaved: false, stockReserved: false, orderAvailable: false, deliveryFeeMinor: null, totalMinor: null });
+    for (const sensitive of [body.name, body.phone, body.addressLine, String(body.latitude), String(body.longitude)]) expect(JSON.stringify(result.body)).not.toContain(sensitive);
+    const edge = await post(path, buyer, { ...body, latitude: 24.74, longitude: 90.39 }).expect(201);
+    expect(edge.body.status).toBe('PREVIEW_ONLY'); // PostGIS ST_Covers includes boundary points.
+    const after = await counts();
+    expect(after.rows[0]).toEqual(before.rows[0]);
+    const invA = await get(`/api/v1/inventory/variants/${variantA}`, vendorA.owner).expect(200);
+    const invB = await get(`/api/v1/inventory/variants/${variantB}`, vendorB.owner).expect(200);
+    expect(invA.body.reserved).toBe(0); expect(invB.body.reserved).toBe(0);
+  }, 120000);
+
   it('creates an atomic multi-vendor quote with immutable snapshots, idempotency and release', async () => {
     const cart = await post('/api/v1/commerce/carts', customer, { countryId }).expect(201);
     const cartId = cart.body.cartId;
