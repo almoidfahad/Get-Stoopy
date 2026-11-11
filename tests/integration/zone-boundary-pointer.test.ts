@@ -64,9 +64,19 @@ describe('isolated zone boundary pointer foundation', () => {
     const first = new pg.Client({ connectionString: u.owner }); const second = new pg.Client({ connectionString: u.owner });
     await first.connect(); await second.connect();
     try {
+      const firstPid = (await first.query(`SELECT pg_backend_pid() AS pid`)).rows[0].pid;
+      const secondPid = (await second.query(`SELECT pg_backend_pid() AS pid`)).rows[0].pid;
       await first.query('BEGIN');
       await first.query(`UPDATE "ZoneBoundaryPointer" SET "boundaryId"=$2,version=2 WHERE "zoneId"=$1`, [raceZone, raceSecond]);
       const waiting = second.query(`UPDATE "ZoneBoundaryPointer" SET "boundaryId"=$2,version=2 WHERE "zoneId"=$1`, [raceZone, raceThird]).then(() => null, error => error);
+      // Do not claim a race was tested merely because both promises were
+      // started: prove the second backend is actually blocked by the first.
+      let blocked = false;
+      for (let attempt = 0; attempt < 120 && !blocked; attempt++) {
+        blocked = (await first.query(`SELECT $1::int = ANY(pg_blocking_pids($2::int)) AS blocked`, [firstPid, secondPid])).rows[0].blocked;
+        if (!blocked) await new Promise(resolve => setTimeout(resolve, 25));
+      }
+      expect(blocked).toBe(true);
       await first.query('COMMIT');
       expect(String(await waiting)).toContain('zone_boundary_pointer_version_invalid');
       expect((await second.query(`SELECT "boundaryId",version FROM "ZoneBoundaryPointer" WHERE "zoneId"=$1`, [raceZone])).rows[0]).toEqual({ boundaryId: raceSecond, version: 2 });
@@ -96,10 +106,11 @@ describe('isolated zone boundary pointer foundation', () => {
 
   it('refuses an upgrade over existing pointers rather than inventing earlier history', async () => {
     const migration = readFileSync(new URL('../../packages/db/prisma/migrations/0077_isolated_boundary_pointer_history/migration.sql', import.meta.url), 'utf8');
-    const prefix = migration.slice(0, migration.indexOf('CREATE TABLE "ZoneBoundaryPointerHistory"'));
     await withClient(u.owner, async c => {
       try {
-        await expect(c.query(prefix)).rejects.toThrow('zone_boundary_pointer_history_requires_empty_table');
+        // The precondition fails before any DDL; run the actual migration, not
+        // an extracted fragment, against this disposable fixture.
+        await expect(c.query(migration)).rejects.toThrow('zone_boundary_pointer_history_requires_empty_table');
       } finally { await c.query('ROLLBACK'); }
       expect((await c.query(`SELECT "boundaryId",version FROM "ZoneBoundaryPointer" WHERE "zoneId"=$1`, [zone])).rows[0]).toEqual({ boundaryId: next, version: 2 });
     });
