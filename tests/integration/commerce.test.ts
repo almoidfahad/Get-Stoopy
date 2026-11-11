@@ -423,37 +423,6 @@ describe('cart and checkout quote orchestration', () => {
     }
     await post(previewPath, buyer, previewBody).expect(201);
 
-    // Neither old nor new approved/effective geometry may be selected while
-    // the schema has no active pointer. Future/unapproved versions above did
-    // not block the original preview. Force activation after the draft read to
-    // also verify that a saved preview uses one database snapshot.
-    const competingBoundary = randomUUID();
-    let boundaryEntered!: () => void; const boundaryStarted = new Promise<void>(resolve => { boundaryEntered = resolve; });
-    let boundaryResume!: () => void; const boundaryGate = new Promise<void>(resolve => { boundaryResume = resolve; });
-    const boundarySpy = vi.spyOn(commerce, 'previewDeliveryTx').mockImplementation(async (...args) => { boundaryEntered(); await boundaryGate; return originalPreview(...args); });
-    let boundaryPending: Promise<any> | undefined;
-    try {
-      boundaryPending = post(previewPath, buyer, previewBody).then((r: any) => r);
-      await boundaryStarted;
-      await asSuper(u.privileged, c => c.query(`INSERT INTO "BoundaryVersion"(id,"ownerType","ownerId",version,boundary,source,"validFrom","approvedBy","contentHash") VALUES ($1,'ZONE',$2,4,ST_GeomFromEWKT('SRID=4326;MULTIPOLYGON(((90.50 24.80,90.51 24.80,90.51 24.81,90.50 24.81,90.50 24.80)))'),'integration-test',now()-interval '1 second',$3,$4)`, [competingBoundary, zoneId, serviceabilityAdmin.userId, createHash('sha256').update(competingBoundary).digest('hex')]));
-    } finally { boundaryResume(); boundarySpy.mockRestore(); }
-    try {
-      expect((await boundaryPending!).status).toBe(201); // consistent earlier snapshot, not a guarantee
-      for (const candidate of [
-        { boundaryVersionId: boundaryId }, // only the old polygon covers this point
-        { boundaryVersionId: competingBoundary, latitude: 24.805, longitude: 90.505 }, // only the new polygon covers this point
-      ]) {
-        const denied = await post(path, buyer, { ...body, ...candidate }).expect(409);
-        expect(denied.body.code).toBe('CHECKOUT_DESTINATION_NOT_SERVICEABLE');
-      }
-      expect((await post(previewPath, buyer, previewBody).expect(409)).body.code).toBe('CHECKOUT_DESTINATION_NOT_SERVICEABLE');
-      expect((await counts()).rows[0]).toEqual(beforeSavedPreview.rows[0]);
-    } finally {
-      // Disposable fixture teardown only: the runtime/privileged role has no
-      // DELETE grant for boundary history. Never delete approved real history.
-      await asSuper(u.owner, c => c.query(`DELETE FROM "BoundaryVersion" WHERE id=$1`, [competingBoundary]));
-    }
-    await post(previewPath, buyer, previewBody).expect(201);
     // Coverage is rechecked, not assumed from when the encrypted draft was saved.
     const areaB = await asSuper(u.privileged, c => c.query(`SELECT id,version FROM "StoreServiceArea" WHERE "storeId"=$1 AND "serviceZoneId"=$2`, [storeB, zoneId]));
     await post(`/api/v1/catalog/admin/service-areas/${areaB.rows[0].id}/review`, serviceabilityAdmin, { version: areaB.rows[0].version, decision: 'SUSPEND', reason: 'temporarily suspend zone coverage' }).expect(201);
@@ -608,6 +577,43 @@ describe('cart and checkout quote orchestration', () => {
     expect(expiredAudits.rows[0].n).toBe(2);
     await del(`${extra[2].path}?expectedDraftVersion=1`, extra[2].buyer).expect(200);
   }, 120000);
+
+  it('rejects multiple effective versions without deleting approved history, including an in-flight snapshot', async () => {
+    const buyer = await makeUser('boundary-history-preview');
+    const isolatedZone = randomUUID(); const firstBoundary = randomUUID(); const secondBoundary = randomUUID();
+    await asSuper(u.privileged, async c => {
+      await c.query(`INSERT INTO "ServiceZone"(id,"cityId",code,name,status) VALUES ($1,$2,$3,'Boundary History Fixture','ACTIVE')`, [isolatedZone, cityId, `history-${isolatedZone}`]);
+      await c.query(`INSERT INTO "BoundaryVersion"(id,"ownerType","ownerId",version,boundary,source,"validFrom","approvedBy","contentHash") VALUES ($1,'ZONE',$2,1,ST_GeomFromEWKT('SRID=4326;MULTIPOLYGON(((35.0 13.0,35.1 13.0,35.1 13.1,35.0 13.1,35.0 13.0)))'),'integration-test',now()-interval '1 second',$3,$4)`, [firstBoundary, isolatedZone, serviceabilityAdmin.userId, createHash('sha256').update(firstBoundary).digest('hex')]);
+    });
+    const area = await post(`/api/v1/catalog/stores/${storeA}/service-areas`, vendorA.owner, { serviceZoneId: isolatedZone }).expect(201);
+    await post(`/api/v1/catalog/admin/service-areas/${area.body.serviceAreaId}/review`, serviceabilityAdmin, { version: 1, decision: 'APPROVE', reason: 'boundary history fixture' }).expect(201);
+    const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    const item = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId: variantA, quantity: 1, expectedVersion: cart.body.version }).expect(201);
+    const path = `/api/v1/commerce/carts/${cart.body.cartId}/delivery-preview`;
+    const draft = `/api/v1/commerce/carts/${cart.body.cartId}/recipient-draft`;
+    const body = { expectedVersion: item.body.version, serviceZoneId: isolatedZone, boundaryVersionId: firstBoundary, latitude: 13.05, longitude: 35.05, name: 'Boundary Test Recipient', phone: '+8801712345678', addressLine: 'Boundary test private address' };
+    await post(path, buyer, body).expect(201);
+    await put(draft, buyer, { ...body, expectedDraftVersion: 0 }).expect(200);
+    const preview = `${draft}/preview`; const previewBody = { expectedVersion: item.body.version, expectedDraftVersion: 1 };
+    const commerce = app.get(CommerceService) as CommerceService;
+    const original = commerce.previewDeliveryTx.bind(commerce);
+    let entered!: () => void; const started = new Promise<void>(resolve => { entered = resolve; });
+    let resume!: () => void; const gate = new Promise<void>(resolve => { resume = resolve; });
+    const spy = vi.spyOn(commerce, 'previewDeliveryTx').mockImplementation(async (...args) => { entered(); await gate; return original(...args); });
+    let pending: Promise<any> | undefined;
+    try {
+      pending = post(preview, buyer, previewBody).then((r: any) => r);
+      await started;
+      await asSuper(u.privileged, c => c.query(`INSERT INTO "BoundaryVersion"(id,"ownerType","ownerId",version,boundary,source,"validFrom","approvedBy","contentHash") VALUES ($1,'ZONE',$2,2,ST_GeomFromEWKT('SRID=4326;MULTIPOLYGON(((35.2 13.2,35.3 13.2,35.3 13.3,35.2 13.3,35.2 13.2)))'),'integration-test',now()-interval '1 second',$3,$4)`, [secondBoundary, isolatedZone, serviceabilityAdmin.userId, createHash('sha256').update(secondBoundary).digest('hex')]));
+    } finally { resume(); spy.mockRestore(); }
+    expect((await pending!).status).toBe(201); // consistent old snapshot, not a guarantee
+    for (const candidate of [{}, { boundaryVersionId: secondBoundary, latitude: 13.25, longitude: 35.25 }]) {
+      expect((await post(path, buyer, { ...body, ...candidate }).expect(409)).body.code).toBe('CHECKOUT_DESTINATION_NOT_SERVICEABLE');
+    }
+    expect((await post(preview, buyer, previewBody).expect(409)).body.code).toBe('CHECKOUT_DESTINATION_NOT_SERVICEABLE');
+    const history = await asSuper(u.privileged, c => c.query(`SELECT id FROM "BoundaryVersion" WHERE "ownerType"='ZONE' AND "ownerId"=$1 ORDER BY version`, [isolatedZone]));
+    expect(history.rows.map(row => row.id)).toEqual([firstBoundary, secondBoundary]);
+  });
 
   it('fails safely when saved preview overlaps a clear, expires during validation, or has a damaged envelope', async () => {
     const buyer = await makeUser('draft-preview-races');
