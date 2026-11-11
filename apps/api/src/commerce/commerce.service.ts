@@ -210,20 +210,33 @@ export class CommerceService {
     // that policy is implemented, never guess between multiple approved,
     // effective versions (even if only one covers the point). Sample time
     // once so a scheduled version cannot activate halfway through this query.
-    // Only coordinates reach PostGIS; contact/address stay in memory.
+    // Only coordinates reach PostGIS; contact/address stay in memory. Do not
+    // guess between different active zones covering the same point either;
+    // even an adjacent shared edge is ambiguous until an approved tie policy.
     const rows = await tx.$queryRaw<{ cityId: string; covered: boolean }[]>`
-      WITH instant AS MATERIALIZED (SELECT gs_dispatch_now() AS checked_at)
-      SELECT z."cityId", ST_Covers(b."boundary", ST_SetSRID(ST_MakePoint(${input.longitude}, ${input.latitude}), 4326)) AS covered
+      WITH instant AS MATERIALIZED (SELECT gs_dispatch_now() AS checked_at),
+      destination AS MATERIALIZED (SELECT ST_SetSRID(ST_MakePoint(${input.longitude}, ${input.latitude}), 4326) AS point)
+      SELECT z."cityId", ST_Covers(b."boundary", destination.point) AS covered
       FROM "ServiceZone" z JOIN "City" c ON c."id"=z."cityId"
       JOIN "District" d ON d."id"=c."districtId" JOIN "Region" r ON r."id"=d."regionId"
       JOIN "BoundaryVersion" b ON b."id"=${input.boundaryVersionId}::uuid
-      CROSS JOIN instant
+      CROSS JOIN instant CROSS JOIN destination
       WHERE z."id"=${input.serviceZoneId}::uuid AND z.status='ACTIVE' AND c.status='ACTIVE'
         AND r."countryId"=${cart.countryId}::uuid AND b."ownerType"='ZONE' AND b."ownerId"=z.id
         AND b."approvedBy" IS NOT NULL AND b."validFrom"<=instant.checked_at
         AND NOT EXISTS (SELECT 1 FROM "BoundaryVersion" other
           WHERE other."ownerType"='ZONE' AND other."ownerId"=z.id AND other.id<>b.id
-            AND other."approvedBy" IS NOT NULL AND other."validFrom"<=instant.checked_at)`;
+            AND other."approvedBy" IS NOT NULL AND other."validFrom"<=instant.checked_at)
+        AND NOT EXISTS (
+          SELECT 1 FROM "ServiceZone" other_zone
+          JOIN "City" other_city ON other_city.id=other_zone."cityId"
+          JOIN "District" other_district ON other_district.id=other_city."districtId"
+          JOIN "Region" other_region ON other_region.id=other_district."regionId"
+          JOIN "BoundaryVersion" other_boundary ON other_boundary."ownerType"='ZONE' AND other_boundary."ownerId"=other_zone.id
+          WHERE other_zone.id<>z.id AND other_zone.status='ACTIVE' AND other_city.status='ACTIVE'
+            AND other_region."countryId"=${cart.countryId}::uuid AND other_boundary."approvedBy" IS NOT NULL
+            AND other_boundary."validFrom"<=instant.checked_at AND ST_Covers(other_boundary."boundary", destination.point)
+        )`;
     const zone = rows[0];
     if (!zone?.covered) throw new ConflictException({ code: 'CHECKOUT_DESTINATION_NOT_SERVICEABLE', message: 'Destination is not currently covered by an approved zone' });
     const storeIds = [...new Set(items.map(item => item.storeId))];
