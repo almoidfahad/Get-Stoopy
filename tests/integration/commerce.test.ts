@@ -485,6 +485,63 @@ describe('cart and checkout quote orchestration', () => {
     await del(`${extra[2].path}?expectedDraftVersion=1`, extra[2].buyer).expect(200);
   }, 120000);
 
+  it('fails safely when saved preview overlaps a clear, expires during validation, or has a damaged envelope', async () => {
+    const buyer = await makeUser('draft-preview-races');
+    const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    const item = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId: variantA, quantity: 1, expectedVersion: cart.body.version }).expect(201);
+    const boundary = await asSuper(u.privileged, c => c.query(`SELECT id FROM "BoundaryVersion" WHERE "ownerType"='ZONE' AND "ownerId"=$1 AND "approvedBy" IS NOT NULL AND "validFrom"<=gs_dispatch_now()`, [zoneId]));
+    expect(boundary.rowCount).toBe(1);
+    const draftPath = `/api/v1/commerce/carts/${cart.body.cartId}/recipient-draft`;
+    const previewPath = `${draftPath}/preview`;
+    const body = { expectedVersion: item.body.version, serviceZoneId: zoneId, boundaryVersionId: boundary.rows[0].id, latitude: 24.751, longitude: 90.401, name: 'Race Private Recipient', phone: '+8801712345678', addressLine: 'Race private destination address' };
+    const save = await put(draftPath, buyer, { ...body, expectedDraftVersion: 0 }).expect(200);
+    expect(save.body.draftVersion).toBe(1);
+    const previewBody = { expectedVersion: body.expectedVersion, expectedDraftVersion: 1 };
+    const commerce = app.get(CommerceService) as CommerceService;
+    const original = commerce.previewDeliveryTx.bind(commerce);
+    let entered!: () => void; const started = new Promise<void>(resolve => { entered = resolve; });
+    let resume!: () => void; const gate = new Promise<void>(resolve => { resume = resolve; });
+    const spy = vi.spyOn(commerce, 'previewDeliveryTx').mockImplementation(async (...args) => { entered(); await gate; return original(...args); });
+    let pending: Promise<any> | undefined;
+    try {
+      pending = post(previewPath, buyer, previewBody).then((r: any) => r);
+      await started;
+      expect((await del(`${draftPath}?expectedDraftVersion=1`, buyer).expect(200)).body.draftVersion).toBe(2);
+    } finally { resume(); spy.mockRestore(); }
+    const oldSnapshot = await pending!;
+    expect(oldSnapshot.status).toBe(201);
+    expect(oldSnapshot.body).toMatchObject({ draftVersion: 1, status: 'PREVIEW_ONLY', quoteBound: false, coverageGuaranteed: false, orderAvailable: false });
+    for (const secret of [body.name, body.phone, body.addressLine, String(body.latitude), String(body.longitude)]) expect(JSON.stringify(oldSnapshot.body)).not.toContain(secret);
+    expect((await post(previewPath, buyer, previewBody).expect(409)).body.code).toBe('CHECKOUT_DRAFT_VERSION_CONFLICT');
+    expect((await post(previewPath, buyer, { ...previewBody, expectedDraftVersion: 2 }).expect(409)).body.code).toBe('CHECKOUT_DRAFT_REQUIRED');
+
+    const refreshed = await put(draftPath, buyer, { ...body, expectedDraftVersion: 2 }).expect(200);
+    expect(refreshed.body.draftVersion).toBe(3);
+    // Simulate the wall clock crossing the exact expiry while coverage is
+    // validated, without a flaky real-time sleep or changing the database clock.
+    const drafts = app.get(RecipientDraftService) as any;
+    const expiresAt = new Date(refreshed.body.expiresAt);
+    const clock = vi.spyOn(drafts, 'now').mockResolvedValueOnce(new Date(expiresAt.getTime() - 1)).mockResolvedValueOnce(expiresAt);
+    try {
+      const expired = await post(previewPath, buyer, { ...previewBody, expectedDraftVersion: 3 }).expect(409);
+      expect(expired.body.code).toBe('CHECKOUT_DRAFT_EXPIRED');
+      expect(clock).toHaveBeenCalledTimes(2);
+    } finally { clock.mockRestore(); }
+    const stillSaved = await get(draftPath, buyer).expect(200);
+    expect(stillSaved.body).toMatchObject({ state: 'DRAFT', draftVersion: 3 });
+
+    // Test-only corruption simulates a damaged ciphertext or unavailable key.
+    // The API must never return the envelope or decryption failure details.
+    const corrupt = 'private-corrupted-envelope';
+    await asSuper(u.privileged, async c => { await c.query(`SELECT set_config('app.user_id',$1,true)`, [buyer.userId]); await c.query(`UPDATE "CheckoutRecipientDraft" SET envelope=$2, version=version+1 WHERE "cartId"=$1`, [cart.body.cartId, Buffer.from(corrupt)]); });
+    for (const response of [await get(draftPath, buyer).expect(503), await post(previewPath, buyer, { ...previewBody, expectedDraftVersion: 4 }).expect(503)]) {
+      expect(response.body.code).toBe('CHECKOUT_DRAFT_UNREADABLE');
+      expect(JSON.stringify(response.body)).not.toContain(corrupt);
+      expect(JSON.stringify(response.body)).not.toContain(body.name);
+    }
+    expect((await del(`${draftPath}?expectedDraftVersion=4`, buyer).expect(200)).body).toMatchObject({ state: 'EMPTY', draftVersion: 5 });
+  }, 30000);
+
   it('creates an atomic multi-vendor quote with immutable snapshots, idempotency and release', async () => {
     const cart = await post('/api/v1/commerce/carts', customer, { countryId }).expect(201);
     const cartId = cart.body.cartId;
