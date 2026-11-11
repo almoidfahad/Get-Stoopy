@@ -55,6 +55,10 @@ export class DeliveryService {
     if (!name || name.length < 2 || name.length > 120) throw new BadRequestException({ code: 'RECIPIENT_NAME_INVALID', message: 'Recipient name is invalid' });
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      // Serialize the immutable one-per-order contact with retries and order
+      // cancellation, before checking either the existing contact or status.
+      const locked = await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id"=${orderId}::uuid AND "buyerId"=${ctx.userId}::uuid FOR UPDATE`;
+      if (!(locked as unknown[]).length) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
       const order = await tx.order.findFirst({ where: { id: orderId, buyerId: ctx.userId }, include: { country: true } });
       if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
       let phone: string;
@@ -66,6 +70,7 @@ export class DeliveryService {
         if (existing.commandKey !== input.commandKey || existing.payloadHash !== payloadHash) throw new ConflictException({ code: 'RECIPIENT_ALREADY_SET', message: 'Recipient contact is immutable once set' });
         return { recipientId: existing.id, orderId, maskedPhone: maskPhone(phone), duplicate: true };
       }
+      if (order.lifecycleStatus !== 'ACTIVE') throw new ConflictException({ code: 'ORDER_NOT_ACTIVE', message: 'Recipient cannot be added to a cancelled order' });
       const contactEnvelope = Buffer.from(encryptJson({ name, phoneE164: phone }, encryptionKey));
       const recipient = await tx.deliveryRecipient.create({ data: { orderId, countryId: order.countryId, contactEnvelope, phoneHash, commandKey: input.commandKey, payloadHash, setByUserId: ctx.userId } });
       await this.audit(tx, ctx, 'commerce.order.recipient_set', recipient.id, order.countryId);

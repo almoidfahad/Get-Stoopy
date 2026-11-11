@@ -567,3 +567,118 @@ describe('vendor settlement maker-checker with verified destination', () => {
     }finally{clock.mockRestore();}
   });
 });
+
+describe('recipient and destination write consistency', () => {
+  async function pendingCodOrder() {
+    let { cartId, version } = await clearCart();
+    const added = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId, quantity: 1, expectedVersion: version }).expect(201);
+    version = added.body.version;
+    const quote = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, { expectedVersion: version, destinationCityId: cityId, commandKey: `details-quote-${randomUUID()}` }).expect(201);
+    return (await post('/api/v1/orders', customer, { quoteId: quote.body.quoteId, expectedQuoteVersion: quote.body.version, commandKey: `details-order-${randomUUID()}`, paymentMethod: 'COD' }).expect(201)).body;
+  }
+  async function waitForOrderWaiters(monitor: pg.Client, count: number) {
+    const deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      const n = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE state='active' AND wait_event_type='Lock' AND query LIKE '%FROM "Order"%FOR UPDATE%'`)).rows[0].n;
+      if (n >= count) return;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error(`Expected ${count} blocked order operations`);
+  }
+  const bodyFor = (kind: 'recipient' | 'destination') => kind === 'recipient'
+    ? { name: 'Example Recipient', phone: '+8801712345678', commandKey: `recipient-${randomUUID()}` }
+    : { serviceZoneId: zoneId, boundaryVersionId: boundaryId, latitude: 24.751, longitude: 90.401, addressLine: 'Example private delivery address', commandKey: `destination-${randomUUID()}` };
+  async function race(kind: 'recipient' | 'destination', changed: boolean) {
+    const order = await pendingCodOrder();
+    const path = `/api/v1/orders/${order.orderId}/delivery-${kind}`;
+    const body = bodyFor(kind);
+    const other = changed ? { ...body, ...(kind === 'recipient' ? { name: 'Different Recipient' } : { addressLine: 'Another private delivery address' }) } : body;
+    await post(path, stranger, body).expect(404);
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let first: Promise<any> | undefined; let second: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN'); await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('SELECT id FROM "Order" WHERE id=$1 FOR UPDATE', [order.orderId]);
+      first = post(path, customer, body).then((r: any) => r);
+      await waitForOrderWaiters(monitor, 1);
+      second = post(path, customer, other).then((r: any) => r);
+      await waitForOrderWaiters(monitor, 2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const [a, b] = await Promise.all([first!, second!]);
+    expect(a.status).toBe(201);
+    expect(a.body.duplicate).toBe(false);
+    if (changed) {
+      expect(b.status).toBe(409);
+      expect(b.body.code).toBe(kind === 'recipient' ? 'RECIPIENT_ALREADY_SET' : 'DESTINATION_ALREADY_SET');
+    } else {
+      expect(b.status).toBe(201);
+      expect(b.body.duplicate).toBe(true);
+      expect(b.body[kind === 'recipient' ? 'recipientId' : 'destinationId']).toBe(a.body[kind === 'recipient' ? 'recipientId' : 'destinationId']);
+    }
+    const row = await asSuper(u.privileged, c => c.query(kind === 'recipient'
+      ? 'SELECT id,"contactEnvelope" FROM "DeliveryRecipient" WHERE "orderId"=$1'
+      : 'SELECT id,"addressLine" FROM "OrderDeliveryDestination" WHERE "orderId"=$1', [order.orderId]));
+    expect(row.rowCount).toBe(1);
+    const hidden = await asUser(u.runtime, stranger.userId, c => c.query(kind === 'recipient'
+      ? 'SELECT id FROM "DeliveryRecipient" WHERE "orderId"=$1'
+      : 'SELECT id FROM "OrderDeliveryDestination" WHERE "orderId"=$1', [order.orderId]));
+    expect(hidden.rowCount).toBe(0);
+    if (kind === 'recipient') {
+      expect(a.body.maskedPhone).toBe('******5678');
+      expect(row.rows[0].contactEnvelope.toString()).not.toContain('Example Recipient');
+      expect(row.rows[0].contactEnvelope.toString()).not.toContain('+8801712345678');
+    } else expect(row.rows[0].addressLine).toBe('Example private delivery address');
+    const action = kind === 'recipient' ? 'commerce.order.recipient_set' : 'commerce.order.destination_set';
+    const auditResource = kind === 'recipient' ? row.rows[0].id : order.orderId;
+    const eventKey = kind === 'recipient' ? `order-recipient-${order.orderId}` : `order-destination-${order.orderId}`;
+    const effects = await asSuper(u.privileged, c => c.query(`SELECT
+      (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$1 AND action=$2) AS audits,
+      (SELECT count(*)::int FROM "OutboxEvent" WHERE "eventKey"=$3) AS events,
+      (SELECT payload::text FROM "OutboxEvent" WHERE "eventKey"=$3) AS payload`, [auditResource, action, eventKey]));
+    expect(effects.rows[0]).toMatchObject({ audits: 1, events: 1 });
+    expect(effects.rows[0].payload).not.toContain('Example Recipient');
+    expect(effects.rows[0].payload).not.toContain('+8801712345678');
+    expect(effects.rows[0].payload).not.toContain('Example private delivery address');
+  }
+  for (const kind of ['recipient', 'destination'] as const) {
+    it(`replays an overlapping ${kind} submission exactly once`, async () => { await race(kind, false); });
+    it(`rejects an overlapping changed ${kind} submission`, async () => { await race(kind, true); });
+  }
+
+  it('does not add contact or destination after an overlapping cancellation wins', async () => {
+    const order = await pendingCodOrder();
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let cancellation: Promise<any> | undefined; let recipient: Promise<any> | undefined; let destination: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN'); await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('SELECT id FROM "Order" WHERE id=$1 FOR UPDATE', [order.orderId]);
+      cancellation = post(`/api/v1/orders/${order.orderId}/cancellation`, customer, { expectedVersion: order.version, commandKey: `cancel-${randomUUID()}`, reason: 'cancel order before delivery setup' }).then((r: any) => r);
+      await waitForOrderWaiters(monitor, 1);
+      recipient = post(`/api/v1/orders/${order.orderId}/delivery-recipient`, customer, bodyFor('recipient')).then((r: any) => r);
+      destination = post(`/api/v1/orders/${order.orderId}/delivery-destination`, customer, bodyFor('destination')).then((r: any) => r);
+      await waitForOrderWaiters(monitor, 3);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const [cancelled, contactResult, destinationResult] = await Promise.all([cancellation!, recipient!, destination!]);
+    expect(cancelled.status).toBe(201);
+    for (const result of [contactResult, destinationResult]) {
+      expect(result.status).toBe(409);
+      expect(result.body.code).toBe('ORDER_NOT_ACTIVE');
+    }
+    const rows = await asSuper(u.privileged, c => c.query(`SELECT
+      (SELECT count(*)::int FROM "DeliveryRecipient" WHERE "orderId"=$1) AS recipients,
+      (SELECT count(*)::int FROM "OrderDeliveryDestination" WHERE "orderId"=$1) AS destinations`, [order.orderId]));
+    expect(rows.rows[0]).toEqual({ recipients: 0, destinations: 0 });
+  });
+});

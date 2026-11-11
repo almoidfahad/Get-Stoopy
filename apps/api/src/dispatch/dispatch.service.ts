@@ -67,13 +67,17 @@ export class DispatchService {
     const payloadHash = hashPayload({ serviceZoneId: input.serviceZoneId, boundaryVersionId: input.boundaryVersionId, latitude: input.latitude, longitude: input.longitude, addressLine });
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
-      const order = await tx.order.findFirst({ where: { id: orderId, buyerId: ctx.userId } });
+      // The order row coordinates one-time destination creation with both
+      // duplicate requests and cancellation. Retain buyer-scoped lookup.
+      const rows = await tx.$queryRaw`SELECT * FROM "Order" WHERE "id"=${orderId}::uuid AND "buyerId"=${ctx.userId}::uuid FOR UPDATE`;
+      const order = (rows as any[])[0];
       if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
       const existing = await tx.orderDeliveryDestination.findUnique({ where: { orderId } });
       if (existing) {
         if (existing.commandKey !== input.commandKey || existing.payloadHash !== payloadHash) throw new ConflictException({ code: 'DESTINATION_ALREADY_SET', message: 'Delivery destination is immutable once set' });
         return { destinationId: existing.id, orderId, duplicate: true };
       }
+      if (order.lifecycleStatus !== 'ACTIVE') throw new ConflictException({ code: 'ORDER_NOT_ACTIVE', message: 'Destination cannot be added to a cancelled order' });
       const id = randomUUID();
       try {
         await tx.$executeRaw`INSERT INTO "OrderDeliveryDestination"("id","orderId","countryId","cityId","serviceZoneId","boundaryVersionId","destinationPoint","addressLine","commandKey","payloadHash","setByUserId") VALUES (${id}::uuid, ${orderId}::uuid, ${order.countryId}::uuid, ${order.destinationCityId}::uuid, ${input.serviceZoneId}::uuid, ${input.boundaryVersionId}::uuid, ST_SetSRID(ST_MakePoint(${input.longitude}, ${input.latitude}),4326), ${addressLine}, ${input.commandKey}, ${payloadHash}, ${ctx.userId}::uuid)`;
