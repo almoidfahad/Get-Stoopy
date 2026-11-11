@@ -9,6 +9,8 @@ import { publishOutboxBatch } from '../../packages/events/src/index';
 import { urls, asSuper, asUser } from './helpers';
 import { isProductPage, isPublicProduct } from '../../apps/web/src/lib/catalog-validation';
 import { runInventoryExpiryTick } from '../../apps/worker/src/inventory-expiry';
+import { checkoutDraftRetentionAllowed, runCheckoutDraftRetentionTick } from '../../apps/worker/src/checkout-draft-retention';
+import { StructuredLogger } from '../../packages/observability/src/index';
 import { RecipientDraftService } from '../../apps/api/src/commerce/recipient-draft.service';
 
 const u = urls();
@@ -319,10 +321,90 @@ describe('cart and checkout quote orchestration', () => {
     await asSuper(u.privileged, async c => { await c.query(`SELECT set_config('app.user_id',$1,true)`, [buyer.userId]); await c.query(`UPDATE "CheckoutRecipientDraft" SET "expiresAt"=now()-interval '1 second', version=version+1 WHERE "cartId"=$1`, [cart.body.cartId]); });
     const expired = await get(draftPath, buyer).expect(200);
     expect(expired.body).toMatchObject({ state: 'EXPIRED', draftVersion: 4, draft: null });
-    expect((await del(`${draftPath}?expectedDraftVersion=4`, buyer).expect(200)).body).toMatchObject({ state: 'EMPTY', draftVersion: 5 });
+    const workerLogs: string[] = []; const logger = new StructuredLogger(line => workerLogs.push(line));
+    expect(checkoutDraftRetentionAllowed('production', true, true)).toBe(false);
+    expect(checkoutDraftRetentionAllowed('development', true, true)).toBe(false);
+    expect(checkoutDraftRetentionAllowed('test', true, false)).toBe(false);
+    expect(checkoutDraftRetentionAllowed('test', true, true)).toBe(true);
+    expect(checkoutDraftRetentionAllowed('production', false, false)).toBe(true);
+    await expect(runCheckoutDraftRetentionTick(privilegedPool, logger, 0)).rejects.toThrow('CHECKOUT_DRAFT_BATCH_INVALID');
+    await expect(runCheckoutDraftRetentionTick(privilegedPool, logger, 501)).rejects.toThrow('CHECKOUT_DRAFT_BATCH_INVALID');
+    const lockedCart = new pg.Client({ connectionString: u.privileged }); await lockedCart.connect();
+    try {
+      await lockedCart.query('BEGIN'); await lockedCart.query("SELECT set_config('app.is_super','true',true)");
+      await lockedCart.query('SELECT id FROM "Cart" WHERE id=$1 FOR UPDATE', [cart.body.cartId]);
+      expect(await runCheckoutDraftRetentionTick(privilegedPool, logger, 10)).toBe(0);
+      expect((await get(draftPath, buyer).expect(200)).body.state).toBe('EXPIRED');
+      await lockedCart.query('COMMIT');
+    } finally { await lockedCart.query('ROLLBACK').catch(() => undefined); await lockedCart.end(); }
+    // Inject an audit failure after the UPDATE to prove the whole tick rolls back.
+    const realClient = await privilegedPool.connect();
+    const failAuditPool = { connect: async () => ({
+      query: async (sql: string, params?: unknown[]) => {
+        if (sql.includes('INSERT INTO "AuditLog"')) throw new Error('injected failure');
+        return realClient.query(sql, params);
+      },
+      release: () => realClient.release(),
+    }) } as unknown as pg.Pool;
+    expect(await runCheckoutDraftRetentionTick(failAuditPool, logger, 10)).toBe(0);
+    const rolledBack = await asSuper(u.privileged, c => c.query(`SELECT version, envelope IS NOT NULL AS present FROM "CheckoutRecipientDraft" WHERE "cartId"=$1`, [cart.body.cartId]));
+    expect(rolledBack.rows[0]).toEqual({ version: 4, present: true });
+    expect(await runCheckoutDraftRetentionTick(privilegedPool, logger, 10)).toBe(1);
+    expect(await runCheckoutDraftRetentionTick(privilegedPool, logger, 10)).toBe(0);
+    expect((await get(draftPath, buyer).expect(200)).body).toMatchObject({ state: 'EMPTY', draftVersion: 5, draft: null });
+    expect((await put(draftPath, buyer, { ...body, expectedDraftVersion: 4 }).expect(409)).body.code).toBe('CHECKOUT_DRAFT_VERSION_CONFLICT');
+    expect((await put(draftPath, buyer, { ...body, expectedDraftVersion: 5 }).expect(200)).body.draftVersion).toBe(6);
+    await asSuper(u.privileged, async c => { await c.query(`SELECT set_config('app.user_id',$1,true)`, [buyer.userId]); await c.query(`UPDATE "CheckoutRecipientDraft" SET "expiresAt"=now()-interval '1 second', version=version+1 WHERE "cartId"=$1`, [cart.body.cartId]); });
+    const raceHolder = new pg.Client({ connectionString: u.privileged }); const raceMonitor = new pg.Client({ connectionString: u.privileged });
+    await raceHolder.connect(); await raceMonitor.connect();
+    let refresh: Promise<any> | undefined;
+    try {
+      await raceHolder.query('BEGIN'); await raceHolder.query("SELECT set_config('app.is_super','true',true)");
+      await raceHolder.query('SELECT id FROM "Cart" WHERE id=$1 FOR UPDATE', [cart.body.cartId]);
+      refresh = put(draftPath, buyer, { ...body, name: 'Fresh Recipient', expectedDraftVersion: 7 }).then((r: any) => r);
+      const deadline = Date.now() + 4000; let waiting = 0;
+      while (Date.now() < deadline) {
+        waiting = (await raceMonitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE state='active' AND wait_event_type='Lock' AND query LIKE '%FROM "Cart"%FOR UPDATE%'`)).rows[0].n;
+        if (waiting >= 1) break;
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      expect(waiting).toBeGreaterThanOrEqual(1);
+      expect(await runCheckoutDraftRetentionTick(privilegedPool, logger, 10)).toBe(0);
+      await raceHolder.query('COMMIT');
+    } finally { await raceHolder.query('ROLLBACK').catch(() => undefined); await raceHolder.end(); await raceMonitor.end(); }
+    expect((await refresh!).body).toMatchObject({ state: 'DRAFT', draftVersion: 8 });
+    expect(await runCheckoutDraftRetentionTick(privilegedPool, logger, 10)).toBe(0);
+    expect((await get(draftPath, buyer).expect(200)).body.draft.name).toBe('Fresh Recipient');
+    expect((await del(`${draftPath}?expectedDraftVersion=8`, buyer).expect(200)).body).toMatchObject({ state: 'EMPTY', draftVersion: 9 });
     const logs = await asSuper(u.privileged, c => c.query(`SELECT "scopeSnapshot"::text AS scope, reason FROM "AuditLog" WHERE "resourceId"=$1 AND action LIKE 'commerce.checkout.recipient_draft.%'`, [cart.body.cartId]));
-    expect(logs.rowCount).toBe(4); // save, clear, race winner, clear
-    for (const secret of [body.name, body.phone, body.addressLine, String(body.latitude), String(body.longitude)]) expect(JSON.stringify(logs.rows)).not.toContain(secret);
+    expect(logs.rowCount).toBe(7);
+    for (const secret of [body.name, body.phone, body.addressLine, String(body.latitude), String(body.longitude)]) {
+      expect(JSON.stringify(logs.rows)).not.toContain(secret);
+      expect(JSON.stringify(workerLogs)).not.toContain(secret);
+    }
+    expect(workerLogs.some(line => line.includes('checkout_draft_retention_failed'))).toBe(true); // injected failure
+    expect(workerLogs.some(line => line.includes('checkout_draft_retention_batch'))).toBe(true);
+
+    const extra: { buyer: any; cartId: string; path: string }[] = [];
+    for (let i = 0; i < 3; i++) {
+      const other = await makeUser(`draft-retention-${i}`);
+      const otherCart = await post('/api/v1/commerce/carts', other, { countryId }).expect(201);
+      const item = await post(`/api/v1/commerce/carts/${otherCart.body.cartId}/items`, other, { variantId: variantA, quantity: 1, expectedVersion: otherCart.body.version }).expect(201);
+      const otherPath = `/api/v1/commerce/carts/${otherCart.body.cartId}/recipient-draft`;
+      await put(otherPath, other, { ...body, expectedVersion: item.body.version, expectedDraftVersion: 0 }).expect(200);
+      if (i < 2) await asSuper(u.privileged, async c => { await c.query(`SELECT set_config('app.user_id',$1,true)`, [other.userId]); await c.query(`UPDATE "CheckoutRecipientDraft" SET "expiresAt"=now()-interval '1 second', version=version+1 WHERE "cartId"=$1`, [otherCart.body.cartId]); });
+      extra.push({ buyer: other, cartId: otherCart.body.cartId, path: otherPath });
+    }
+    // Concurrent one-row workers must split the two due rows, without clearing
+    // a third unexpired draft or producing duplicate expiration audits.
+    const batches = await Promise.all([runCheckoutDraftRetentionTick(privilegedPool, logger, 1), runCheckoutDraftRetentionTick(privilegedPool, logger, 1)]);
+    expect(batches).toEqual([1, 1]);
+    expect((await get(extra[0].path, extra[0].buyer).expect(200)).body).toMatchObject({ state: 'EMPTY', draftVersion: 3 });
+    expect((await get(extra[1].path, extra[1].buyer).expect(200)).body).toMatchObject({ state: 'EMPTY', draftVersion: 3 });
+    expect((await get(extra[2].path, extra[2].buyer).expect(200)).body).toMatchObject({ state: 'DRAFT', draftVersion: 1 });
+    const expiredAudits = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "AuditLog" WHERE action='commerce.checkout.recipient_draft.expired' AND "resourceId"=ANY($1::uuid[])`, [extra.map(x => x.cartId)]));
+    expect(expiredAudits.rows[0].n).toBe(2);
+    await del(`${extra[2].path}?expectedDraftVersion=1`, extra[2].buyer).expect(200);
   }, 120000);
 
   it('creates an atomic multi-vendor quote with immutable snapshots, idempotency and release', async () => {
