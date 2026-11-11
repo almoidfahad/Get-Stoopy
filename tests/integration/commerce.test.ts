@@ -9,6 +9,7 @@ import { publishOutboxBatch } from '../../packages/events/src/index';
 import { urls, asSuper, asUser } from './helpers';
 import { isProductPage, isPublicProduct } from '../../apps/web/src/lib/catalog-validation';
 import { runInventoryExpiryTick } from '../../apps/worker/src/inventory-expiry';
+import { RecipientDraftService } from '../../apps/api/src/commerce/recipient-draft.service';
 
 const u = urls();
 let app: any;
@@ -48,6 +49,9 @@ async function makeUser(label: string) {
 }
 function post(path: string, user: { token: string; csrf: string }, body: unknown = {}) {
   return request(app.getHttpServer()).post(path).set('Cookie', `gs_session_dev=${user.token}`).set('Origin', origin).set('X-CSRF-Token', user.csrf).send(body);
+}
+function put(path: string, user: { token: string; csrf: string }, body: unknown = {}) {
+  return request(app.getHttpServer()).put(path).set('Cookie', `gs_session_dev=${user.token}`).set('Origin', origin).set('X-CSRF-Token', user.csrf).send(body);
 }
 function patch(path: string, user: { token: string; csrf: string }, body: unknown = {}) {
   return request(app.getHttpServer()).patch(path).set('Cookie', `gs_session_dev=${user.token}`).set('Origin', origin).set('X-CSRF-Token', user.csrf).send(body);
@@ -122,6 +126,7 @@ beforeAll(async () => {
   process.env['REDIS_URL'] = process.env['TEST_REDIS_URL'] ?? 'redis://localhost:6379/15'; process.env['KEYCLOAK_ISSUER'] = 'http://localhost:8080/realms/get-stoopy'; process.env['KEYCLOAK_CLIENT_ID'] = 'get-stoopy-web'; process.env['KEYCLOAK_CLIENT_SECRET'] = 'test-secret';
   process.env['BFF_API_SHARED_SECRET'] = 'test-bff-secret-000000000000000000000000'; process.env['SESSION_TOKEN_ENCRYPTION_KEY'] = 'c'.repeat(64); process.env['SESSION_COOKIE_NAME'] = 'gs_session_dev';
   process.env['STORAGE_ENCRYPTION_KEY'] = 'e'.repeat(64); process.env['STORAGE_LOCAL_DIR'] = `.local/test-storage-${randomUUID()}`;
+  process.env['CHECKOUT_RECIPIENT_DRAFT_KEY'] = 'd'.repeat(64);
   const { createApp } = await import('../../apps/api/src/main'); app = await createApp(); await app.init();
   countryId = await asSuper(u.privileged, async c => (await c.query(`INSERT INTO "Country"(id,iso2,name,"currencyCode","callingCode",timezone,status) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (iso2) DO UPDATE SET status='ACTIVE' RETURNING id`, [randomUUID(), 'BD', 'Bangladesh', 'BDT', '+880', 'Asia/Dhaka', 'ACTIVE'])).rows[0].id as string);
   cityId = await asSuper(u.privileged, async c => {
@@ -248,6 +253,76 @@ describe('cart and checkout quote orchestration', () => {
     const invA = await get(`/api/v1/inventory/variants/${variantA}`, vendorA.owner).expect(200);
     const invB = await get(`/api/v1/inventory/variants/${variantB}`, vendorB.owner).expect(200);
     expect(invA.body.reserved).toBe(0); expect(invB.body.reserved).toBe(0);
+
+    // The draft foundation is enabled only in NODE_ENV=test. It encrypts all
+    // private details and permits only the owner to read or clear them.
+    const draftPath = `/api/v1/commerce/carts/${cart.body.cartId}/recipient-draft`;
+    for (const environment of ['production', 'staging', 'development']) {
+      const disabled = new RecipientDraftService({} as any, { NODE_ENV: environment, CHECKOUT_RECIPIENT_DRAFT_KEY: 'd'.repeat(64) } as any, {} as any);
+      await expect(disabled.read({} as any, cart.body.cartId)).rejects.toMatchObject({ response: { code: 'CHECKOUT_DRAFT_DISABLED' } });
+    }
+    const missingKey = new RecipientDraftService({} as any, { NODE_ENV: 'test' } as any, {} as any);
+    await expect(missingKey.read({} as any, cart.body.cartId)).rejects.toMatchObject({ response: { code: 'CHECKOUT_DRAFT_DISABLED' } });
+    const empty = await get(draftPath, buyer).expect(200);
+    expect(empty.body).toMatchObject({ state: 'EMPTY', draftVersion: 0, draft: null });
+    expect(empty.headers['cache-control']).toBe('no-store');
+    await get(draftPath, stranger).expect(404);
+    await request(app.getHttpServer()).put(draftPath).set('Cookie', `gs_session_dev=${buyer.token}`).set('Origin', origin).send({ ...body, expectedDraftVersion: 0 }).expect(403);
+    const saved = await put(draftPath, buyer, { ...body, expectedDraftVersion: 0 }).expect(200);
+    expect(saved.body).toMatchObject({ state: 'DRAFT', draftVersion: 1, quoteBound: false, coverageGuaranteed: false });
+    expect(saved.headers['cache-control']).toBe('no-store');
+    for (const secret of [body.name, body.phone, body.addressLine, String(body.latitude), String(body.longitude)]) expect(JSON.stringify(saved.body)).not.toContain(secret);
+    const dbRow = await asSuper(u.privileged, c => c.query(`SELECT version, encode(envelope,'escape') AS envelope FROM "CheckoutRecipientDraft" WHERE "cartId"=$1`, [cart.body.cartId]));
+    for (const secret of [body.name, body.phone, body.addressLine, String(body.latitude), String(body.longitude)]) expect(dbRow.rows[0].envelope).not.toContain(secret);
+    await expect(asUser(u.runtime, buyer.userId, c => c.query(`SELECT * FROM "CheckoutRecipientDraft" WHERE "cartId"=$1`, [cart.body.cartId]))).rejects.toThrow(/permission denied/);
+    await expect(asSuper(u.privileged, async c => { await c.query(`SELECT set_config('app.user_id',$1,true)`, [stranger.userId]); await c.query(`UPDATE "CheckoutRecipientDraft" SET version=version+1 WHERE "cartId"=$1`, [cart.body.cartId]); })).rejects.toThrow(/checkout_draft_owner_mismatch/);
+    const loaded = await get(draftPath, buyer).expect(200);
+    expect(loaded.body).toMatchObject({ state: 'DRAFT', draftVersion: 1, quoteBound: false, coverageGuaranteed: false, draft: { cartVersion: body.expectedVersion, name: body.name, phone: body.phone, addressLine: body.addressLine, latitude: body.latitude, longitude: body.longitude } });
+    expect(loaded.headers['cache-control']).toBe('no-store');
+    await get(draftPath, stranger).expect(404);
+    const conflict = await put(draftPath, buyer, { ...body, expectedDraftVersion: 0 }).expect(409);
+    expect(conflict.body.code).toBe('CHECKOUT_DRAFT_VERSION_CONFLICT');
+    const cleared = await del(`${draftPath}?expectedDraftVersion=1`, buyer).expect(200);
+    expect(cleared.body).toMatchObject({ state: 'EMPTY', draftVersion: 2 });
+    const clearedDb = await asSuper(u.privileged, c => c.query(`SELECT version, envelope, "expiresAt" FROM "CheckoutRecipientDraft" WHERE "cartId"=$1`, [cart.body.cartId]));
+    expect(clearedDb.rows[0]).toEqual({ version: 2, envelope: null, expiresAt: null });
+    await put(draftPath, buyer, { ...body, expectedDraftVersion: 0 }).expect(409); // tombstone prevents ABA
+
+    // Force two writers with the same draft version to overlap on the cart lock.
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let a: Promise<any> | undefined; let b: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN'); await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('SELECT id FROM "Cart" WHERE id=$1 FOR UPDATE', [cart.body.cartId]);
+      a = put(draftPath, buyer, { ...body, expectedDraftVersion: 2 }).then((r: any) => r);
+      b = put(draftPath, buyer, { ...body, name: 'Another Recipient', expectedDraftVersion: 2 }).then((r: any) => r);
+      const deadline = Date.now() + 4000; let waiting = 0;
+      while (Date.now() < deadline) {
+        waiting = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE state='active' AND wait_event_type='Lock' AND query LIKE '%FROM "Cart"%FOR UPDATE%'`)).rows[0].n;
+        if (waiting >= 2) break;
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      expect(waiting).toBeGreaterThanOrEqual(2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const raced = await Promise.all([a!, b!]);
+    expect(raced.map(r => r.status).sort()).toEqual([200, 409]);
+    expect(raced.find(r => r.status === 409).body.code).toBe('CHECKOUT_DRAFT_VERSION_CONFLICT');
+    expect(raced.find(r => r.status === 200).body.draftVersion).toBe(3);
+    const afterRace = await get(draftPath, buyer).expect(200);
+    expect([body.name, 'Another Recipient']).toContain(afterRace.body.draft.name);
+    await asSuper(u.privileged, async c => { await c.query(`SELECT set_config('app.user_id',$1,true)`, [buyer.userId]); await c.query(`UPDATE "CheckoutRecipientDraft" SET "expiresAt"=now()-interval '1 second', version=version+1 WHERE "cartId"=$1`, [cart.body.cartId]); });
+    const expired = await get(draftPath, buyer).expect(200);
+    expect(expired.body).toMatchObject({ state: 'EXPIRED', draftVersion: 4, draft: null });
+    expect((await del(`${draftPath}?expectedDraftVersion=4`, buyer).expect(200)).body).toMatchObject({ state: 'EMPTY', draftVersion: 5 });
+    const logs = await asSuper(u.privileged, c => c.query(`SELECT "scopeSnapshot"::text AS scope, reason FROM "AuditLog" WHERE "resourceId"=$1 AND action LIKE 'commerce.checkout.recipient_draft.%'`, [cart.body.cartId]));
+    expect(logs.rowCount).toBe(4); // save, clear, race winner, clear
+    for (const secret of [body.name, body.phone, body.addressLine, String(body.latitude), String(body.longitude)]) expect(JSON.stringify(logs.rows)).not.toContain(secret);
   }, 120000);
 
   it('creates an atomic multi-vendor quote with immutable snapshots, idempotency and release', async () => {

@@ -33,6 +33,7 @@ export const envSchema = z.object({
   DELIVERY_OTP_CHANNEL: z.enum(['disabled','test']).default('disabled'),
   DELIVERY_OTP_PEPPER: z.string().regex(/^[0-9a-f]{64}$/i).optional(),
   DELIVERY_RECIPIENT_ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i).optional(),
+  CHECKOUT_RECIPIENT_DRAFT_KEY: z.string().regex(/^[0-9a-f]{64}$/i).optional(),
   DELIVERY_OTP_TTL_SECONDS: z.coerce.number().int().min(60).max(600).default(300),
   DELIVERY_OTP_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(10).default(5),
   DELIVERY_OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().min(30).max(300).default(60),

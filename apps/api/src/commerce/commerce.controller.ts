@@ -1,10 +1,11 @@
-import { BadRequestException, Body, Controller, Delete, Get, Header, Inject, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Header, Inject, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import type { Request } from 'express';
 import { SessionGuard } from '../auth/session.guard.js';
 import { CsrfGuard } from '../common/csrf.js';
 import { CommerceService } from './commerce.service.js';
+import { RecipientDraftService } from './recipient-draft.service.js';
 import type { AccessContext } from '@getstoopy/core';
 
 class CreateCartDto {
@@ -29,6 +30,9 @@ class PreviewDeliveryDto {
   @IsString() @MinLength(8) @MaxLength(20) phone!: string;
   @IsString() @MinLength(5) @MaxLength(500) addressLine!: string;
 }
+class SaveRecipientDraftDto extends PreviewDeliveryDto {
+  @IsInt() @Min(0) @Max(2147483647) expectedDraftVersion!: number;
+}
 class CreateQuoteDto {
   @IsInt() @Min(1) expectedVersion!: number;
   @IsUUID() destinationCityId!: string;
@@ -44,7 +48,7 @@ class ReleaseQuoteDto {
 @Controller('commerce')
 @UseGuards(SessionGuard)
 export class CommerceController {
-  constructor(@Inject(CommerceService) private readonly commerce: CommerceService) {}
+  constructor(@Inject(CommerceService) private readonly commerce: CommerceService, @Inject(RecipientDraftService) private readonly drafts: RecipientDraftService) {}
   private ctx(req: Request) { return (req as any).accessContext as AccessContext; }
 
   @Post('carts') @UseGuards(CsrfGuard)
@@ -63,6 +67,15 @@ export class CommerceController {
   }
   @Post('carts/:cartId/delivery-preview') @Header('Cache-Control', 'no-store') @UseGuards(CsrfGuard)
   previewDelivery(@Req() req: Request, @Param('cartId', ParseUUIDPipe) cartId: string, @Body() body: PreviewDeliveryDto) { return this.commerce.previewDelivery(this.ctx(req), cartId, body); }
+  @Get('carts/:cartId/recipient-draft') @Header('Cache-Control', 'no-store')
+  readDraft(@Req() req: Request, @Param('cartId', ParseUUIDPipe) cartId: string) { return this.drafts.read(this.ctx(req), cartId); }
+  @Put('carts/:cartId/recipient-draft') @Header('Cache-Control', 'no-store') @UseGuards(CsrfGuard)
+  saveDraft(@Req() req: Request, @Param('cartId', ParseUUIDPipe) cartId: string, @Body() body: SaveRecipientDraftDto) { return this.drafts.save(this.ctx(req), cartId, body); }
+  @Delete('carts/:cartId/recipient-draft') @Header('Cache-Control', 'no-store') @UseGuards(CsrfGuard)
+  clearDraft(@Req() req: Request, @Param('cartId', ParseUUIDPipe) cartId: string, @Query('expectedDraftVersion') raw?: string) {
+    if (!raw || !/^(0|[1-9][0-9]{0,9})$/.test(raw)) throw new BadRequestException({ code: 'DRAFT_VERSION_INVALID', message: 'expectedDraftVersion is required' });
+    return this.drafts.clear(this.ctx(req), cartId, Number(raw));
+  }
   @Post('carts/:cartId/quotes') @UseGuards(CsrfGuard)
   createQuote(@Req() req: Request, @Param('cartId', ParseUUIDPipe) cartId: string, @Body() body: CreateQuoteDto) { return this.commerce.createQuote(this.ctx(req), cartId, body); }
   @Get('quotes/:quoteId')

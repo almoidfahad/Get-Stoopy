@@ -11,5 +11,10 @@ describe('env', () => {
     expect(() => loadEnv({ ...valid, NODE_ENV: 'production', WEB_ORIGIN: 'https://x.example', KEYCLOAK_ISSUER: 'https://id.example', SESSION_COOKIE_NAME: '__Host-gs_session', RISK_SIGNAL_PRODUCERS_ENABLED: 'true' } as any)).toThrow('RISK_SIGNAL_PRODUCERS_NOT_AUTHORIZED');
   });
   it('keeps delivery OTP disabled by default', () => { const e = loadEnv(valid as any); expect(e.DELIVERY_OTP_ENABLED).toBe(false); expect(e.DELIVERY_OTP_CHANNEL).toBe('disabled'); });
+  it('accepts only a 256-bit hex key for the test-only recipient draft', () => {
+    expect(loadEnv(valid as any).CHECKOUT_RECIPIENT_DRAFT_KEY).toBeUndefined();
+    expect(loadEnv({ ...valid, CHECKOUT_RECIPIENT_DRAFT_KEY: 'a'.repeat(64) } as any).CHECKOUT_RECIPIENT_DRAFT_KEY).toBe('a'.repeat(64));
+    expect(() => loadEnv({ ...valid, CHECKOUT_RECIPIENT_DRAFT_KEY: 'not-a-key' } as any)).toThrow();
+  });
   it('requires host cookie in production', () => expect(() => loadEnv({ ...valid, NODE_ENV: 'production', WEB_ORIGIN: 'https://x.example', KEYCLOAK_ISSUER: 'https://id.example', SESSION_COOKIE_NAME: 'gs' } as any)).toThrow('HOST_COOKIE_REQUIRED'));
 });

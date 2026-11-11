@@ -1536,9 +1536,19 @@ model Cart {
   country   Country         @relation(fields: [countryId], references: [id])
   items     CartItem[]
   quotes    CheckoutQuote[]
+  recipientDraft CheckoutRecipientDraft?
 
   @@unique([userId, countryId])
   @@index([countryId, createdAt])
+}
+
+model CheckoutRecipientDraft {
+  cartId    String   @id @db.Uuid
+  version   Int      @default(1)
+  envelope  Bytes?
+  expiresAt DateTime?
+  updatedAt DateTime @updatedAt
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Restrict)
 }
 
 model CartItem {

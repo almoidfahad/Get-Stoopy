@@ -9,7 +9,7 @@ DECLARE
   app_tables constant text[] := ARRAY[
     'AdminActivation', 'AdminScope', 'AuditLog', 'BoundaryVersion',
     'Cart', 'CartItem', 'Category', 'CheckoutQuote',
-    'CheckoutQuoteGroup', 'CheckoutQuoteItem', 'City', 'CodAllocation',
+    'CheckoutQuoteGroup', 'CheckoutQuoteItem', 'CheckoutRecipientDraft', 'City', 'CodAllocation',
     'CodCollection', 'CodDeposit', 'CodPolicy', 'Country',
     'Delivery', 'DeliveryEvent', 'DeliveryOtpAttempt', 'DeliveryOtpChallenge',
     'DeliveryProof', 'DeliveryRecipient', 'DispatchEvent', 'DispatchOffer',
@@ -147,6 +147,9 @@ REVOKE ALL ON TABLE "CartItem" FROM gs_runtime;
 REVOKE ALL ON TABLE "CheckoutQuote" FROM gs_runtime;
 REVOKE ALL ON TABLE "CheckoutQuoteGroup" FROM gs_runtime;
 REVOKE ALL ON TABLE "CheckoutQuoteItem" FROM gs_runtime;
+REVOKE ALL ON TABLE "CheckoutRecipientDraft" FROM gs_runtime;
+GRANT SELECT, INSERT, UPDATE ON TABLE "CheckoutRecipientDraft" TO gs_privileged;
+REVOKE DELETE ON TABLE "CheckoutRecipientDraft" FROM gs_privileged;
 GRANT SELECT ON TABLE "Cart" TO gs_runtime;
 GRANT SELECT ON TABLE "CartItem" TO gs_runtime;
 GRANT SELECT ON TABLE "CheckoutQuote" TO gs_runtime;
