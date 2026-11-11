@@ -33,7 +33,7 @@ DECLARE
     'UserMfa', 'UserRole', 'Vendor', 'VendorCommissionPolicy',
     'VendorMembership', 'VendorPayout', 'VendorSettlement', 'VendorSettlementItem',
     'VendorSettlementReview', 'VendorSuborder', 'VendorSuborderStatusEvent',
-    'ZoneBoundaryPointer'
+    'ZoneBoundaryPointer', 'ZoneBoundaryPointerHistory'
   ];
 BEGIN
   IF current_user <> 'gs_owner' THEN
@@ -61,7 +61,7 @@ BEGIN
 END $$;
 -- Not an application-accessible activation workflow. Keep the isolated
 -- pointer inaccessible even when the general inventory grants are rerun.
-REVOKE ALL ON TABLE "ZoneBoundaryPointer" FROM PUBLIC, gs_runtime, gs_privileged;
+REVOKE ALL ON TABLE "ZoneBoundaryPointer", "ZoneBoundaryPointerHistory" FROM PUBLIC, gs_runtime, gs_privileged;
 -- Runtime may create/revoke its own sessions and write operational records, subject to RLS.
 GRANT INSERT, UPDATE ON TABLE "User" TO gs_runtime;
 GRANT INSERT, UPDATE ON TABLE "UserIdentity" TO gs_runtime;

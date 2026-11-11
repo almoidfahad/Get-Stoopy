@@ -541,8 +541,10 @@ model BoundaryVersion {
   contentHash String
   createdAt   DateTime                                   @default(now())
 
-  deliveryDestinations OrderDeliveryDestination[]
-  zonePointers         ZoneBoundaryPointer[]
+  deliveryDestinations    OrderDeliveryDestination[]
+  zonePointers            ZoneBoundaryPointer[]
+  pointerHistoryCurrent   ZoneBoundaryPointerHistory[] @relation("PointerHistoryCurrent")
+  pointerHistoryPrevious  ZoneBoundaryPointerHistory[] @relation("PointerHistoryPrevious")
 
   @@unique([ownerType, ownerId, version])
 }
@@ -552,8 +554,23 @@ model ZoneBoundaryPointer {
   zoneId     String          @id @db.Uuid
   boundaryId String          @db.Uuid
   version    Int
-  zone       ServiceZone     @relation(fields: [zoneId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  boundary   BoundaryVersion @relation(fields: [boundaryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  zone       ServiceZone                 @relation(fields: [zoneId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  boundary   BoundaryVersion             @relation(fields: [boundaryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  history    ZoneBoundaryPointerHistory[]
+}
+
+// Owner-only structural change history; not an authenticated approval audit.
+model ZoneBoundaryPointerHistory {
+  zoneId             String              @db.Uuid
+  version            Int
+  boundaryId         String              @db.Uuid
+  previousBoundaryId String?             @db.Uuid
+  recordedAt         DateTime            @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(3)
+  pointer            ZoneBoundaryPointer @relation(fields: [zoneId], references: [zoneId], onDelete: Restrict, onUpdate: Restrict)
+  boundary           BoundaryVersion     @relation("PointerHistoryCurrent", fields: [boundaryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  previousBoundary   BoundaryVersion?    @relation("PointerHistoryPrevious", fields: [previousBoundaryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([zoneId, version])
 }
 
 model StorePickupPoint {

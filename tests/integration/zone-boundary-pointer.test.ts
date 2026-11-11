@@ -42,6 +42,7 @@ describe('isolated zone boundary pointer foundation', () => {
     for (const id of [empty, outside]) await expect(asSuper(u.owner, c => c.query(`INSERT INTO "ZoneBoundaryPointer"("zoneId","boundaryId",version) VALUES ($1,$2,1)`, [zone, id]))).rejects.toThrow('zone_boundary_pointer_geometry_invalid');
     await expect(asSuper(u.owner, c => c.query(`INSERT INTO "ZoneBoundaryPointer"("zoneId","boundaryId",version) VALUES ($1,$2,2)`, [zone, approved]))).rejects.toThrow('zone_boundary_pointer_initial_version');
     expect((await asSuper(u.owner, c => c.query(`SELECT * FROM "ZoneBoundaryPointer" WHERE "zoneId"=$1`, [zone]))).rowCount).toBe(0);
+    expect((await asSuper(u.owner, c => c.query(`SELECT * FROM "ZoneBoundaryPointerHistory" WHERE "zoneId"=$1`, [zone]))).rowCount).toBe(0);
   });
 
   it('permits only versioned changes to an approved same-zone boundary, with no deletion', async () => {
@@ -53,6 +54,9 @@ describe('isolated zone boundary pointer foundation', () => {
     await asSuper(u.owner, c => c.query(`UPDATE "ZoneBoundaryPointer" SET "boundaryId"=$2,version=2 WHERE "zoneId"=$1`, [zone, next]));
     await expect(asSuper(u.owner, c => c.query(`DELETE FROM "ZoneBoundaryPointer" WHERE "zoneId"=$1`, [zone]))).rejects.toThrow('zone_boundary_pointer_delete_forbidden');
     expect((await asSuper(u.owner, c => c.query(`SELECT "boundaryId",version FROM "ZoneBoundaryPointer" WHERE "zoneId"=$1`, [zone]))).rows[0]).toEqual({ boundaryId: next, version: 2 });
+    const history = await asSuper(u.owner, c => c.query(`SELECT version,"boundaryId","previousBoundaryId","recordedAt" FROM "ZoneBoundaryPointerHistory" WHERE "zoneId"=$1 ORDER BY version`, [zone]));
+    expect(history.rows.map(({ recordedAt, ...row }) => row)).toEqual([{ version: 1, boundaryId: approved, previousBoundaryId: null }, { version: 2, boundaryId: next, previousBoundaryId: approved }]);
+    expect(history.rows.every(row => row.recordedAt instanceof Date)).toBe(true);
   });
 
   it('rejects a concurrent stale update after the first pointer update commits', async () => {
@@ -66,7 +70,39 @@ describe('isolated zone boundary pointer foundation', () => {
       await first.query('COMMIT');
       expect(String(await waiting)).toContain('zone_boundary_pointer_version_invalid');
       expect((await second.query(`SELECT "boundaryId",version FROM "ZoneBoundaryPointer" WHERE "zoneId"=$1`, [raceZone])).rows[0]).toEqual({ boundaryId: raceSecond, version: 2 });
+      const history = await second.query(`SELECT version,"boundaryId","previousBoundaryId" FROM "ZoneBoundaryPointerHistory" WHERE "zoneId"=$1 ORDER BY version`, [raceZone]);
+      expect(history.rows).toEqual([{ version: 1, boundaryId: raceFirst, previousBoundaryId: null }, { version: 2, boundaryId: raceSecond, previousBoundaryId: raceFirst }]);
     } finally { await first.query('ROLLBACK').catch(() => {}); await first.end(); await second.end(); }
+  });
+
+  it('keeps history append-only and rolls back a pointer change if recording fails', async () => {
+    await expect(asSuper(u.owner, c => c.query(`INSERT INTO "ZoneBoundaryPointerHistory"("zoneId",version,"boundaryId","previousBoundaryId") VALUES ($1,3,$2,$3)`, [zone, approved, next]))).rejects.toThrow('zone_pointer_history_append_only');
+    await expect(asSuper(u.owner, c => c.query(`UPDATE "ZoneBoundaryPointerHistory" SET "boundaryId"=$2 WHERE "zoneId"=$1 AND version=1`, [zone, next]))).rejects.toThrow('zone_pointer_history_append_only');
+    await expect(asSuper(u.owner, c => c.query(`DELETE FROM "ZoneBoundaryPointerHistory" WHERE "zoneId"=$1`, [zone]))).rejects.toThrow('zone_pointer_history_append_only');
+    // Inject a failing constraint only inside a rolled-back transaction: a
+    // failure in the history insert must roll back the pointer update as well.
+    await withClient(u.owner, async c => {
+      await c.query('BEGIN');
+      try {
+        await c.query(`ALTER TABLE "ZoneBoundaryPointerHistory" ADD CONSTRAINT test_history_failure CHECK (false) NOT VALID`);
+        await c.query('SAVEPOINT before_pointer_update');
+        await expect(c.query(`UPDATE "ZoneBoundaryPointer" SET "boundaryId"=$2, version=3 WHERE "zoneId"=$1`, [zone, approved])).rejects.toThrow('test_history_failure');
+        await c.query('ROLLBACK TO SAVEPOINT before_pointer_update');
+        expect((await c.query(`SELECT "boundaryId",version FROM "ZoneBoundaryPointer" WHERE "zoneId"=$1`, [zone])).rows[0]).toEqual({ boundaryId: next, version: 2 });
+        expect((await c.query(`SELECT count(*)::int AS count FROM "ZoneBoundaryPointerHistory" WHERE "zoneId"=$1`, [zone])).rows[0].count).toBe(2);
+      } finally { await c.query('ROLLBACK'); }
+    });
+  });
+
+  it('refuses an upgrade over existing pointers rather than inventing earlier history', async () => {
+    const migration = readFileSync(new URL('../../packages/db/prisma/migrations/0077_isolated_boundary_pointer_history/migration.sql', import.meta.url), 'utf8');
+    const prefix = migration.slice(0, migration.indexOf('CREATE TABLE "ZoneBoundaryPointerHistory"'));
+    await withClient(u.owner, async c => {
+      try {
+        await expect(c.query(prefix)).rejects.toThrow('zone_boundary_pointer_history_requires_empty_table');
+      } finally { await c.query('ROLLBACK'); }
+      expect((await c.query(`SELECT "boundaryId",version FROM "ZoneBoundaryPointer" WHERE "zoneId"=$1`, [zone])).rows[0]).toEqual({ boundaryId: next, version: 2 });
+    });
   });
 
   it('remains inaccessible to both application roles even after grants are rerun', async () => {
@@ -74,7 +110,11 @@ describe('isolated zone boundary pointer foundation', () => {
     await withClient(u.owner, c => c.query(grants));
     const security = await asSuper(u.owner, c => c.query(`SELECT relrowsecurity,relforcerowsecurity,has_table_privilege('gs_runtime','"ZoneBoundaryPointer"','SELECT') AS runtime_read,has_table_privilege('gs_privileged','"ZoneBoundaryPointer"','INSERT') AS privileged_write FROM pg_class WHERE oid='"ZoneBoundaryPointer"'::regclass`));
     expect(security.rows[0]).toEqual({ relrowsecurity: true, relforcerowsecurity: true, runtime_read: false, privileged_write: false });
+    const historySecurity = await asSuper(u.owner, c => c.query(`SELECT relrowsecurity,relforcerowsecurity,has_table_privilege('gs_runtime','"ZoneBoundaryPointerHistory"','SELECT') AS runtime_read,has_table_privilege('gs_privileged','"ZoneBoundaryPointerHistory"','INSERT') AS privileged_write FROM pg_class WHERE oid='"ZoneBoundaryPointerHistory"'::regclass`));
+    expect(historySecurity.rows[0]).toEqual({ relrowsecurity: true, relforcerowsecurity: true, runtime_read: false, privileged_write: false });
     await expect(withClient(u.runtime, c => c.query(`SELECT * FROM "ZoneBoundaryPointer"`))).rejects.toThrow(/permission denied/);
+    await expect(withClient(u.runtime, c => c.query(`SELECT * FROM "ZoneBoundaryPointerHistory"`))).rejects.toThrow(/permission denied/);
     await expect(asSuper(u.privileged, c => c.query(`INSERT INTO "ZoneBoundaryPointer"("zoneId","boundaryId",version) VALUES ($1,$2,1)`, [otherZone, foreign]))).rejects.toThrow(/permission denied/);
+    await expect(asSuper(u.privileged, c => c.query(`SELECT * FROM "ZoneBoundaryPointerHistory"`))).rejects.toThrow(/permission denied/);
   });
 });
