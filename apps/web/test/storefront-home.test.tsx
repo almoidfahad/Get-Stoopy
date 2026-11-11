@@ -1,4 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ products: vi.fn(), webConfig: vi.fn() }));
@@ -10,6 +12,10 @@ import Login from '../src/app/login/page';
 beforeEach(() => { vi.resetAllMocks(); mocks.webConfig.mockReturnValue({}); });
 
 describe('storefront UI', () => {
+  it('keeps the supplied first-slide image byte-for-byte unchanged', () => {
+    const image = readFileSync('apps/web/public/images/home-slider-cover.jpg');
+    expect(createHash('sha256').update(image).digest('hex')).toBe('0c101411c62468490c17084107a3fe02facc2fdec1696b493876e7044082ff1f');
+  });
   it.each(['not-configured', 'unavailable'] as const)('shows an honest empty collection when the catalog is %s', async state => {
     mocks.products.mockResolvedValue({ state });
     const html = renderToStaticMarkup(await Home());

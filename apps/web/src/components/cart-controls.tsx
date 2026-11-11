@@ -169,7 +169,7 @@ export function AddToCart({
           aria-disabled={disabled || working}
           aria-describedby={[!selectedAvailable ? selectionHelpId : null, !validQuantity ? quantityHelpId : null, uncertain ? uncertainHelpId : null].filter(Boolean).join(' ') || undefined}
           onClick={() => { if (!disabled && !working) void send('POST', { variantId: effectiveSelected, quantity: Number(quantity) }); }}
-          className="min-h-12 rounded-full bg-brand-red px-6 py-3 font-bold text-white hover:bg-brand-red-hover aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+          className="cart-add-button min-h-12 rounded-full bg-brand-red px-6 py-3 font-bold text-white hover:bg-brand-red-hover aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
         >
           {working ? 'Adding…' : 'Add to cart'}
         </button>
@@ -190,7 +190,7 @@ export function AddToCart({
         </div>
       ) : null}
       {done && !error && selectedAvailable ? (
-        <p role="status" className="text-sm">
+        <p role="status" className="cart-success text-sm">
           Added. <a href="/cart" className="font-semibold text-brand-red">View cart</a>
         </p>
       ) : null}
