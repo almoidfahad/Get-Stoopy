@@ -285,7 +285,9 @@ describe('pickup/OTP delivery proof and completion gating', () => {
     const pickupReplay = await post(`/api/v1/riders/me/assignments/${assignmentId}/pickup`, rider, { commandKey: pickupKey }).expect(201);
     expect(pickupReplay.body.duplicate).toBe(true);
     await post(`/api/v1/riders/me/deliveries/${deliveryId}/complete`, rider, { expectedVersion: 1, commandKey: `complete-${randomUUID().slice(0, 8)}` }).expect(409);
-    const issued = await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges`, rider, { commandKey: `otp-${randomUUID().slice(0, 8)}` }).expect(201);
+    const issueKey = `otp-${randomUUID().slice(0, 8)}`;
+    const issuePath = `/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges`;
+    const issued = await post(issuePath, rider, { commandKey: issueKey }).expect(201);
     expect(issued.body.code).toBeUndefined();
     expect(issued.body.maskedPhone).toBe('******5678');
     const challengeId = issued.body.challengeId as string;
@@ -298,9 +300,21 @@ describe('pickup/OTP delivery proof and completion gating', () => {
     expect(verified.body.outcome).toBe('VALID');
     const verifiedReplay = await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges/${challengeId}/verify`, rider, { code, commandKey: verifyKey }).expect(201);
     expect(verifiedReplay.body.duplicate).toBe(true);
+    // A lost issue response can be retried even after another request verified it.
+    const issueReplay = await post(issuePath, rider, { commandKey: issueKey }).expect(201);
+    expect(issueReplay.body).toMatchObject({ challengeId, status: 'VERIFIED', duplicate: true });
+    expect(issueReplay.body.code).toBeUndefined();
+    await post(issuePath, riderA, { commandKey: issueKey }).expect(404);
+    const newIssue = await post(issuePath, rider, { commandKey: `otp-${randomUUID().slice(0, 8)}` }).expect(409);
+    expect(newIssue.body.code).toBe('OTP_NOT_ALLOWED');
     const completeKey = `complete-${randomUUID().slice(0, 8)}`;
     const completed = await post(`/api/v1/riders/me/deliveries/${deliveryId}/complete`, rider, { expectedVersion: 2, commandKey: completeKey }).expect(201);
     expect(completed.body.status).toBe('COMPLETED');
+    const completedIssueReplay = await post(issuePath, rider, { commandKey: issueKey }).expect(201);
+    expect(completedIssueReplay.body).toMatchObject({ challengeId, status: 'VERIFIED', duplicate: true });
+    expect(otpSink.consume(challengeId)).toBeNull();
+    const issueCounts = await asSuper(u.privileged, async c => c.query(`SELECT (SELECT count(*)::int FROM "DeliveryOtpChallenge" WHERE "deliveryId"=$1) AS challenges, (SELECT count(*)::int FROM "DeliveryEvent" WHERE "deliveryId"=$1 AND "eventType"='delivery.otp.issued') AS events, (SELECT count(*)::int FROM "OutboxEvent" WHERE "aggregateId"=$1 AND "eventType"='delivery.otp.issued') AS outbox`, [deliveryId]));
+    expect(issueCounts.rows[0]).toEqual({ challenges: 1, events: 1, outbox: 1 });
     const projection = await get(`/api/v1/riders/me/deliveries/${deliveryId}`, rider).expect(200);
     expect(projection.body.status).toBe('COMPLETED'); expect(projection.body.proof.method).toBe('RECIPIENT_OTP');
     expect(JSON.stringify(projection.body)).not.toContain(code);

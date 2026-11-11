@@ -113,12 +113,14 @@ export class DeliveryService {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
       const delivery = await this.lockDelivery(tx, deliveryId);
       if (delivery.riderId !== riderId) throw new NotFoundException({ code: 'DELIVERY_NOT_FOUND', message: 'Delivery not found' });
-      if (delivery.status !== 'PICKED_UP') throw new ConflictException({ code: 'OTP_NOT_ALLOWED', message: 'OTP is allowed only after pickup and before delivery proof' });
+      // Replays remain readable after proof/completion, but never issue another OTP.
+      // Rider authorization and the delivery lock still precede the replay lookup.
       const existingCommand = await tx.deliveryOtpChallenge.findUnique({ where: { deliveryId_commandKey: { deliveryId, commandKey: input.commandKey } } });
       if (existingCommand) {
         if (existingCommand.payloadHash !== payloadHash) throw new ConflictException({ code: 'DELIVERY_IDEMPOTENCY_CONFLICT', message: 'Command key already used with different payload' });
         return { challengeId: existingCommand.id, status: existingCommand.status, expiresAt: existingCommand.expiresAt, sequence: existingCommand.sequence, duplicate: true };
       }
+      if (delivery.status !== 'PICKED_UP') throw new ConflictException({ code: 'OTP_NOT_ALLOWED', message: 'OTP is allowed only after pickup and before delivery proof' });
       const open = await tx.deliveryOtpChallenge.findFirst({ where: { deliveryId, status: 'ISSUED' } });
       const nowRows = await tx.$queryRaw`SELECT gs_dispatch_now() AS now`;
       const now = new Date((nowRows as any[])[0].now);
