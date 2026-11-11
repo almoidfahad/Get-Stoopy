@@ -296,6 +296,38 @@ describe('cart and checkout quote orchestration', () => {
     expect(savedPreview.body).toMatchObject({ status: 'PREVIEW_ONLY', recipientSaved: true, draftVersion: 1, cartVersion: body.expectedVersion, stockReserved: false, orderAvailable: false, deliveryFeeMinor: null, totalMinor: null, quoteBound: false, coverageGuaranteed: false });
     for (const secret of [body.name, body.phone, body.addressLine, String(body.latitude), String(body.longitude)]) expect(JSON.stringify(savedPreview.body)).not.toContain(secret);
     expect((await counts()).rows[0]).toEqual(beforeSavedPreview.rows[0]);
+
+    // Neither old nor new approved/effective geometry may be selected while
+    // the schema has no active pointer. Future/unapproved versions above did
+    // not block the original preview. Force activation after the draft read to
+    // also verify that a saved preview uses one database snapshot.
+    const competingBoundary = randomUUID();
+    const commerce = app.get(CommerceService) as CommerceService;
+    const originalPreview = commerce.previewDeliveryTx.bind(commerce);
+    let boundaryEntered!: () => void; const boundaryStarted = new Promise<void>(resolve => { boundaryEntered = resolve; });
+    let boundaryResume!: () => void; const boundaryGate = new Promise<void>(resolve => { boundaryResume = resolve; });
+    const boundarySpy = vi.spyOn(commerce, 'previewDeliveryTx').mockImplementation(async (...args) => { boundaryEntered(); await boundaryGate; return originalPreview(...args); });
+    let boundaryPending: Promise<any> | undefined;
+    try {
+      boundaryPending = post(previewPath, buyer, previewBody).then((r: any) => r);
+      await boundaryStarted;
+      await asSuper(u.privileged, c => c.query(`INSERT INTO "BoundaryVersion"(id,"ownerType","ownerId",version,boundary,source,"validFrom","approvedBy","contentHash") VALUES ($1,'ZONE',$2,4,ST_GeomFromEWKT('SRID=4326;MULTIPOLYGON(((90.50 24.80,90.51 24.80,90.51 24.81,90.50 24.81,90.50 24.80)))'),'integration-test',now()-interval '1 second',$3,$4)`, [competingBoundary, zoneId, serviceabilityAdmin.userId, createHash('sha256').update(competingBoundary).digest('hex')]));
+    } finally { boundaryResume(); boundarySpy.mockRestore(); }
+    try {
+      expect((await boundaryPending!).status).toBe(201); // consistent earlier snapshot, not a guarantee
+      for (const candidate of [
+        { boundaryVersionId: boundaryId }, // only the old polygon covers this point
+        { boundaryVersionId: competingBoundary, latitude: 24.805, longitude: 90.505 }, // only the new polygon covers this point
+      ]) {
+        const denied = await post(path, buyer, { ...body, ...candidate }).expect(409);
+        expect(denied.body.code).toBe('CHECKOUT_DESTINATION_NOT_SERVICEABLE');
+      }
+      expect((await post(previewPath, buyer, previewBody).expect(409)).body.code).toBe('CHECKOUT_DESTINATION_NOT_SERVICEABLE');
+      expect((await counts()).rows[0]).toEqual(beforeSavedPreview.rows[0]);
+    } finally {
+      await asSuper(u.privileged, c => c.query(`DELETE FROM "BoundaryVersion" WHERE id=$1`, [competingBoundary]));
+    }
+    await post(previewPath, buyer, previewBody).expect(201);
     // Coverage is rechecked, not assumed from when the encrypted draft was saved.
     const areaB = await asSuper(u.privileged, c => c.query(`SELECT id,version FROM "StoreServiceArea" WHERE "storeId"=$1 AND "serviceZoneId"=$2`, [storeB, zoneId]));
     await post(`/api/v1/catalog/admin/service-areas/${areaB.rows[0].id}/review`, serviceabilityAdmin, { version: areaB.rows[0].version, decision: 'SUSPEND', reason: 'temporarily suspend zone coverage' }).expect(201);
@@ -308,8 +340,6 @@ describe('cart and checkout quote orchestration', () => {
 
     // Pause after the saved draft is read, then change the cart. A single
     // repeatable-read snapshot must not mix the old draft with the new cart.
-    const commerce = app.get(CommerceService) as CommerceService;
-    const originalPreview = commerce.previewDeliveryTx.bind(commerce);
     let entered!: () => void; const started = new Promise<void>(resolve => { entered = resolve; });
     let resume!: () => void; const gate = new Promise<void>(resolve => { resume = resolve; });
     const spy = vi.spyOn(commerce, 'previewDeliveryTx').mockImplementation(async (...args) => { entered(); await gate; return originalPreview(...args); });
