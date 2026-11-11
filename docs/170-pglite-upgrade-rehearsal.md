@@ -2,11 +2,12 @@
 
 `tools/verify-zone-boundary-pglite.mjs` applies the repository SQL migrations through 0077 and the grants script in new **in-memory** PGlite/PostGIS instances. It neither reads a database URL nor connects to a hosted database. It deliberately refuses to run when the latest migration differs from 0077 until this rehearsal is reviewed for the new chain.
 
-The three independent scenarios verify:
+The four independent scenarios verify:
 
 1. A fresh chain applies in order, the pointer and history tables start empty, and `gs_runtime` and `gs_privileged` have none of PostgreSQL's table privileges on either table after the grants script.
-2. Upgrading from 0076 with synthetic approved zone geography but no pointer preserves the seeded metadata and exact EWKB geometry, and a subsequent pointer insert and replacement record the expected history.
-3. Upgrading with an existing pointer raises the intended precondition error; after rollback the seeded boundary snapshot and pointer remain unchanged and the history table does not exist.
+2. Upgrading from 0074 with existing synthetic approved and draft boundaries preserves the seeded metadata and exact EWKB geometry, with no pointer or history backfill. Existing approved boundaries reject even no-op updates and deletion; drafts remain editable and deletable; changing source or geometry while approving a draft fails; approval of the already-stored proposal succeeds and subsequently becomes immutable.
+3. Upgrading from 0076 with synthetic approved zone geography but no pointer preserves the seeded metadata and exact EWKB geometry, and a subsequent pointer insert and replacement record the expected history.
+4. Upgrading from 0076 with an existing pointer raises the intended precondition error; after rollback the seeded boundary snapshot and pointer remain unchanged and the history table does not exist.
 
 ## Reproduce locally
 

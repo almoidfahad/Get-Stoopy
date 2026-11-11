@@ -28,15 +28,15 @@ const migrations = readdirSync(migrationDir).filter(name => /^\d{4}_/.test(name)
 if (migrations.at(-1) !== '0077_isolated_boundary_pointer_history') throw new Error('Rehearsal requires review for the current migration chain');
 const migration = name => readFileSync(join(migrationDir, name, 'migration.sql'), 'utf8');
 const grants = readFileSync(join(root, 'scripts/db-grants.sql'), 'utf8');
-const ids = Array.from({ length: 8 }, (_, index) => `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`);
-const [country, region, district, city, zone, firstBoundary, secondBoundary, approver] = ids;
+const ids = Array.from({ length: 10 }, (_, index) => `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`);
+const [country, region, district, city, zone, firstBoundary, secondBoundary, approver, draftBoundary, deletableDraft] = ids;
 
-async function createBase() {
+async function createBase(migrationCount = migrations.length - 1) {
   // No dataDir or remote connection string: this instance exists only in memory.
   const db = new PGlite({ extensions: { postgis } });
   try {
     await db.exec('CREATE EXTENSION postgis; CREATE ROLE gs_owner; CREATE ROLE gs_runtime; CREATE ROLE gs_privileged; GRANT CREATE,USAGE ON SCHEMA public TO gs_owner; SET ROLE gs_owner;');
-    for (const name of migrations.slice(0, -1)) await db.exec(migration(name));
+    for (const name of migrations.slice(0, migrationCount)) await db.exec(migration(name));
     return db;
   } catch (error) { await db.close(); throw error; }
 }
@@ -52,7 +52,7 @@ async function seed(db) {
   }
 }
 async function snapshot(db) {
-  return (await db.query(`SELECT id,"ownerId",version,encode(ST_AsEWKB(boundary),'hex') AS geometry,source,"validFrom","approvedBy","contentHash" FROM "BoundaryVersion" WHERE "ownerId"=$1 ORDER BY version`, [zone])).rows;
+  return (await db.query(`SELECT id,"ownerType","ownerId",version,encode(ST_AsEWKB(boundary),'hex') AS geometry,source,"validFrom","approvedBy","contentHash","createdAt" FROM "BoundaryVersion" WHERE "ownerId"=$1 ORDER BY version`, [zone])).rows;
 }
 
 async function freshInstall() {
@@ -101,7 +101,41 @@ async function upgrade(preexistingPointer) {
   } finally { await db.close(); }
 }
 
+async function upgradeFromBeforeImmutability() {
+  const firstNewMigration = migrations.indexOf('0075_approved_boundary_immutability');
+  assert.notEqual(firstNewMigration, -1, 'Missing migration 0075');
+  const db = await createBase(firstNewMigration);
+  try {
+    await seed(db);
+    for (const [id, version] of [[draftBoundary, 3], [deletableDraft, 4]]) {
+      await db.query(`INSERT INTO "BoundaryVersion"(id,"ownerType","ownerId",version,boundary,source,"validFrom","approvedBy","contentHash") VALUES ($1,'ZONE',$2,$3,ST_GeomFromEWKT('SRID=4326;MULTIPOLYGON(((40 10,41 10,41 11,40 11,40 10)))'),'draft',now()-interval '1 day',NULL,'draft-hash')`, [id, zone, version]);
+    }
+    const before = await snapshot(db);
+    for (const name of migrations.slice(firstNewMigration)) await db.exec(migration(name));
+    await db.exec(grants);
+    assert.deepEqual(await snapshot(db), before);
+    const counts = await db.query(`SELECT (SELECT count(*)::int FROM "ZoneBoundaryPointer") AS pointers, (SELECT count(*)::int FROM "ZoneBoundaryPointerHistory") AS history`);
+    assert.deepEqual(counts.rows, [{ pointers: 0, history: 0 }]);
+    await assert.rejects(db.query(`UPDATE "BoundaryVersion" SET source=source WHERE id=$1`, [firstBoundary]), /approved_boundary_immutable/);
+    await assert.rejects(db.query(`DELETE FROM "BoundaryVersion" WHERE id=$1`, [firstBoundary]), /approved_boundary_immutable/);
+    await assert.rejects(db.query(`UPDATE "BoundaryVersion" SET "approvedBy"=$2,source='changed during approval' WHERE id=$1`, [draftBoundary, approver]), /boundary_approval_must_not_change_proposal/);
+    await assert.rejects(db.query(`UPDATE "BoundaryVersion" SET "approvedBy"=$2,boundary=ST_GeomFromEWKT('SRID=4326;MULTIPOLYGON(((42 10,43 10,43 11,42 11,42 10)))') WHERE id=$1`, [draftBoundary, approver]), /boundary_approval_must_not_change_proposal/);
+    assert.deepEqual(await snapshot(db), before);
+    await db.query(`UPDATE "BoundaryVersion" SET source='edited draft' WHERE id=$1`, [draftBoundary]);
+    await db.query(`DELETE FROM "BoundaryVersion" WHERE id=$1`, [deletableDraft]);
+    await db.query(`UPDATE "BoundaryVersion" SET "approvedBy"=$2 WHERE id=$1`, [draftBoundary, approver]);
+    await assert.rejects(db.query(`UPDATE "BoundaryVersion" SET source='changed after approval' WHERE id=$1`, [draftBoundary]), /approved_boundary_immutable/);
+    const final = await snapshot(db);
+    assert.deepEqual(final.slice(0, 2), before.slice(0, 2));
+    assert.equal(final.length, 3);
+    assert.equal(final[2].source, 'edited draft');
+    assert.equal(final[2].approvedBy, approver);
+    console.log('Upgrade 0074→0077 preserved pre-existing approved/draft boundaries and left pointers empty; post-upgrade guards checked.');
+  } finally { await db.close(); }
+}
+
 await freshInstall();
+await upgradeFromBeforeImmutability();
 await upgrade(false);
 await upgrade(true);
 console.log('Supplemental PGlite/PostGIS checks passed; full PostgreSQL/Redis integration is still required.');
