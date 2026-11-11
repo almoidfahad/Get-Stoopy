@@ -121,6 +121,9 @@ export class DeliveryService {
         return { challengeId: existingCommand.id, status: existingCommand.status, expiresAt: existingCommand.expiresAt, sequence: existingCommand.sequence, duplicate: true };
       }
       if (delivery.status !== 'PICKED_UP') throw new ConflictException({ code: 'OTP_NOT_ALLOWED', message: 'OTP is allowed only after pickup and before delivery proof' });
+      // Multiple suborders can share one order recipient. Serialize their issue
+      // counts through commit before sampling the database clock and cap.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`delivery-otp-recipient:${delivery.recipientId.toLowerCase()}`}, 0))`;
       const open = await tx.deliveryOtpChallenge.findFirst({ where: { deliveryId, status: 'ISSUED' } });
       const nowRows = await tx.$queryRaw`SELECT gs_dispatch_now() AS now`;
       const now = new Date((nowRows as any[])[0].now);

@@ -353,6 +353,106 @@ describe('pickup/OTP delivery proof and completion gating', () => {
     expect(active.body.assignment).toBeNull();
   }, 60000);
 
+  it('serializes recipient issue limits across an order’s separate deliveries', async () => {
+    // A second store of the same vendor creates a second real suborder in one order.
+    const storeAdmin = await makeUser('otp-rate-store-admin'); await grantKeys(storeAdmin, ['catalog:store:activate']);
+    const moderator = await makeUser('otp-rate-moderator'); await grantKeys(moderator, ['catalog:product:review', 'catalog:product:publish']);
+    const store = await post('/api/v1/catalog/stores', owner, { vendorId, cityId, name: 'OTP Rate Store', slug: `otp-rate-${randomUUID().slice(0, 8)}`, addressLine: '123 Pilot Road, Mymensingh' }).expect(201);
+    const otherStoreId = store.body.storeId as string;
+    await post(`/api/v1/catalog/admin/stores/${otherStoreId}/activate`, storeAdmin, { version: 1, reason: 'store evidence verified' }).expect(201);
+    const product = await post(`/api/v1/catalog/stores/${otherStoreId}/products`, owner, { title: 'OTP Rate Product', description: 'A product for recipient issue limit tests', brand: 'Stoopy' }).expect(201);
+    const variant = await post(`/api/v1/catalog/products/${product.body.productId}/variants`, owner, { sku: `OTP-${randomUUID().slice(0, 8)}`, optionValues: {}, priceAmountMinor: '1000', currency: 'BDT' }).expect(201);
+    await post(`/api/v1/catalog/products/${product.body.productId}/submit`, owner, { version: 1 }).expect(201);
+    await post(`/api/v1/catalog/admin/products/${product.body.productId}/review`, moderator, { version: 2, decision: 'APPROVE', reason: 'product content verified' }).expect(201);
+    await post(`/api/v1/catalog/admin/products/${product.body.productId}/publish`, moderator, { version: 3, reason: 'approved for public catalog' }).expect(201);
+    await post(`/api/v1/inventory/variants/${variant.body.id}/initialize`, owner, { reorderLevel: 0 }).expect(201);
+    await post(`/api/v1/inventory/variants/${variant.body.id}/adjustments`, owner, { version: 1, delta: 10, commandKey: `stock-${randomUUID()}`, reason: 'OTP rate test stock' }).expect(201);
+    const pickupPoint = await post(`/api/v1/catalog/stores/${otherStoreId}/pickup-point`, owner, { latitude: 24.75, longitude: 90.4 }).expect(201);
+    await post(`/api/v1/catalog/admin/stores/${otherStoreId}/pickup-point/review`, serviceabilityAdmin, { version: pickupPoint.body.version, decision: 'APPROVE', reason: 'pickup geometry verified' }).expect(201);
+    await put(`/api/v1/catalog/stores/${otherStoreId}/operating-hours`, owner, { hours: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, openMinute: 0, closeMinute: 1440 })) }).expect(200);
+    const area = await post(`/api/v1/catalog/stores/${otherStoreId}/service-areas`, owner, { serviceZoneId: zoneId }).expect(201);
+    await post(`/api/v1/catalog/admin/service-areas/${area.body.serviceAreaId}/review`, serviceabilityAdmin, { version: 1, decision: 'APPROVE', reason: 'zone coverage verified' }).expect(201);
+    const riders = [await makeUser('recipient-rate-a'), await makeUser('recipient-rate-b')];
+    for (let i = 0; i < riders.length; i++) await prepareRider(riders[i], `recipient-rate-${i}`);
+    let { cartId, version } = await clearCart();
+    const firstItem = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId, quantity: 1, expectedVersion: version }).expect(201);
+    const secondItem = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId: variant.body.id, quantity: 1, expectedVersion: firstItem.body.version }).expect(201);
+    const quote = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, { expectedVersion: secondItem.body.version, destinationCityId: cityId, commandKey: `quote-${randomUUID()}` }).expect(201);
+    const order = await post('/api/v1/orders', customer, { quoteId: quote.body.quoteId, expectedQuoteVersion: quote.body.version, commandKey: `order-${randomUUID()}`, paymentMethod: 'COD' }).expect(201);
+    expect(order.body.suborders).toHaveLength(2);
+    await setDestination(order.body.orderId);
+    const recipient = await post(`/api/v1/orders/${order.body.orderId}/delivery-recipient`, customer, { name: 'Test Recipient', phone: '+8801712345678', commandKey: `recipient-${randomUUID()}` }).expect(201);
+    for (const sub of order.body.suborders) {
+      await post(`/api/v1/vendor/suborders/${sub.suborderId}/accept`, owner, { expectedVersion: 1, commandKey: `accept-${randomUUID()}`, preparationMinutes: 15 }).expect(201);
+      await post(`/api/v1/vendor/suborders/${sub.suborderId}/start-preparation`, owner, { expectedVersion: 2, commandKey: `prep-${randomUUID()}` }).expect(201);
+      await post(`/api/v1/vendor/suborders/${sub.suborderId}/ready`, owner, { expectedVersion: 3, commandKey: `ready-${randomUUID()}` }).expect(201);
+    }
+    const deliveries: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      await asSuper(u.privileged, c => c.query(`UPDATE "RiderShift" SET "status"='ENDED', "endedAt"=now(), "updatedAt"=now() WHERE "status"='ACTIVE' AND "riderId" IN (SELECT id FROM "RiderProfile" WHERE "userId" <> ALL($1::uuid[]))`, [riders.slice(i).map(r => r.userId)]));
+      // Hide the second rider for the first offer, without ending its shift.
+      if (i === 0) await asSuper(u.privileged, c => c.query(`UPDATE "RiderShift" SET "status"='ENDED', "endedAt"=now(), "updatedAt"=now() WHERE "status"='ACTIVE' AND "riderId" IN (SELECT id FROM "RiderProfile" WHERE "userId"=$1)`, [riders[1].userId]));
+      if (i === 1) {
+        const shift = await post('/api/v1/riders/me/shifts', riders[i], { consentVersion: 'gps-v1' }).expect(201);
+        await post('/api/v1/riders/me/location-samples', riders[i], { shiftId: shift.body.shiftId, latitude: 24.75, longitude: 90.4, accuracyMeters: 10, recordedAt: new Date().toISOString() }).expect(201);
+      }
+      const run = await post(`/api/v1/admin/dispatch/suborders/${order.body.suborders[i].suborderId}/runs`, dispatchAdmin, { commandKey: `run-${randomUUID()}` }).expect(201);
+      const offer = await post(`/api/v1/admin/dispatch/runs/${run.body.runId}/next-offer`, dispatchAdmin, { expectedVersion: 1, commandKey: `offer-${randomUUID()}` }).expect(201);
+      const offers = await get('/api/v1/riders/me/dispatch-offers', riders[i]).expect(200);
+      const token = offers.body.items.find((o: any) => o.offerId === offer.body.offerId)?.offerToken;
+      expect(token).toBeTruthy();
+      const accepted = await post(`/api/v1/riders/me/dispatch-offers/${offer.body.offerId}/accept`, riders[i], { offerToken: token, commandKey: `accept-${randomUUID()}` }).expect(201);
+      const pickup = await post(`/api/v1/riders/me/assignments/${accepted.body.assignmentId}/pickup`, riders[i], { commandKey: `pickup-${randomUUID()}` }).expect(201);
+      deliveries.push(pickup.body.deliveryId);
+    }
+    // Seed four expired challenges in the last hour, two per delivery; each
+    // delivery has one issue left and the shared recipient has one slot left.
+    await asSuper(u.privileged, async c => {
+      for (const deliveryId of deliveries) for (let sequence = 1; sequence <= 2; sequence++) {
+        const id = randomUUID();
+        await c.query(`INSERT INTO "DeliveryOtpChallenge"(id,"deliveryId","recipientId",sequence,"codeHash","maxAttempts",channel,"commandKey","payloadHash","issuedAt","expiresAt") VALUES ($1,$2,$3,$4,$5,5,'test',$6,$5,gs_dispatch_now()-interval '3 minutes',gs_dispatch_now()-interval '2 minutes')`, [id, deliveryId, recipient.body.recipientId, sequence, 'a'.repeat(64), `seed-${id}`]);
+        await c.query(`UPDATE "DeliveryOtpChallenge" SET status='EXPIRED',"closedAt"=gs_dispatch_now()-interval '2 minutes' WHERE id=$1`, [id]);
+      }
+    });
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    const keys = [`issue-${randomUUID()}`, `issue-${randomUUID()}`];
+    const paths = deliveries.map(id => `/api/v1/riders/me/deliveries/${id}/otp-challenges`);
+    let first: Promise<any> | undefined; let second: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN');
+      await holder.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`delivery-otp-recipient:${recipient.body.recipientId.toLowerCase()}`]);
+      first = post(paths[0], riders[0], { commandKey: keys[0] }).then((r: any) => r);
+      second = post(paths[1], riders[1], { commandKey: keys[1] }).then((r: any) => r);
+      const deadline = Date.now() + 4000; let waiters = 0;
+      while (Date.now() < deadline) {
+        waiters = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE state='active' AND wait_event_type='Lock' AND query LIKE '%pg_advisory_xact_lock(hashtextextended%'`)).rows[0].n;
+        if (waiters >= 2) break;
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      expect(waiters).toBeGreaterThanOrEqual(2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const results = await Promise.all([first!, second!]);
+    expect(results.map(r => r.status).sort()).toEqual([201, 409]);
+    expect(results.find(r => r.status === 409).body.code).toBe('OTP_RECIPIENT_RATE_LIMIT');
+    const winner = results.findIndex(r => r.status === 201);
+    const challengeId = results[winner].body.challengeId as string;
+    expect(results[winner].body.duplicate).toBe(false);
+    expect(otpSink.consume(challengeId)).toMatch(/^[0-9]{6}$/);
+    const replay = await post(paths[winner], riders[winner], { commandKey: keys[winner] }).expect(201);
+    expect(replay.body).toMatchObject({ challengeId, duplicate: true });
+    expect(otpSink.consume(challengeId)).toBeNull();
+    const rows = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "DeliveryOtpChallenge" WHERE "recipientId"=$1 AND "issuedAt">gs_dispatch_now()-interval '1 hour'`, [recipient.body.recipientId]));
+    expect(rows.rows[0].n).toBe(5);
+    const outbox = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "OutboxEvent" WHERE "aggregateId"=ANY($1::uuid[]) AND "eventType"='delivery.otp.issued'`, [deliveries]));
+    expect(outbox.rows[0].n).toBe(1);
+  }, 120000);
+
   it('serializes a rider’s verification limit across different deliveries', async () => {
     const rider = await makeUser('rider-otp-rate-race'); await prepareRider(rider, 'otp-rate-race');
     const challenges: { deliveryId: string; challengeId: string; code: string; verifyKey: string }[] = [];
