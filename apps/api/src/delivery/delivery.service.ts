@@ -166,17 +166,20 @@ export class DeliveryService {
         if (existingAttempt.payloadHash !== payloadHash) throw new ConflictException({ code: 'DELIVERY_IDEMPOTENCY_CONFLICT', message: 'Command key already used with different payload' });
         return { deliveryId, challengeId, outcome: existingAttempt.outcome, duplicate: true };
       }
-      const recentAttempts = await tx.deliveryOtpAttempt.count({ where: { actorUserId: ctx.userId, occurredAt: { gt: new Date(Date.now() - 60_000) } } });
-      if (recentAttempts >= 10) throw new ConflictException({ code: 'OTP_RATE_LIMIT', message: 'Too many OTP attempts' });
+      // Delivery/challenge locks alone do not serialize attempts by the same
+      // rider on different deliveries. Hold a rider-scoped lock through commit.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`delivery-otp-attempt:${ctx.userId.toLowerCase()}`}, 0))`;
       const nowRows = await tx.$queryRaw`SELECT gs_dispatch_now() AS now`;
       const now = new Date((nowRows as any[])[0].now);
+      const recentAttempts = await tx.deliveryOtpAttempt.count({ where: { actorUserId: ctx.userId, occurredAt: { gt: new Date(now.getTime() - 60_000) } } });
+      if (recentAttempts >= 10) throw new ConflictException({ code: 'OTP_RATE_LIMIT', message: 'Too many OTP attempts' });
       if (challenge.status !== 'ISSUED') {
-        await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, outcome: 'LOCKED' } });
+        await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, occurredAt: now, outcome: 'LOCKED' } });
         return { deliveryId, challengeId, outcome: 'LOCKED', duplicate: false };
       }
       if (now >= challenge.expiresAt) {
         await tx.deliveryOtpChallenge.update({ where: { id: challengeId }, data: { status: 'EXPIRED', closedAt: now } });
-        await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, outcome: 'EXPIRED' } });
+        await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, occurredAt: now, outcome: 'EXPIRED' } });
         return { deliveryId, challengeId, outcome: 'EXPIRED', duplicate: false };
       }
       const valid = verifyDeliveryOtp(pepper, challengeId, input.code, challenge.codeHash);
@@ -184,12 +187,12 @@ export class DeliveryService {
       if (!valid) {
         const locked = attempts >= challenge.maxAttempts;
         await tx.deliveryOtpChallenge.update({ where: { id: challengeId }, data: { attempts, ...(locked ? { status: 'LOCKED', closedAt: now } : {}) } });
-        const attempt = await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, outcome: locked ? 'LOCKED' : 'INVALID' } });
+        const attempt = await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, occurredAt: now, outcome: locked ? 'LOCKED' : 'INVALID' } });
         await this.riskSignals.otpInvalidAttempt(tx, attempt.id);
         return { deliveryId, challengeId, outcome: locked ? 'LOCKED' : 'INVALID', attemptsRemaining: Math.max(0, challenge.maxAttempts - attempts), duplicate: false };
       }
       await tx.deliveryOtpChallenge.update({ where: { id: challengeId }, data: { status: 'VERIFIED', attempts, verifiedAt: now, closedAt: now } });
-      await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, outcome: 'VALID' } });
+      await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, occurredAt: now, outcome: 'VALID' } });
       const proof = await tx.deliveryProof.create({ data: { deliveryId, challengeId, verifiedByUserId: ctx.userId, verifiedAt: now, evidenceHash: hashPayload({ deliveryId, challengeId, challengeHash: challenge.codeHash }) } });
       await tx.delivery.update({ where: { id: deliveryId }, data: { status: 'DELIVERED', deliveredAt: now, version: { increment: 1 } } });
       const suborder = await tx.vendorSuborder.findUniqueOrThrow({ where: { id: delivery.suborderId } });

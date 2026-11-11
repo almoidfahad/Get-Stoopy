@@ -353,6 +353,65 @@ describe('pickup/OTP delivery proof and completion gating', () => {
     expect(active.body.assignment).toBeNull();
   }, 60000);
 
+  it('serializes a rider’s verification limit across different deliveries', async () => {
+    const rider = await makeUser('rider-otp-rate-race'); await prepareRider(rider, 'otp-rate-race');
+    const challenges: { deliveryId: string; challengeId: string; code: string; verifyKey: string }[] = [];
+    for (let i = 0; i < 2; i++) {
+      const { assignmentId } = await assignedDelivery(rider, 'SANDBOX_MANUAL');
+      const pickup = await post(`/api/v1/riders/me/assignments/${assignmentId}/pickup`, rider, { commandKey: `pickup-${randomUUID()}` }).expect(201);
+      const deliveryId = pickup.body.deliveryId as string;
+      const issued = await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges`, rider, { commandKey: `otp-${randomUUID()}` }).expect(201);
+      const challengeId = issued.body.challengeId as string;
+      const code = otpSink.consume(challengeId)!;
+      const verifyKey = `verify-${randomUUID()}`;
+      await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges/${challengeId}/verify`, rider, { code, commandKey: verifyKey }).expect(201);
+      await post(`/api/v1/riders/me/deliveries/${deliveryId}/complete`, rider, { expectedVersion: 2, commandKey: `complete-${randomUUID()}` }).expect(201);
+      challenges.push({ deliveryId, challengeId, code, verifyKey });
+    }
+    const path = (c: typeof challenges[number]) => `/api/v1/riders/me/deliveries/${c.deliveryId}/otp-challenges/${c.challengeId}/verify`;
+    // Two successful verifies plus seven closed-challenge attempts leave one slot.
+    for (let i = 0; i < 7; i++) {
+      const response = await post(path(challenges[0]), rider, { code: challenges[0].code, commandKey: `closed-${randomUUID()}` }).expect(201);
+      expect(response.body.outcome).toBe('LOCKED');
+    }
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let first: Promise<any> | undefined; let second: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN');
+      await holder.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`delivery-otp-attempt:${rider.userId.toLowerCase()}`]);
+      first = post(path(challenges[0]), rider, { code: challenges[0].code, commandKey: `race-${randomUUID()}` }).then((r: any) => r);
+      second = post(path(challenges[1]), rider, { code: challenges[1].code, commandKey: `race-${randomUUID()}` }).then((r: any) => r);
+      const deadline = Date.now() + 4000;
+      let waiters = 0;
+      while (Date.now() < deadline) {
+        waiters = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE state='active' AND wait_event_type='Lock' AND query LIKE '%pg_advisory_xact_lock(hashtextextended%'`)).rows[0].n;
+        if (waiters >= 2) break;
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      expect(waiters).toBeGreaterThanOrEqual(2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const results = await Promise.all([first!, second!]);
+    expect(results.map(r => r.status).sort()).toEqual([201, 409]);
+    expect(results.find(r => r.status === 201).body.outcome).toBe('LOCKED');
+    expect(results.find(r => r.status === 409).body.code).toBe('OTP_RATE_LIMIT');
+    const total = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "DeliveryOtpAttempt" WHERE "actorUserId"=$1 AND "occurredAt">gs_dispatch_now()-interval '60 seconds'`, [rider.userId]));
+    expect(total.rows[0].n).toBe(10);
+    // Idempotent replay must still succeed at the limit and not add an attempt.
+    const replay = await post(path(challenges[0]), rider, { code: challenges[0].code, commandKey: challenges[0].verifyKey }).expect(201);
+    expect(replay.body).toMatchObject({ outcome: 'VALID', duplicate: true });
+    const differentCode = challenges[0].code === '000000' ? '111111' : '000000';
+    const conflict = await post(path(challenges[0]), rider, { code: differentCode, commandKey: challenges[0].verifyKey }).expect(409);
+    expect(conflict.body.code).toBe('DELIVERY_IDEMPOTENCY_CONFLICT');
+    const final = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "DeliveryOtpAttempt" WHERE "actorUserId"=$1`, [rider.userId]));
+    expect(final.rows[0].n).toBe(10);
+  }, 120000);
+
   it('locks an OTP challenge after the configured invalid-attempt limit', async () => {
     const rider = await makeUser('rider-otp-lock'); await prepareRider(rider, 'otp-lock');
     const { assignmentId } = await assignedDelivery(rider, 'COD');
