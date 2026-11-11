@@ -1,5 +1,7 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
+import type { ApiEnv } from '@getstoopy/config';
+import { ENV } from '../common/env.js';
 import { PrivilegedPrismaService, setRls } from '../common/prisma.js';
 import { InventoryService } from '../inventory/inventory.service.js';
 import { RiskSignalProducerService } from '../risk/risk-signal-producer.service.js';
@@ -10,7 +12,7 @@ function reference(prefix: string): string { return `${prefix}-${randomUUID().re
 
 @Injectable()
 export class OrdersService {
-  constructor(@Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService, @Inject(InventoryService) private readonly inventory: InventoryService, @Inject(RiskSignalProducerService) private readonly riskSignals: RiskSignalProducerService) {}
+  constructor(@Inject(PrivilegedPrismaService) private readonly privileged: PrivilegedPrismaService, @Inject(InventoryService) private readonly inventory: InventoryService, @Inject(RiskSignalProducerService) private readonly riskSignals: RiskSignalProducerService, @Inject(ENV) private readonly env: ApiEnv) {}
 
   private async audit(tx: any, userId: string, action: string, resourceId: string, countryId: string, reason?: string) {
     await tx.$executeRaw`INSERT INTO "AuditLog"(id,"actorId","actorType",action,"resourceType","resourceId","scopeSnapshot",reason,"requestId") VALUES (gen_random_uuid(), ${userId}::uuid, 'USER'::"ActorType", ${action}, 'Order', ${resourceId}::uuid, ${JSON.stringify({ countryId })}::jsonb, ${reason ?? null}, ${randomUUID()}::uuid)`;
@@ -39,6 +41,10 @@ export class OrdersService {
   }
 
   async createFromQuote(ctx: AccessContext, input: { quoteId: string; expectedQuoteVersion: number; commandKey: string; paymentMethod: 'SANDBOX_MANUAL' | 'COD' }) {
+    // This order path only snapshots product subtotal and has no bound
+    // recipient, delivery fee or total. A hidden UI is not a security boundary.
+    // Keep the existing foundation usable only against disposable test data.
+    if (this.env.NODE_ENV !== 'test') throw new ServiceUnavailableException({ code: 'ORDER_CREATION_DISABLED', message: 'Order creation is not available' });
     if (!/^[A-Za-z0-9:_-]{8,128}$/.test(input.commandKey)) throw new BadRequestException({ code: 'ORDER_COMMAND_KEY_INVALID', message: 'Invalid order command key' });
     if (!Number.isInteger(input.expectedQuoteVersion) || input.expectedQuoteVersion < 1) throw new BadRequestException({ code: 'VERSION_INVALID', message: 'Invalid quote version' });
     const payloadHash = hashPayload({ quoteId: input.quoteId, quoteVersion: input.expectedQuoteVersion, paymentMethod: input.paymentMethod });

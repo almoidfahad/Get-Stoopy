@@ -7,6 +7,7 @@ import { Redis } from 'ioredis';
 import { publishOutboxBatch } from '../../packages/events/src/index';
 import { urls, asSuper, asUser, approveStoreCoverage } from './helpers';
 import { signSandboxWebhook } from '../../packages/core/src/payment';
+import { ENV } from '../../apps/api/src/common/env';
 
 const u = urls();
 let app: any;
@@ -153,6 +154,31 @@ afterAll(async () => {
 });
 
 describe('order/payment/COD sandbox foundation', () => {
+  it('blocks direct subtotal-only order creation outside test without consuming the quote or stock', async () => {
+    const quote = await createQuote(1);
+    const inventoryBefore = await get(`/api/v1/inventory/variants/${variantId}`, owner).expect(200);
+    const env = app.get(ENV);
+    const original = env.NODE_ENV;
+    try {
+      for (const environment of ['development', 'staging', 'production']) {
+        env.NODE_ENV = environment;
+        for (const paymentMethod of ['COD', 'SANDBOX_MANUAL']) {
+          const response = await post('/api/v1/orders', customer, { quoteId: quote.quoteId, expectedQuoteVersion: quote.version, commandKey: `disabled-${randomUUID()}`, paymentMethod }).expect(503);
+          expect(response.body.code).toBe('ORDER_CREATION_DISABLED');
+        }
+      }
+    } finally { env.NODE_ENV = original; }
+    const quoteAfter = await get(`/api/v1/commerce/quotes/${quote.quoteId}`, customer).expect(200);
+    expect(quoteAfter.body.state).toBe('RESERVED');
+    expect(quoteAfter.body.version).toBe(quote.version);
+    const inventoryAfter = await get(`/api/v1/inventory/variants/${variantId}`, owner).expect(200);
+    expect(inventoryAfter.body.onHand).toBe(inventoryBefore.body.onHand);
+    expect(inventoryAfter.body.reserved).toBe(inventoryBefore.body.reserved);
+    const orderCount = await asSuper(u.privileged, async c => (await c.query(`SELECT count(*)::int AS n FROM "Order" WHERE "quoteId"=$1`, [quote.quoteId])).rows[0].n);
+    expect(orderCount).toBe(0);
+    await post(`/api/v1/commerce/quotes/${quote.quoteId}/release`, customer, { version: quote.version, reason: 'release after disabled order test' }).expect(201);
+  });
+
   it('exposes disabled live capabilities and creates an immutable order that consumes quote reservations', async () => {
     const caps = await get('/api/v1/payments/capabilities', customer).expect(200);
     expect(caps.body.liveEnabled).toBe(false);
