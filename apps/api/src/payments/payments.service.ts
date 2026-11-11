@@ -58,14 +58,17 @@ export class PaymentsService {
     const payloadHash = hashPayload({ orderId, provider: 'SANDBOX_MANUAL' });
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      // Authorize and lock the order before looking up an idempotent replay.
+      // The privileged client bypasses ordinary RLS, so a command key is never
+      // proof of ownership. The lock also serializes concurrent same-order keys.
+      const rows = await tx.$queryRaw`SELECT * FROM "Order" WHERE "id"=${orderId}::uuid AND "buyerId"=${ctx.userId}::uuid FOR UPDATE`;
+      const order = (rows as any[])[0];
+      if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
       const existing = await tx.paymentIntent.findUnique({ where: { orderId_commandKey: { orderId, commandKey: input.commandKey } } });
       if (existing) {
         if (existing.payloadHash !== payloadHash) throw new ConflictException({ code: 'PAYMENT_IDEMPOTENCY_CONFLICT', message: 'Payment command key already used with different payload' });
         return this.intentJson(existing, true);
       }
-      const rows = await tx.$queryRaw`SELECT * FROM "Order" WHERE "id"=${orderId}::uuid AND "buyerId"=${ctx.userId}::uuid FOR UPDATE`;
-      const order = (rows as any[])[0];
-      if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
       if (order.paymentMethod !== 'SANDBOX_MANUAL' || order.paymentStatus !== 'AWAITING_PAYMENT') throw new ConflictException({ code: 'PAYMENT_ORDER_NOT_PAYABLE', message: 'Order is not payable' });
       const active = await tx.paymentIntent.findFirst({ where: { orderId, status: { in: ['CREATED', 'PENDING', 'UNKNOWN'] } } });
       if (active) throw new ConflictException({ code: 'PAYMENT_INTENT_ALREADY_ACTIVE', message: 'An active payment intent already exists' });

@@ -206,9 +206,25 @@ describe('order/payment/COD sandbox foundation', () => {
   it('verifies signed sandbox webhooks with exact amount/currency, idempotency and out-of-order protection', async () => {
     const quote = await createQuote(1);
     const order = await post('/api/v1/orders', customer, { quoteId: quote.quoteId, expectedQuoteVersion: quote.version, commandKey: `order-${randomUUID().slice(0, 8)}`, paymentMethod: 'SANDBOX_MANUAL' }).expect(201);
-    const intent = await post(`/api/v1/orders/${order.body.orderId}/payment-intents`, customer, { commandKey: `intent-${randomUUID().slice(0, 8)}` }).expect(201);
+    const intentKey = `intent-${randomUUID().slice(0, 8)}`;
+    const attempts = await Promise.all([
+      post(`/api/v1/orders/${order.body.orderId}/payment-intents`, customer, { commandKey: intentKey }).expect(201),
+      post(`/api/v1/orders/${order.body.orderId}/payment-intents`, customer, { commandKey: intentKey }).expect(201)
+    ]);
+    const intent = attempts.find(response => response.body.duplicate === false)!;
+    const intentReplay = attempts.find(response => response.body.duplicate === true)!;
+    expect(intent).toBeDefined();
+    expect(intentReplay).toBeDefined();
     expect(intent.body.checkout.mode).toBe('TEST_ONLY');
     expect(intent.body.checkout.redirectUrl).toBeNull();
+    expect(intentReplay.body).toMatchObject({ intentId: intent.body.intentId, duplicate: true });
+    // A known idempotency key is not proof of order ownership.
+    for (const key of [intentKey, `unseen-${randomUUID()}`]) {
+      const denied = await post(`/api/v1/orders/${order.body.orderId}/payment-intents`, stranger, { commandKey: key }).expect(404);
+      expect(denied.body.code).toBe('ORDER_NOT_FOUND');
+      expect(JSON.stringify(denied.body)).not.toContain(intent.body.merchantReference);
+      expect(JSON.stringify(denied.body)).not.toContain(intent.body.intentId);
+    }
     const base = { eventId: `evt-${randomUUID().slice(0, 8)}`, merchantReference: intent.body.merchantReference, providerReference: 'sandbox-txn-1', amountMinor: '1000', currency: 'BDT' };
     await webhook({ ...base, status: 'SUCCEEDED' }, 'wrong-secret').expect(401);
     const tampered = await webhook({ ...base, status: 'SUCCEEDED', amountMinor: '999' }).expect(200);
@@ -228,6 +244,10 @@ describe('order/payment/COD sandbox foundation', () => {
     expect(lateFail.body.status).toBe('IGNORED_OUT_OF_ORDER');
     const orderAfter = await get(`/api/v1/orders/${order.body.orderId}`, customer).expect(200);
     expect(orderAfter.body.paymentStatus).toBe('PAYMENT_VERIFIED');
+    const paidReplay = await post(`/api/v1/orders/${order.body.orderId}/payment-intents`, customer, { commandKey: intentKey }).expect(201);
+    expect(paidReplay.body).toMatchObject({ intentId: intent.body.intentId, status: 'VERIFIED', duplicate: true });
+    const deniedAfterPayment = await post(`/api/v1/orders/${order.body.orderId}/payment-intents`, stranger, { commandKey: intentKey }).expect(404);
+    expect(deniedAfterPayment.body.code).toBe('ORDER_NOT_FOUND');
     const intentAfter = await get(`/api/v1/payment-intents/${intent.body.intentId}`, customer).expect(200);
     expect(intentAfter.body.status).toBe('VERIFIED');
     expect(intentAfter.body.verificationMethod).toBe('SANDBOX_HMAC_WEBHOOK');
