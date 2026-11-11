@@ -14,8 +14,9 @@ export function requestRouteTemplate(req: Request): string {
 @Injectable()
 export class RequestContextMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
-    const incoming = req.header('x-request-id');
-    const requestId = incoming && /^[A-Za-z0-9._-]{8,64}$/.test(incoming) ? incoming : randomUUID();
+    // Caller-provided IDs can contain personal data and enable log spoofing.
+    // Use an independent server-generated ID for every request instead.
+    const requestId = randomUUID();
     (req as any).requestId = requestId;
     res.setHeader('x-request-id', requestId);
     const start = Date.now();

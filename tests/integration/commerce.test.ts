@@ -205,28 +205,54 @@ describe('cart and checkout quote orchestration', () => {
     const buyer = await makeUser('commerce-log-privacy');
     const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const validId = `route-valid-${randomUUID()}`;
-    const invalidId = `route-invalid-${randomUUID()}`;
-    const unauthId = `route-unauth-${randomUUID()}`;
-    const unknownId = `route-unknown-${randomUUID()}`;
     const privatePath = 'PrivateRecipientPathMarker';
     const privateQuery = 'PrivateRecipientQueryMarker';
+    const privateRequestId = 'PrivateRequestIdMarker';
     try {
-      await request(app.getHttpServer()).get(`/api/v1/commerce/carts/${cart.body.cartId}/recipient-draft?address=${privateQuery}`).set('Cookie', `gs_session_dev=${buyer.token}`).set('x-request-id', validId).expect(200);
-      await request(app.getHttpServer()).get(`/api/v1/commerce/carts/${privatePath}/recipient-draft?phone=${privateQuery}`).set('Cookie', `gs_session_dev=${buyer.token}`).set('x-request-id', invalidId).expect(400);
-      await request(app.getHttpServer()).get(`/api/v1/commerce/carts/${privatePath}/recipient-draft`).set('x-request-id', unauthId).expect(401);
-      await request(app.getHttpServer()).get(`/api/v1/commerce/${privatePath}?address=${privateQuery}`).set('x-request-id', unknownId).expect(404);
+      const valid = await request(app.getHttpServer()).get(`/api/v1/commerce/carts/${cart.body.cartId}/recipient-draft?address=${privateQuery}`).set('Cookie', `gs_session_dev=${buyer.token}`).set('x-request-id', privateRequestId).expect(200);
+      const invalid = await request(app.getHttpServer()).get(`/api/v1/commerce/carts/${privatePath}/recipient-draft?phone=${privateQuery}`).set('Cookie', `gs_session_dev=${buyer.token}`).set('x-request-id', privateRequestId).expect(400);
+      const unauth = await request(app.getHttpServer()).get(`/api/v1/commerce/carts/${privatePath}/recipient-draft`).set('x-request-id', privateRequestId).expect(401);
+      const unknown = await request(app.getHttpServer()).get(`/api/v1/commerce/${privatePath}?address=${privateQuery}`).set('x-request-id', privateRequestId).expect(404);
+      const responses = [valid, invalid, unauth, unknown];
+      const ids = responses.map(response => response.headers['x-request-id']);
+      expect(new Set(ids).size).toBe(responses.length);
       const lines = log.mock.calls.map(args => { try { return JSON.parse(String(args[0])); } catch { return null; } }).filter(line => line?.message === 'http_request');
-      for (const id of [validId, invalidId, unauthId, unknownId]) {
+      for (const [index, id] of ids.entries()) {
+        expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
         const line = lines.find(entry => entry.requestId === id);
         expect(line).toBeTruthy();
+        if (responses[index].status >= 400) expect(responses[index].body.requestId).toBe(id);
         expect(JSON.stringify(line)).not.toContain(privatePath);
         expect(JSON.stringify(line)).not.toContain(privateQuery);
+        expect(JSON.stringify(line)).not.toContain(privateRequestId);
         expect(JSON.stringify(line)).not.toContain(cart.body.cartId);
       }
-      expect(lines.find(entry => entry.requestId === validId).path).toBe('/api/v1/commerce/carts/:cartId/recipient-draft');
-      expect(lines.find(entry => entry.requestId === invalidId).path).toBe('/api/v1/commerce/carts/:cartId/recipient-draft');
-      expect(lines.find(entry => entry.requestId === unknownId).path).toBe('[unmatched]');
+      expect(lines.find(entry => entry.requestId === ids[0]).path).toBe('/api/v1/commerce/carts/:cartId/recipient-draft');
+      expect(lines.find(entry => entry.requestId === ids[1]).path).toBe('/api/v1/commerce/carts/:cartId/recipient-draft');
+      expect(lines.find(entry => entry.requestId === ids[3]).path).toBe('[unmatched]');
+    } finally { log.mockRestore(); }
+  });
+
+  it('assigns independent correlated IDs before parsing and preflight, without logging caller IDs or bodies', async () => {
+    const path = `/api/v1/commerce/carts/${randomUUID()}/recipient-draft`;
+    const inputId = 'PrivateClientRequestIdMarker';
+    const bodyMarker = 'PrivateRecipientBodyMarker';
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const malformed = await request(app.getHttpServer()).post(path).set('x-request-id', inputId).set('Content-Type', 'application/json').send(`{"name":"${bodyMarker}`).expect(400);
+      const preflight = await request(app.getHttpServer()).options(path).set('x-request-id', inputId).set('Origin', origin).set('Access-Control-Request-Method', 'POST').expect(204);
+      const lines = log.mock.calls.map(args => { try { return JSON.parse(String(args[0])); } catch { return null; } }).filter(line => line?.message === 'http_request');
+      const ids = [malformed.headers['x-request-id'], preflight.headers['x-request-id']];
+      expect(ids[0]).not.toBe(ids[1]);
+      expect(malformed.body.requestId).toBe(ids[0]);
+      for (const [index, id] of ids.entries()) {
+        expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+        const matching = lines.filter(line => line.requestId === id);
+        expect(matching).toHaveLength(1);
+        expect(matching[0]).toMatchObject({ path: '[unmatched]', status: index === 0 ? 400 : 204 });
+        expect(JSON.stringify(matching[0])).not.toContain(bodyMarker);
+        expect(JSON.stringify(matching[0])).not.toContain(inputId);
+      }
     } finally { log.mockRestore(); }
   });
 

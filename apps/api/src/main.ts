@@ -5,6 +5,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module.js';
+import { RequestContextMiddleware } from './common/request-context.js';
 import { loadApiEnv } from '@getstoopy/config';
 import type { NextFunction, Request, Response } from 'express';
 
@@ -19,6 +20,10 @@ function privateCommerceNoStore(_req: Request, res: Response, next: NextFunction
 export async function createApp() {
   const env = loadApiEnv(process.env);
   const app = await NestFactory.create(AppModule, { logger: ['error','warn','log'], rawBody: true });
+  // Register before CORS and the parser (which Nest installs during init) so
+  // early failures and preflights get the same independent request ID.
+  const requestContext = new RequestContextMiddleware();
+  app.use(requestContext.use.bind(requestContext));
   // Commerce responses are buyer-specific, including errors and early parser
   // failures. Controller decorators alone do not cover guards and exceptions.
   app.use(`/${API_PREFIX}/commerce`, privateCommerceNoStore);
