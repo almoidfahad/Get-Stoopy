@@ -142,7 +142,7 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
         // a retry receives a conflict, so keep the original payload in that case.
         const rejected = !uncertain && res.status >= 400 && res.status < 500 && [
           'CHECKOUT_CART_VERSION_CONFLICT', 'CHECKOUT_DESTINATION_NOT_SERVICEABLE',
-          'CHECKOUT_ACTIVE_QUOTE_LIMIT', 'CART_EMPTY', 'CART_ITEM_LIMIT',
+          'CHECKOUT_ACTIVE_QUOTE_LIMIT', 'CHECKOUT_SUBTOTAL_LIMIT', 'CART_EMPTY', 'CART_ITEM_LIMIT',
         ].includes(payload.code ?? '');
         if (rejected) { attempt.current = null; setUncertain(false); }
         else setUncertain(true);

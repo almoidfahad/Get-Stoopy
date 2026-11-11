@@ -355,6 +355,35 @@ describe('quote safety and recovery', () => {
 });
 
 describe('uncertain reservation requests', () => {
+  it('explains a first subtotal-limit rejection and allows a fresh attempt', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ code: 'CHECKOUT_SUBTOTAL_LIMIT' }), { status: 409 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...quote, destinationCityId: cityA }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<CheckoutPanel {...props} initialQuote={null} />);
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: cityA } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reserve stock and get quote' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('cart subtotal exceeds the supported limit');
+    expect(screen.queryByText(/reservation result is unknown/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Reserve stock and get quote' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body).attemptId).not.toBe(JSON.parse(fetchMock.mock.calls[0]![1].body).attemptId);
+    await screen.findByRole('button', { name: 'Release reserved stock' });
+  });
+
+  it('keeps an uncertain reservation after a later subtotal-limit response', async () => {
+    const fetchMock = vi.fn().mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ code: 'CHECKOUT_SUBTOTAL_LIMIT' }), { status: 409 }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<CheckoutPanel {...props} initialQuote={null} />);
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: cityA } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reserve stock and get quote' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry same reservation request' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole('alert').textContent).toContain('reservation result is unknown');
+    expect(screen.getByRole('button', { name: 'Retry same reservation request' })).toBeTruthy();
+    expect(fetchMock.mock.calls[1]![1].body).toBe(fetchMock.mock.calls[0]![1].body);
+  });
+
   it('retries the original payload after a network failure even when the cart version and city list change', async () => {
     const fetchMock = vi.fn().mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce(
       new Response(JSON.stringify({ ...quote, destinationCityId: cityA }), { status: 200 }),

@@ -238,7 +238,17 @@ export class CommerceService {
         const snapshot = (rows as any[])[0];
         priced.push({ variantId: item.variantId, vendorId: item.vendorId, storeId: item.storeId, currency: snapshot.currency, quantity: item.quantity, unitPriceMinor: BigInt(snapshot.priceAmountMinor) });
       }
-      const totals = groupQuoteItems(priced);
+      let totals: ReturnType<typeof groupQuoteItems>;
+      try {
+        totals = groupQuoteItems(priced);
+      } catch (error) {
+        // The reservations above are in this transaction and roll back with the
+        // rejection; never pass an unrepresentable subtotal to PostgreSQL.
+        if (error instanceof Error && error.message === 'CHECKOUT_SUBTOTAL_LIMIT') {
+          throw new ConflictException({ code: 'CHECKOUT_SUBTOTAL_LIMIT', message: 'Cart subtotal exceeds the supported limit' });
+        }
+        throw error;
+      }
       const expiresAt = new Date(Math.min(...[...reservations.values()].map(r => r.expiresAt.getTime())));
       const quote = await tx.checkoutQuote.create({ data: { id: quoteId, userId: ctx.userId, countryId: cart.countryId, cartId, cartVersion: cart.version, destinationCityId: input.destinationCityId, commandKey: input.commandKey, payloadHash, currency: totals.currency, subtotalMinor: totals.subtotalMinor, expiresAt } });
       const groupIds = new Map<string, string>();

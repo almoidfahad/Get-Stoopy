@@ -250,6 +250,42 @@ describe('cart and checkout quote orchestration', () => {
     expect(quotes.rows[0].n).toBe(0);
   });
 
+  it('rejects an unrepresentable subtotal atomically and can quote a smaller cart', async () => {
+    const buyer = await makeUser('subtotal-limit');
+    const product = await post(`/api/v1/catalog/stores/${storeA}/products`, vendorA.owner, { title: 'Subtotal Limit Product', description: 'Fixture for checkout subtotal bounds', brand: 'Stoopy' }).expect(201);
+    const variants: string[] = [];
+    for (let i = 0; i < 11; i++) {
+      const variant = await post(`/api/v1/catalog/products/${product.body.productId}/variants`, vendorA.owner, { sku: `LIMIT-${i}-${randomUUID().slice(0, 8)}`, optionValues: {}, priceAmountMinor: '9007199254740991', currency: 'BDT' }).expect(201);
+      variants.push(variant.body.id);
+    }
+    await post(`/api/v1/catalog/products/${product.body.productId}/submit`, vendorA.owner, { version: 1 }).expect(201);
+    await post(`/api/v1/catalog/admin/products/${product.body.productId}/review`, productModerator, { version: 2, decision: 'APPROVE', reason: 'product content verified' }).expect(201);
+    await post(`/api/v1/catalog/admin/products/${product.body.productId}/publish`, productModerator, { version: 3, reason: 'approved for public catalog' }).expect(201);
+    for (const variantId of variants) {
+      await post(`/api/v1/inventory/variants/${variantId}/initialize`, vendorA.owner, { reorderLevel: 0 }).expect(201);
+      await post(`/api/v1/inventory/variants/${variantId}/adjustments`, vendorA.owner, { version: 1, delta: 100, commandKey: `stock-${randomUUID()}`, reason: 'subtotal boundary fixture' }).expect(201);
+    }
+    const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    let version = cart.body.version as number;
+    for (const variantId of variants) version = (await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId, quantity: 100, expectedVersion: version }).expect(201)).body.version;
+    const key = `quote-${randomUUID()}`;
+    const payload = { expectedVersion: version, destinationCityId: cityId, commandKey: key };
+    for (let i = 0; i < 2; i++) {
+      const rejected = await post(`/api/v1/commerce/carts/${cart.body.cartId}/quotes`, buyer, payload).expect(409);
+      expect(rejected.body.code).toBe('CHECKOUT_SUBTOTAL_LIMIT');
+    }
+    const rollback = await asSuper(u.privileged, c => c.query(`SELECT (SELECT count(*)::int FROM "CheckoutQuote" WHERE "cartId"=$1) AS quotes, (SELECT count(*)::int FROM "InventoryReservation" WHERE "userId"=$2) AS reservations, (SELECT coalesce(sum(reserved),0)::int FROM "Inventory" WHERE "variantId"=ANY($3::uuid[])) AS reserved, (SELECT coalesce(sum("onHand"),0)::int FROM "Inventory" WHERE "variantId"=ANY($3::uuid[])) AS onhand`, [cart.body.cartId, buyer.userId, variants]));
+    expect(rollback.rows[0]).toEqual({ quotes: 0, reservations: 0, reserved: 0, onhand: 1100 });
+    const reduced = await del(`/api/v1/commerce/carts/${cart.body.cartId}/items/${variants[10]}?expectedVersion=${version}`, buyer).expect(200);
+    const accepted = await post(`/api/v1/commerce/carts/${cart.body.cartId}/quotes`, buyer, { expectedVersion: reduced.body.version, destinationCityId: cityId, commandKey: `quote-${randomUUID()}` }).expect(201);
+    expect(accepted.body.subtotalMinor).toBe('9007199254740991000');
+    expect(accepted.body.items).toHaveLength(10);
+    const released = await post(`/api/v1/commerce/quotes/${accepted.body.quoteId}/release`, buyer, { version: accepted.body.version, reason: 'subtotal boundary test cleanup' }).expect(201);
+    expect(released.body.state).toBe('RELEASED');
+    const after = await asSuper(u.privileged, c => c.query(`SELECT coalesce(sum(reserved),0)::int AS reserved, coalesce(sum("onHand"),0)::int AS onhand FROM "Inventory" WHERE "variantId"=ANY($1::uuid[])`, [variants]));
+    expect(after.rows[0]).toEqual({ reserved: 0, onhand: 1100 });
+  }, 120000);
+
   it('expires whole quotes in small batches and coordinates with release and other workers', async () => {
     const fixtures: { buyer: any; quoteId: string; reservations: string[] }[] = [];
     for (let n = 0; n < 4; n++) {

@@ -242,6 +242,7 @@ export const QUOTE_ERROR_MESSAGES: Record<string, string> = {
   MARKET_NOT_CONFIGURED: 'This deployment has no market configured yet.',
   CART_EMPTY: 'Your cart is empty, so there is nothing to quote.',
   CART_ITEM_LIMIT: 'Your cart holds too many different items to quote at once.',
+  CHECKOUT_SUBTOTAL_LIMIT: 'Your cart subtotal exceeds the supported limit. Reduce the quantity or remove an item before trying again.',
   CHECKOUT_CART_VERSION_CONFLICT: 'Your cart changed in another tab. The page has been refreshed — please try again.',
   CHECKOUT_QUOTE_VERSION_CONFLICT: 'This quote changed in another tab. The page has been refreshed.',
   CHECKOUT_QUOTE_ALREADY_RESERVED: 'You already have an active quote for this cart. Release it before requesting another.',

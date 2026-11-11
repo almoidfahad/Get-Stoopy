@@ -4,6 +4,8 @@ export const MAX_CART_ITEMS = 50;
 export const MAX_CART_LINE_QUANTITY = 100;
 export const MAX_ACTIVE_QUOTES_PER_USER = 5;
 export const CHECKOUT_QUOTE_TTL_SECONDS = 900;
+// Quote totals and line amounts are persisted as PostgreSQL signed BIGINT.
+export const MAX_CHECKOUT_SUBTOTAL_MINOR = 9_223_372_036_854_775_807n;
 
 export const checkoutQuoteTransitions: Record<CheckoutQuoteState, CheckoutQuoteState[]> = {
   RESERVED: ['RELEASED', 'EXPIRED'],
@@ -26,7 +28,9 @@ export function assertCartItemCount(count: number): void {
 export function lineTotalMinor(unitPriceMinor: bigint, quantity: number): bigint {
   assertCartQuantity(quantity);
   if (unitPriceMinor <= 0n) throw new Error('PRICE_MINOR_INVALID');
-  return unitPriceMinor * BigInt(quantity);
+  const line = unitPriceMinor * BigInt(quantity);
+  if (line > MAX_CHECKOUT_SUBTOTAL_MINOR) throw new Error('CHECKOUT_SUBTOTAL_LIMIT');
+  return line;
 }
 
 export interface QuotePricedItem {
@@ -61,6 +65,7 @@ export function groupQuoteItems(items: QuotePricedItem[]): { groups: QuoteGroupT
     if (item.currency !== currency) throw new Error('CURRENCY_MISMATCH');
     const line = lineTotalMinor(item.unitPriceMinor, item.quantity);
     subtotal += line;
+    if (subtotal > MAX_CHECKOUT_SUBTOTAL_MINOR) throw new Error('CHECKOUT_SUBTOTAL_LIMIT');
     const key = `${item.vendorId}:${item.storeId}`;
     const group = map.get(key) ?? { vendorId: item.vendorId, storeId: item.storeId, currency, subtotalMinor: 0n, variantIds: [] };
     group.subtotalMinor += line;
