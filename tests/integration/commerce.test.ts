@@ -201,6 +201,35 @@ describe('cart and checkout quote orchestration', () => {
     expect(notSellable.body.code).toBe('CART_VARIANT_NOT_SELLABLE');
   });
 
+  it('logs only registered route templates, not caller-supplied commerce paths or queries', async () => {
+    const buyer = await makeUser('commerce-log-privacy');
+    const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const validId = `route-valid-${randomUUID()}`;
+    const invalidId = `route-invalid-${randomUUID()}`;
+    const unauthId = `route-unauth-${randomUUID()}`;
+    const unknownId = `route-unknown-${randomUUID()}`;
+    const privatePath = 'PrivateRecipientPathMarker';
+    const privateQuery = 'PrivateRecipientQueryMarker';
+    try {
+      await request(app.getHttpServer()).get(`/api/v1/commerce/carts/${cart.body.cartId}/recipient-draft?address=${privateQuery}`).set('Cookie', `gs_session_dev=${buyer.token}`).set('x-request-id', validId).expect(200);
+      await request(app.getHttpServer()).get(`/api/v1/commerce/carts/${privatePath}/recipient-draft?phone=${privateQuery}`).set('Cookie', `gs_session_dev=${buyer.token}`).set('x-request-id', invalidId).expect(400);
+      await request(app.getHttpServer()).get(`/api/v1/commerce/carts/${privatePath}/recipient-draft`).set('x-request-id', unauthId).expect(401);
+      await request(app.getHttpServer()).get(`/api/v1/commerce/${privatePath}?address=${privateQuery}`).set('x-request-id', unknownId).expect(404);
+      const lines = log.mock.calls.map(args => { try { return JSON.parse(String(args[0])); } catch { return null; } }).filter(line => line?.message === 'http_request');
+      for (const id of [validId, invalidId, unauthId, unknownId]) {
+        const line = lines.find(entry => entry.requestId === id);
+        expect(line).toBeTruthy();
+        expect(JSON.stringify(line)).not.toContain(privatePath);
+        expect(JSON.stringify(line)).not.toContain(privateQuery);
+        expect(JSON.stringify(line)).not.toContain(cart.body.cartId);
+      }
+      expect(lines.find(entry => entry.requestId === validId).path).toBe('/api/v1/commerce/carts/:cartId/recipient-draft');
+      expect(lines.find(entry => entry.requestId === invalidId).path).toBe('/api/v1/commerce/carts/:cartId/recipient-draft');
+      expect(lines.find(entry => entry.requestId === unknownId).path).toBe('[unmatched]');
+    } finally { log.mockRestore(); }
+  });
+
   it('prevents caching of private commerce successes and early errors', async () => {
     const buyer = await makeUser('commerce-no-store');
     const created = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
