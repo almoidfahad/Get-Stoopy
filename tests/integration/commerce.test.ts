@@ -325,7 +325,9 @@ describe('cart and checkout quote orchestration', () => {
       expect((await post(previewPath, buyer, previewBody).expect(409)).body.code).toBe('CHECKOUT_DESTINATION_NOT_SERVICEABLE');
       expect((await counts()).rows[0]).toEqual(beforeSavedPreview.rows[0]);
     } finally {
-      await asSuper(u.privileged, c => c.query(`DELETE FROM "BoundaryVersion" WHERE id=$1`, [competingBoundary]));
+      // Disposable fixture teardown only: the runtime/privileged role has no
+      // DELETE grant for boundary history. Never delete approved real history.
+      await asSuper(u.owner, c => c.query(`DELETE FROM "BoundaryVersion" WHERE id=$1`, [competingBoundary]));
     }
     await post(previewPath, buyer, previewBody).expect(201);
     // Coverage is rechecked, not assumed from when the encrypted draft was saved.
