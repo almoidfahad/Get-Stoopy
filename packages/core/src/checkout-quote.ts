@@ -6,10 +6,9 @@
  *
  * First, **never invent a total**. The quote API currently returns
  * `deliveryFeeMinor: null`, `totalMinor: null` and `paymentStatus:
- * 'NOT_IMPLEMENTED'`. A checkout screen that quietly rendered the subtotal as the
- * grand total would be lying to the buyer, so the summary exposes
- * `totalsImplemented` and `paymentImplemented` and the UI must label the missing
- * numbers instead of substituting them.
+ * 'NOT_IMPLEMENTED'`. This storefront has no approved delivery, tax, total or
+ * payment contract. Unexpected non-null fields cannot enable those features or
+ * establish a final amount; a reserved quote must still be releasable.
  *
  * Second, **re-derive what the buyer is asked to trust**. The server sends line
  * totals, group subtotals and a quote subtotal; this recomputes them with bigint
@@ -65,7 +64,8 @@ export type QuoteIssueKind =
   | 'subtotal-mismatch'
   | 'currency-mismatch'
   | 'currency-invalid'
-  | 'quote-structure-invalid';
+  | 'quote-structure-invalid'
+  | 'unsupported-checkout-fields';
 
 export interface QuoteIssue {
   readonly kind: QuoteIssueKind;
@@ -82,12 +82,9 @@ export interface QuoteSummary {
   /** null when prices are unparseable, currencies are mixed, or quote structure is inconsistent. */
   readonly subtotalMinor: bigint | null;
   readonly currency: string | null;
-  /**
-   * True only when the API actually returned both delivery and total. While the
-   * backend leaves them null this is false and the UI must say "not implemented".
-   */
-  readonly totalsImplemented: boolean;
-  readonly paymentImplemented: boolean;
+  /** This quote-only storefront does not yet implement totals or payment. */
+  readonly totalsImplemented: false;
+  readonly paymentImplemented: false;
   /**
    * Releasing is offered whenever the server still considers the quote RESERVED,
    * including an expired one that has not been swept yet: releasing it returns
@@ -210,6 +207,12 @@ export function summarizeQuote(quote: QuoteInput, now: Date = new Date()): Quote
     priceable = false;
   }
 
+  // The current contract provides no tax component, pricing policy or payment
+  // workflow. Unexpected fields are not evidence that any of these exist.
+  if (quote.deliveryFeeMinor !== null || quote.totalMinor !== null || quote.paymentStatus !== 'NOT_IMPLEMENTED') {
+    issues.push({ kind: 'unsupported-checkout-fields', itemId: null });
+  }
+
   const mixed = currency === null;
   return {
     status,
@@ -219,8 +222,8 @@ export function summarizeQuote(quote: QuoteInput, now: Date = new Date()): Quote
     storeCount: stores.size,
     subtotalMinor: priceable && !mixed && !structureInvalid ? subtotal : null,
     currency: mixed ? null : currency,
-    totalsImplemented: quote.deliveryFeeMinor !== null && quote.totalMinor !== null,
-    paymentImplemented: quote.paymentStatus !== 'NOT_IMPLEMENTED',
+    totalsImplemented: false,
+    paymentImplemented: false,
     canRelease: quote.state === 'RESERVED',
     issues,
   };
@@ -234,6 +237,7 @@ export const QUOTE_ISSUE_MESSAGES: Record<QuoteIssueKind, string> = {
   'currency-mismatch': 'This quote mixes currencies, so no total can be shown.',
   'currency-invalid': 'A currency in this quote is unavailable. Release it and request a new one.',
   'quote-structure-invalid': 'The items or stores in this quote could not be verified. If stock is reserved, release this quote and request a new one.',
+  'unsupported-checkout-fields': 'This quote contains unsupported delivery, total or payment information. No final amount or payment is available; reserved stock can still be released.',
 };
 
 /** Buyer-facing copy for the codes the quote endpoints actually return. */

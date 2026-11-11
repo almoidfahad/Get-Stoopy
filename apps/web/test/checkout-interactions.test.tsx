@@ -75,6 +75,19 @@ describe('checkout destination and quote recovery interactions', () => {
 
 describe('quote safety and recovery', () => {
   const item = { itemId: 'item', groupId: 'group', variantId: 'variant', productTitle: 'Item', quantity: 2, unitPriceMinor: '100', lineTotalMinor: '99999', currency: 'BDT' };
+  it.each([
+    { deliveryFeeMinor: '4000', totalMinor: '4000' },
+    { deliveryFeeMinor: 'bad', totalMinor: '-1' },
+    { paymentStatus: 'READY' },
+  ])('does not enable unsupported final totals or payment and retains release: %j', fields => {
+    render(<CheckoutPanel {...props} initialQuote={{ ...quote, ...fields }} />);
+    expect(screen.getByRole('alert').textContent).toContain('unsupported delivery, total or payment information');
+    expect(screen.queryByText('Calculated')).toBeNull();
+    expect(screen.getAllByText('Not implemented')).toHaveLength(2);
+    expect(screen.getByText('Unavailable')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Payment not available' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Release reserved stock' })).toBeTruthy();
+  });
   it('withholds an inconsistent line amount and subtotal while keeping release available', () => {
     render(<CheckoutPanel {...props} initialQuote={{ ...quote, subtotalMinor: '99999', items: [item], groups: [{ groupId: 'group', storeId: 'store', subtotalMinor: '99999', currency: 'BDT' }] }} />);
     expect(screen.getByText('Line total unavailable')).toBeTruthy();

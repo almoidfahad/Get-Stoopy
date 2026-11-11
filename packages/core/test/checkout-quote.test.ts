@@ -78,9 +78,19 @@ describe('quote summary', () => {
     expect(summary.paymentImplemented).toBe(false);
   });
 
-  it('reports totals as implemented only when both numbers are present', () => {
-    expect(summarizeQuote(quote({ deliveryFeeMinor: '4000', totalMinor: '104000' }), NOW).totalsImplemented).toBe(true);
-    expect(summarizeQuote(quote({ deliveryFeeMinor: '4000' }), NOW).totalsImplemented).toBe(false);
+  it.each([
+    { deliveryFeeMinor: '4000', totalMinor: '104000' },
+    { deliveryFeeMinor: '4000' },
+    { totalMinor: '100000' },
+    { deliveryFeeMinor: 'nonsense', totalMinor: '-1' },
+    { paymentStatus: 'READY' },
+    { paymentStatus: '' },
+  ])('fails closed on unsupported delivery, total or payment fields: %j', fields => {
+    const summary = summarizeQuote(quote(fields), NOW);
+    expect(summary.totalsImplemented).toBe(false);
+    expect(summary.paymentImplemented).toBe(false);
+    expect(summary.issues).toContainEqual({ kind: 'unsupported-checkout-fields', itemId: null });
+    expect(summary.canRelease).toBe(true);
   });
 
   it('counts down to expiry and never returns a negative remainder', () => {

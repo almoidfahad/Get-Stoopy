@@ -205,8 +205,8 @@ describe('cart and checkout quote orchestration', () => {
     expect(quote.body.subtotalMinor).toBe('2750');
     expect(quote.body.groups).toHaveLength(2);
     expect(quote.body.items).toHaveLength(2);
-    expect(quote.body.deliveryFeeMinor).toBeNull();
-    expect(quote.body.paymentStatus).toBe('NOT_IMPLEMENTED');
+    const unfinishedTotals = { deliveryFeeMinor: null, totalMinor: null, paymentStatus: 'NOT_IMPLEMENTED' };
+    expect(quote.body).toMatchObject(unfinishedTotals);
     const groupA = quote.body.groups.find((g: any) => g.storeId === storeA);
     const groupB = quote.body.groups.find((g: any) => g.storeId === storeB);
     expect(groupA.subtotalMinor).toBe('2000');
@@ -214,6 +214,9 @@ describe('cart and checkout quote orchestration', () => {
     const replay = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, { expectedVersion: v, destinationCityId: cityId, commandKey }).expect(201);
     expect(replay.body.duplicate).toBe(true);
     expect(replay.body.quoteId).toBe(quote.body.quoteId);
+    expect(replay.body).toMatchObject(unfinishedTotals);
+    const read = await get(`/api/v1/commerce/quotes/${quote.body.quoteId}`, customer).expect(200);
+    expect(read.body).toMatchObject(unfinishedTotals);
     const conflict = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, { expectedVersion: v + 1, destinationCityId: cityId, commandKey }).expect(409);
     expect(conflict.body.code).toBe('CHECKOUT_IDEMPOTENCY_CONFLICT');
     await get(`/api/v1/commerce/quotes/${quote.body.quoteId}`, stranger).expect(404);
@@ -223,8 +226,10 @@ describe('cart and checkout quote orchestration', () => {
     expect(invB.body.reserved).toBe(3);
     const released = await post(`/api/v1/commerce/quotes/${quote.body.quoteId}/release`, customer, { version: 1, reason: 'customer cancelled checkout' }).expect(201);
     expect(released.body.state).toBe('RELEASED');
+    expect(released.body).toMatchObject(unfinishedTotals);
     const releasedAgain = await post(`/api/v1/commerce/quotes/${quote.body.quoteId}/release`, customer, { version: 1, reason: 'customer cancelled checkout' }).expect(201);
     expect(releasedAgain.body.duplicate).toBe(true);
+    expect(releasedAgain.body).toMatchObject(unfinishedTotals);
     const invAAfter = await get(`/api/v1/inventory/variants/${variantA}`, vendorA.owner).expect(200);
     expect(invAAfter.body.reserved).toBe(0);
     const invBAfter = await get(`/api/v1/inventory/variants/${variantB}`, vendorB.owner).expect(200);
