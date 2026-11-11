@@ -26,12 +26,12 @@ export default async function Home() {
   return (
     <Shell fullWidth>
       <section aria-labelledby="hero-title" className="relative isolate overflow-hidden bg-[#f6ecdf]">
-        <div className="absolute inset-0 hidden bg-cover bg-center md:block" style={{ backgroundImage: "url('/images/storefront-hero.jpg')" }} aria-hidden="true" />
+        <div className="absolute inset-0 hidden bg-cover bg-center md:block" style={{ backgroundImage: "url('/images/home-cover.jpg')" }} aria-hidden="true" />
         <div className="absolute inset-0 hidden bg-gradient-to-r from-transparent via-transparent to-[#fbf4e9]/90 md:block" aria-hidden="true" />
         <div className="site-container relative grid min-h-[460px] items-center md:min-h-[440px] md:grid-cols-2 lg:min-h-[500px]">
           <div className="relative -mx-4 h-56 overflow-hidden sm:-mx-6 sm:h-72 md:invisible md:mx-0 md:h-auto" aria-hidden="true">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/images/storefront-hero.jpg" alt="" className="h-full w-full object-cover object-left" />
+            <img src="/images/home-cover.jpg" alt="" className="h-full w-full object-cover object-left" />
           </div>
           <div className="py-10 md:col-start-2 md:py-14 md:pl-8 lg:pl-12">
             <p className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[.2em] text-brand-red"><span className="h-px w-7 bg-brand-red" /> Welcome to Get Stoopy</p>
