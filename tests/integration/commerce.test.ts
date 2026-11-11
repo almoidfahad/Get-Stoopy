@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { randomUUID, createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import request from 'supertest';
@@ -12,6 +12,7 @@ import { runInventoryExpiryTick } from '../../apps/worker/src/inventory-expiry';
 import { checkoutDraftRetentionAllowed, runCheckoutDraftRetentionTick } from '../../apps/worker/src/checkout-draft-retention';
 import { StructuredLogger } from '../../packages/observability/src/index';
 import { RecipientDraftService } from '../../apps/api/src/commerce/recipient-draft.service';
+import { CommerceService } from '../../apps/api/src/commerce/commerce.service';
 
 const u = urls();
 let app: any;
@@ -262,6 +263,7 @@ describe('cart and checkout quote orchestration', () => {
     for (const environment of ['production', 'staging', 'development']) {
       const disabled = new RecipientDraftService({} as any, { NODE_ENV: environment, CHECKOUT_RECIPIENT_DRAFT_KEY: 'd'.repeat(64) } as any, {} as any);
       await expect(disabled.read({} as any, cart.body.cartId)).rejects.toMatchObject({ response: { code: 'CHECKOUT_DRAFT_DISABLED' } });
+      await expect(disabled.previewSaved({} as any, cart.body.cartId, { expectedVersion: 1, expectedDraftVersion: 1 })).rejects.toMatchObject({ response: { code: 'CHECKOUT_DRAFT_DISABLED' } });
     }
     const missingKey = new RecipientDraftService({} as any, { NODE_ENV: 'test' } as any, {} as any);
     await expect(missingKey.read({} as any, cart.body.cartId)).rejects.toMatchObject({ response: { code: 'CHECKOUT_DRAFT_DISABLED' } });
@@ -282,10 +284,53 @@ describe('cart and checkout quote orchestration', () => {
     expect(loaded.body).toMatchObject({ state: 'DRAFT', draftVersion: 1, quoteBound: false, coverageGuaranteed: false, draft: { cartVersion: body.expectedVersion, name: body.name, phone: body.phone, addressLine: body.addressLine, latitude: body.latitude, longitude: body.longitude } });
     expect(loaded.headers['cache-control']).toBe('no-store');
     await get(draftPath, stranger).expect(404);
+    const previewPath = `${draftPath}/preview`;
+    const previewBody = { expectedVersion: body.expectedVersion, expectedDraftVersion: 1 };
+    await request(app.getHttpServer()).post(previewPath).send(previewBody).expect(401);
+    await request(app.getHttpServer()).post(previewPath).set('Cookie', `gs_session_dev=${buyer.token}`).set('Origin', origin).send(previewBody).expect(403);
+    await post(previewPath, stranger, previewBody).expect(404);
+    expect((await post(previewPath, buyer, { ...previewBody, expectedDraftVersion: 2 }).expect(409)).body.code).toBe('CHECKOUT_DRAFT_VERSION_CONFLICT');
+    const beforeSavedPreview = await counts();
+    const savedPreview = await post(previewPath, buyer, previewBody).expect(201);
+    expect(savedPreview.headers['cache-control']).toBe('no-store');
+    expect(savedPreview.body).toMatchObject({ status: 'PREVIEW_ONLY', recipientSaved: true, draftVersion: 1, cartVersion: body.expectedVersion, stockReserved: false, orderAvailable: false, deliveryFeeMinor: null, totalMinor: null, quoteBound: false, coverageGuaranteed: false });
+    for (const secret of [body.name, body.phone, body.addressLine, String(body.latitude), String(body.longitude)]) expect(JSON.stringify(savedPreview.body)).not.toContain(secret);
+    expect((await counts()).rows[0]).toEqual(beforeSavedPreview.rows[0]);
+    // Coverage is rechecked, not assumed from when the encrypted draft was saved.
+    const areaB = await asSuper(u.privileged, c => c.query(`SELECT id,version FROM "StoreServiceArea" WHERE "storeId"=$1 AND "serviceZoneId"=$2`, [storeB, zoneId]));
+    await post(`/api/v1/catalog/admin/service-areas/${areaB.rows[0].id}/review`, serviceabilityAdmin, { version: areaB.rows[0].version, decision: 'SUSPEND', reason: 'temporarily suspend zone coverage' }).expect(201);
+    try {
+      expect((await post(previewPath, buyer, previewBody).expect(409)).body.code).toBe('CHECKOUT_DESTINATION_NOT_SERVICEABLE');
+    } finally {
+      await post(`/api/v1/catalog/admin/service-areas/${areaB.rows[0].id}/review`, serviceabilityAdmin, { version: areaB.rows[0].version + 1, decision: 'APPROVE', reason: 'restore approved zone coverage' }).expect(201);
+    }
+    await post(previewPath, buyer, previewBody).expect(201);
+
+    // Pause after the saved draft is read, then change the cart. A single
+    // repeatable-read snapshot must not mix the old draft with the new cart.
+    const commerce = app.get(CommerceService) as CommerceService;
+    const originalPreview = commerce.previewDeliveryTx.bind(commerce);
+    let entered!: () => void; const started = new Promise<void>(resolve => { entered = resolve; });
+    let resume!: () => void; const gate = new Promise<void>(resolve => { resume = resolve; });
+    const spy = vi.spyOn(commerce, 'previewDeliveryTx').mockImplementation(async (...args) => { entered(); await gate; return originalPreview(...args); });
+    let pending: Promise<any> | undefined; let changed: any;
+    try {
+      pending = post(previewPath, buyer, previewBody).then((r: any) => r);
+      await started;
+      changed = await patch(`/api/v1/commerce/carts/${cart.body.cartId}/items/${variantA}`, buyer, { quantity: 2, expectedVersion: body.expectedVersion }).expect(200);
+    } finally { resume(); spy.mockRestore(); }
+    const overlapping = await pending!;
+    expect(overlapping.status).toBe(201);
+    expect(overlapping.body).toMatchObject({ cartVersion: body.expectedVersion, draftVersion: 1, status: 'PREVIEW_ONLY', coverageGuaranteed: false, quoteBound: false });
+    expect((await post(previewPath, buyer, previewBody).expect(409)).body.code).toBe('CHECKOUT_CART_VERSION_CONFLICT');
+    expect((await post(previewPath, buyer, { ...previewBody, expectedVersion: changed.body.version }).expect(409)).body.code).toBe('CHECKOUT_DRAFT_CART_CHANGED');
+    const restored = await patch(`/api/v1/commerce/carts/${cart.body.cartId}/items/${variantA}`, buyer, { quantity: 1, expectedVersion: changed.body.version }).expect(200);
+    body.expectedVersion = restored.body.version;
     const conflict = await put(draftPath, buyer, { ...body, expectedDraftVersion: 0 }).expect(409);
     expect(conflict.body.code).toBe('CHECKOUT_DRAFT_VERSION_CONFLICT');
     const cleared = await del(`${draftPath}?expectedDraftVersion=1`, buyer).expect(200);
     expect(cleared.body).toMatchObject({ state: 'EMPTY', draftVersion: 2 });
+    expect((await post(previewPath, buyer, { expectedVersion: body.expectedVersion, expectedDraftVersion: 2 }).expect(409)).body.code).toBe('CHECKOUT_DRAFT_REQUIRED');
     const clearedDb = await asSuper(u.privileged, c => c.query(`SELECT version, envelope, "expiresAt" FROM "CheckoutRecipientDraft" WHERE "cartId"=$1`, [cart.body.cartId]));
     expect(clearedDb.rows[0]).toEqual({ version: 2, envelope: null, expiresAt: null });
     await put(draftPath, buyer, { ...body, expectedDraftVersion: 0 }).expect(409); // tombstone prevents ABA
@@ -321,6 +366,7 @@ describe('cart and checkout quote orchestration', () => {
     await asSuper(u.privileged, async c => { await c.query(`SELECT set_config('app.user_id',$1,true)`, [buyer.userId]); await c.query(`UPDATE "CheckoutRecipientDraft" SET "expiresAt"=now()-interval '1 second', version=version+1 WHERE "cartId"=$1`, [cart.body.cartId]); });
     const expired = await get(draftPath, buyer).expect(200);
     expect(expired.body).toMatchObject({ state: 'EXPIRED', draftVersion: 4, draft: null });
+    expect((await post(previewPath, buyer, { expectedVersion: body.expectedVersion, expectedDraftVersion: 4 }).expect(409)).body.code).toBe('CHECKOUT_DRAFT_EXPIRED');
     const workerLogs: string[] = []; const logger = new StructuredLogger(line => workerLogs.push(line));
     expect(checkoutDraftRetentionAllowed('production', true, true)).toBe(false);
     expect(checkoutDraftRetentionAllowed('development', true, true)).toBe(false);

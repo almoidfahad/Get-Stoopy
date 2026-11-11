@@ -33,6 +33,10 @@ class PreviewDeliveryDto {
 class SaveRecipientDraftDto extends PreviewDeliveryDto {
   @IsInt() @Min(0) @Max(2147483647) expectedDraftVersion!: number;
 }
+class PreviewSavedRecipientDraftDto {
+  @IsInt() @Min(1) @Max(2147483647) expectedVersion!: number;
+  @IsInt() @Min(1) @Max(2147483647) expectedDraftVersion!: number;
+}
 class CreateQuoteDto {
   @IsInt() @Min(1) expectedVersion!: number;
   @IsUUID() destinationCityId!: string;
@@ -71,6 +75,8 @@ export class CommerceController {
   readDraft(@Req() req: Request, @Param('cartId', ParseUUIDPipe) cartId: string) { return this.drafts.read(this.ctx(req), cartId); }
   @Put('carts/:cartId/recipient-draft') @Header('Cache-Control', 'no-store') @UseGuards(CsrfGuard)
   saveDraft(@Req() req: Request, @Param('cartId', ParseUUIDPipe) cartId: string, @Body() body: SaveRecipientDraftDto) { return this.drafts.save(this.ctx(req), cartId, body); }
+  @Post('carts/:cartId/recipient-draft/preview') @Header('Cache-Control', 'no-store') @UseGuards(CsrfGuard)
+  previewSavedDraft(@Req() req: Request, @Param('cartId', ParseUUIDPipe) cartId: string, @Body() body: PreviewSavedRecipientDraftDto) { return this.drafts.previewSaved(this.ctx(req), cartId, body); }
   @Delete('carts/:cartId/recipient-draft') @Header('Cache-Control', 'no-store') @UseGuards(CsrfGuard)
   clearDraft(@Req() req: Request, @Param('cartId', ParseUUIDPipe) cartId: string, @Query('expectedDraftVersion') raw?: string) {
     if (!raw || !/^(0|[1-9][0-9]{0,9})$/.test(raw)) throw new BadRequestException({ code: 'DRAFT_VERSION_INVALID', message: 'expectedDraftVersion is required' });

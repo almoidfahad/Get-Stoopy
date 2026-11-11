@@ -40,6 +40,16 @@ export class RecipientDraftService {
   private async audit(tx: any, ctx: AccessContext, cart: { id: string; countryId: string }, action: string) {
     await tx.$executeRaw`INSERT INTO "AuditLog"(id,"actorId","actorType","sessionId",action,"resourceType","resourceId","scopeSnapshot","requestId") VALUES (gen_random_uuid(), ${ctx.userId}::uuid, 'USER'::"ActorType", ${ctx.sessionId}::uuid, ${action}, 'Cart', ${cart.id}::uuid, ${JSON.stringify({ countryId: cart.countryId })}::jsonb, ${randomUUID()}::uuid)`;
   }
+  private decrypt(envelope: Uint8Array, key: string, cart: { id: string; userId: string }): DraftEnvelope {
+    try {
+      const data = decryptJson<DraftEnvelope>(Buffer.from(envelope).toString('utf8'), key);
+      if (!data || data.cartId !== cart.id || data.userId !== cart.userId || !Number.isSafeInteger(data.cartVersion) || data.cartVersion < 1 || typeof data.name !== 'string' || typeof data.phone !== 'string' || typeof data.addressLine !== 'string' || !/^[0-9a-f-]{36}$/.test(data.serviceZoneId) || !/^[0-9a-f-]{36}$/.test(data.boundaryVersionId)) throw new Error('INVALID_DRAFT');
+      assertLatitudeLongitude(data.latitude, data.longitude);
+      return data;
+    } catch {
+      throw new ServiceUnavailableException({ code: 'CHECKOUT_DRAFT_UNREADABLE', message: 'Recipient draft is unavailable' });
+    }
+  }
 
   async save(ctx: AccessContext, cartId: string, input: DraftInput) {
     const key = this.key(); this.version(input.expectedDraftVersion);
@@ -75,15 +85,29 @@ export class RecipientDraftService {
       const row = await tx.checkoutRecipientDraft.findUnique({ where: { cartId: cart.id } });
       if (!row || !row.envelope) return { cartId: cart.id, draftVersion: row?.version ?? 0, state: 'EMPTY', draft: null };
       if (!row.expiresAt || row.expiresAt <= await this.now(tx)) return { cartId: cart.id, draftVersion: row.version, state: 'EXPIRED', draft: null };
-      let data: DraftEnvelope;
-      try {
-        data = decryptJson<DraftEnvelope>(Buffer.from(row.envelope).toString('utf8'), key);
-        if (!data || data.cartId !== cart.id || data.userId !== cart.userId || !Number.isSafeInteger(data.cartVersion) || data.cartVersion < 1 || typeof data.name !== 'string' || typeof data.phone !== 'string' || typeof data.addressLine !== 'string' || !/^[0-9a-f-]{36}$/.test(data.serviceZoneId) || !/^[0-9a-f-]{36}$/.test(data.boundaryVersionId)) throw new Error('INVALID_DRAFT');
-        assertLatitudeLongitude(data.latitude, data.longitude);
-      } catch {
-        throw new ServiceUnavailableException({ code: 'CHECKOUT_DRAFT_UNREADABLE', message: 'Recipient draft is unavailable' });
-      }
+      const data = this.decrypt(row.envelope, key, cart);
       return { cartId: cart.id, draftVersion: row.version, state: 'DRAFT', expiresAt: row.expiresAt, draft: { cartVersion: data.cartVersion, serviceZoneId: data.serviceZoneId, boundaryVersionId: data.boundaryVersionId, latitude: data.latitude, longitude: data.longitude, name: data.name, phone: data.phone, addressLine: data.addressLine }, quoteBound: false, coverageGuaranteed: false };
+    }, { isolationLevel: 'RepeatableRead' });
+  }
+
+  /** Revalidate the saved draft and cart in one consistent, read-only snapshot. */
+  async previewSaved(ctx: AccessContext, cartId: string, input: { expectedVersion: number; expectedDraftVersion: number }) {
+    const key = this.key(); this.version(input.expectedDraftVersion);
+    if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1 || input.expectedVersion > 2147483647) throw new BadRequestException({ code: 'VERSION_INVALID', message: 'Invalid cart version' });
+    return this.db.$transaction(async tx => {
+      await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      const cart = await this.cart(tx, ctx, cartId, false);
+      if (cart.version !== input.expectedVersion) throw new ConflictException({ code: 'CHECKOUT_CART_VERSION_CONFLICT', message: 'Cart changed; refresh before checking delivery' });
+      const row = await tx.checkoutRecipientDraft.findUnique({ where: { cartId: cart.id } });
+      if ((row?.version ?? 0) !== input.expectedDraftVersion) throw new ConflictException({ code: 'CHECKOUT_DRAFT_VERSION_CONFLICT', message: 'Recipient draft changed; reload before checking delivery' });
+      if (!row?.envelope) throw new ConflictException({ code: 'CHECKOUT_DRAFT_REQUIRED', message: 'Save a recipient draft before checking delivery' });
+      if (!row.expiresAt || row.expiresAt <= await this.now(tx)) throw new ConflictException({ code: 'CHECKOUT_DRAFT_EXPIRED', message: 'Recipient draft has expired' });
+      const data = this.decrypt(row.envelope, key, cart);
+      if (data.cartVersion !== cart.version) throw new ConflictException({ code: 'CHECKOUT_DRAFT_CART_CHANGED', message: 'Cart changed since the recipient draft was saved' });
+      const result = await this.commerce.previewDeliveryTx(tx, ctx, cart.id, { ...data, expectedVersion: cart.version });
+      // Use wall-clock expiry again in case the preview took a long time.
+      if (row.expiresAt <= await this.now(tx)) throw new ConflictException({ code: 'CHECKOUT_DRAFT_EXPIRED', message: 'Recipient draft has expired' });
+      return { ...result, recipientSaved: true, draftVersion: row.version, quoteBound: false, coverageGuaranteed: false };
     }, { isolationLevel: 'RepeatableRead' });
   }
 
