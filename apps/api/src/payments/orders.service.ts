@@ -62,7 +62,11 @@ export class OrdersService {
       if (quote.expiresAt <= new Date()) throw new ConflictException({ code: 'ORDER_QUOTE_EXPIRED', message: 'Quote expired' });
       let codEligibility: any = null;
       if (input.paymentMethod === 'COD') {
-        const policy = await tx.codPolicy.findUnique({ where: { countryId: quote.countryId } });
+        // Lock the policy while deciding and creating the order. An admin may
+        // disable COD or lower the cap concurrently; the immutable eligibility
+        // snapshot and database insert guard must see the same policy version.
+        const policies = await tx.$queryRaw`SELECT * FROM "CodPolicy" WHERE "countryId"=${quote.countryId}::uuid FOR UPDATE`;
+        const policy = (policies as { id: string; enabled: boolean; maxOrderMinor: bigint; version: number }[])[0];
         if (!policy || !policy.enabled || BigInt(quote.subtotalMinor) > policy.maxOrderMinor) throw new ConflictException({ code: 'COD_NOT_ELIGIBLE', message: 'COD is not eligible for this order' });
         codEligibility = { policyId: policy.id, policyVersion: policy.version, maxOrderMinor: policy.maxOrderMinor.toString(), checkedAt: new Date().toISOString(), scope: 'PRODUCT_SUBTOTAL_ONLY' };
       }

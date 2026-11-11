@@ -139,9 +139,13 @@ export class PaymentsService {
     if (!hasPermission(ctx, 'finance:cod:manage')) throw new ForbiddenException({ code: 'PERMISSION_DENIED', message: 'COD policy permission is required' });
     if (ctx.assurance !== 'STEP_UP') throw new ForbiddenException({ code: 'STEP_UP_REQUIRED', message: 'Recent step-up is required' });
     if (!inGeographicScope(ctx, { countryId: input.countryId })) throw new NotFoundException({ code: 'COD_POLICY_NOT_FOUND', message: 'COD policy not found' });
-    if (!/^(0|[1-9][0-9]*)$/.test(input.maxOrderMinor) || BigInt(input.maxOrderMinor) <= 0n) throw new BadRequestException({ code: 'COD_MAX_INVALID', message: 'Invalid COD maximum' });
+    if (typeof input.maxOrderMinor !== 'string' || !/^[1-9][0-9]{0,18}$/.test(input.maxOrderMinor) || BigInt(input.maxOrderMinor) > 9223372036854775807n) throw new BadRequestException({ code: 'COD_MAX_INVALID', message: 'Invalid COD maximum' });
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      // Coordinate creation when the row does not yet exist, then lock existing
+      // policy rows before checking their version. Orders use the same row lock.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`cod-policy:${input.countryId.toLowerCase()}`}, 0))`;
+      await tx.$queryRaw`SELECT "id" FROM "CodPolicy" WHERE "countryId"=${input.countryId}::uuid FOR UPDATE`;
       const existing = await tx.codPolicy.findUnique({ where: { countryId: input.countryId } });
       if (existing) {
         if (input.version !== existing.version) throw new ConflictException({ code: 'COD_POLICY_VERSION_CONFLICT', message: 'COD policy version conflict' });

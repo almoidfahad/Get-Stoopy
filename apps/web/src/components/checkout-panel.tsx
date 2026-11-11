@@ -404,6 +404,10 @@ export function CheckoutPanel({ cartId, cartVersion, cities, truncated, initialQ
           Delivery charges, taxes and payment are not implemented yet, so no grand total is shown and no money
           is taken. Placing an order is not available in this environment.
         </p>
+        <div className="mt-4 rounded-xl border border-neutral-300 bg-white p-4 text-sm leading-6 text-neutral-700">
+          <h3 className="font-bold text-neutral-900">Cash on delivery</h3>
+          <p className="mt-1">Not available in checkout yet. Recipient details and a confirmed total, including delivery charges, are needed before an order can be placed.</p>
+        </div>
         <button
           type="button"
           disabled

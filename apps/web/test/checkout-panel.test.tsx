@@ -20,6 +20,13 @@ describe('checkout panel reservation safeguards', () => {
     expect(html).toContain('Reserve stock and get quote');
   });
 
+  it('does not offer a COD order before recipient details and total are implemented', () => {
+    const html = renderToStaticMarkup(<CheckoutPanel {...props} initialQuote={quote} />);
+    expect(html).toContain('Cash on delivery');
+    expect(html).toContain('Not available in checkout yet.');
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>\s*Payment not available/);
+  });
+
   it('disables new reservations when required inputs are unavailable', () => {
     const html = renderToStaticMarkup(<CheckoutPanel {...props} initialQuote={quote} reservationUnavailable="Cities unavailable" />);
     expect(html).toContain('Cities unavailable');
