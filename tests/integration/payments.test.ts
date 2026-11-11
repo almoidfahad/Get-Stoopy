@@ -359,3 +359,81 @@ describe('cancellation, restock and refund review boundary', () => {
     await expect(asSuper(u.privileged, c => c.query(`UPDATE "Order" SET "lifecycleStatus"='CANCELLED', version=version+1 WHERE id=$1`, [o2.body.orderId]))).rejects.toThrow(/order_cancellation_record_required/);
   });
 });
+
+describe('concurrent order idempotency', () => {
+  async function runOverlap(mode: 'replay' | 'different-quote' | 'different-key') {
+    const buyer = await makeUser(`order-race-${mode}`);
+    const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    const added = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId, quantity: 1, expectedVersion: cart.body.version }).expect(201);
+    const quote1 = (await post(`/api/v1/commerce/carts/${cart.body.cartId}/quotes`, buyer, { expectedVersion: added.body.version, destinationCityId: cityId, commandKey: `race-quote-${randomUUID()}` }).expect(201)).body;
+    let quote2: any;
+    if (mode === 'different-quote') {
+      const changed = await request(app.getHttpServer()).patch(`/api/v1/commerce/carts/${cart.body.cartId}/items/${variantId}`).set('Cookie', `gs_session_dev=${buyer.token}`).set('Origin', origin).set('X-CSRF-Token', buyer.csrf).send({ quantity: 2, expectedVersion: added.body.version }).expect(200);
+      quote2 = (await post(`/api/v1/commerce/carts/${cart.body.cartId}/quotes`, buyer, { expectedVersion: changed.body.version, destinationCityId: cityId, commandKey: `race-quote-${randomUUID()}` }).expect(201)).body;
+    }
+    const stock = await get(`/api/v1/inventory/variants/${variantId}`, owner).expect(200);
+    const commandKey = `order-race-${randomUUID()}`;
+    const firstBody = { quoteId: quote1.quoteId, expectedQuoteVersion: quote1.version, commandKey, paymentMethod: 'SANDBOX_MANUAL' };
+    const secondBody = mode === 'different-quote' ? { ...firstBody, quoteId: quote2.quoteId, expectedQuoteVersion: quote2.version }
+      : mode === 'different-key' ? { ...firstBody, commandKey: `order-race-${randomUUID()}` } : firstBody;
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let first: Promise<any> | undefined; let second: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN');
+      await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('SELECT id FROM "CheckoutQuote" WHERE id=$1 FOR UPDATE', [quote1.quoteId]);
+      const waitFor = async (count: number) => {
+        const deadline = Date.now() + 10000;
+        while (Date.now() < deadline) {
+          const waiting = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+            WHERE state='active' AND wait_event_type='Lock'
+              AND (query LIKE '%pg_advisory_xact_lock%' OR query LIKE '%FROM "CheckoutQuote"%FOR UPDATE%')`)).rows[0].n;
+          if (waiting >= count) return;
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        throw new Error(`Expected ${count} blocked order requests`);
+      };
+      first = post('/api/v1/orders', buyer, firstBody).then((r: any) => r);
+      await waitFor(1);
+      second = post('/api/v1/orders', buyer, secondBody).then((r: any) => r);
+      await waitFor(2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const [a, b] = await Promise.all([first!, second!]);
+    expect(a.status).toBe(201);
+    expect(a.body.duplicate).toBe(false);
+    if (mode === 'replay') {
+      expect(b.status).toBe(201);
+      expect(b.body).toMatchObject({ orderId: a.body.orderId, duplicate: true });
+    } else {
+      expect(b.status).toBe(409);
+      expect(b.body.code).toBe(mode === 'different-quote' ? 'ORDER_IDEMPOTENCY_CONFLICT' : 'ORDER_QUOTE_NOT_CONSUMABLE');
+    }
+    const records = await asSuper(u.privileged, c => c.query(`SELECT
+      (SELECT count(*)::int FROM "Order" WHERE "buyerId"=$1) AS orders,
+      (SELECT count(*)::int FROM "InventoryMovement" WHERE "reservationId"=$2 AND kind='CONSUME') AS consumes,
+      (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$3 AND action='commerce.order.created') AS audits,
+      (SELECT count(*)::int FROM "OutboxEvent" WHERE "eventKey"=$4) AS events`,
+      [buyer.userId, quote1.items[0].reservationId, a.body.orderId, `order-created-${a.body.orderId}`]));
+    expect(records.rows[0]).toEqual({ orders: 1, consumes: 1, audits: 1, events: 1 });
+    const consumed = await get(`/api/v1/commerce/quotes/${quote1.quoteId}`, buyer).expect(200);
+    expect(consumed.body.state).toBe('CONSUMED');
+    const after = await get(`/api/v1/inventory/variants/${variantId}`, owner).expect(200);
+    expect(after.body.onHand).toBe(stock.body.onHand - 1);
+    expect(after.body.reserved).toBe(stock.body.reserved - 1);
+    if (quote2) {
+      const other = await get(`/api/v1/commerce/quotes/${quote2.quoteId}`, buyer).expect(200);
+      expect(other.body.state).toBe('RESERVED');
+      await post(`/api/v1/commerce/quotes/${quote2.quoteId}/release`, buyer, { version: quote2.version, reason: 'order race test cleanup' }).expect(201);
+    }
+  }
+
+  it('replays the same in-flight command instead of failing on the consumed quote', async () => { await runOverlap('replay'); });
+  it('rejects the same key concurrently reused on a different quote', async () => { await runOverlap('different-quote'); });
+  it('prevents distinct commands from consuming the same quote twice', async () => { await runOverlap('different-key'); });
+});

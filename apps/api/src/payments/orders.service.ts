@@ -44,6 +44,11 @@ export class OrdersService {
     const payloadHash = hashPayload({ quoteId: input.quoteId, quoteVersion: input.expectedQuoteVersion, paymentMethod: input.paymentMethod });
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      // Serialize this buyer's command key before the replay lookup. The quote
+      // row lock alone cannot coordinate a key reused across different quotes,
+      // and same-quote retries could otherwise miss the newly created order.
+      // This transaction-scoped hash is coordination only, not authorization.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`order-create:${ctx.userId.toLowerCase()}:${input.commandKey}`}, 0))`;
       const existing = await tx.order.findUnique({ where: { buyerId_commandKey: { buyerId: ctx.userId, commandKey: input.commandKey } } });
       if (existing) {
         if (existing.payloadHash !== payloadHash) throw new ConflictException({ code: 'ORDER_IDEMPOTENCY_CONFLICT', message: 'Order command key already used with different payload' });
