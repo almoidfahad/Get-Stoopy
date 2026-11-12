@@ -378,8 +378,14 @@ describe('pickup/OTP delivery proof and completion gating', () => {
     const firstItem = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId, quantity: 1, expectedVersion: version }).expect(201);
     const secondItem = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId: variant.body.id, quantity: 1, expectedVersion: firstItem.body.version }).expect(201);
     const quote = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, { expectedVersion: secondItem.body.version, destinationCityId: cityId, commandKey: `quote-${randomUUID()}` }).expect(201);
-    const order = await post('/api/v1/orders', customer, { quoteId: quote.body.quoteId, expectedQuoteVersion: quote.body.version, commandKey: `order-${randomUUID()}`, paymentMethod: 'COD' }).expect(201);
+    // This test exercises recipient OTP concurrency, not COD accounting. Use
+    // synthetic prepaid payment because multi-suborder COD dispatch now fails closed.
+    const order = await post('/api/v1/orders', customer, { quoteId: quote.body.quoteId, expectedQuoteVersion: quote.body.version, commandKey: `order-${randomUUID()}`, paymentMethod: 'SANDBOX_MANUAL' }).expect(201);
     expect(order.body.suborders).toHaveLength(2);
+    const intent = await post(`/api/v1/orders/${order.body.orderId}/payment-intents`, customer, { commandKey: `intent-${randomUUID()}` }).expect(201);
+    const raw = JSON.stringify({ eventId: `evt-${randomUUID()}`, merchantReference: intent.body.merchantReference, status: 'SUCCEEDED', amountMinor: order.body.amountMinor, currency: order.body.currency });
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    await request(app.getHttpServer()).post('/api/v1/payments/webhooks/sandbox').set('Content-Type', 'application/json').set('x-gs-timestamp', timestamp).set('x-gs-signature', signSandboxWebhook(webhookSecret, timestamp, raw)).send(raw).expect(200);
     await setDestination(order.body.orderId);
     const recipient = await post(`/api/v1/orders/${order.body.orderId}/delivery-recipient`, customer, { name: 'Test Recipient', phone: '+8801712345678', commandKey: `recipient-${randomUUID()}` }).expect(201);
     for (const sub of order.body.suborders) {
