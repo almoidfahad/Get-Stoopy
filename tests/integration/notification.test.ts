@@ -172,14 +172,24 @@ describe('notification lifecycle', () => {
     expect(res.body.notificationId).toBe(notificationId);
   });
 
-  it('marks a notification as read', async () => {
-    const list = await get(`/api/v1/notifications?userId=${customer.userId}&status=PENDING&limit=1`, customer).expect(200);
-    expect(list.body.items.length).toBeGreaterThan(0);
-    const notificationId = list.body.items[0].notificationId;
-
-    const res = await patch(`/api/v1/notifications/${notificationId}/read?userId=${customer.userId}`, customer, {}).expect(200);
-    expect(res.body.status).toBe('READ');
-    expect(res.body.readAt).toBeDefined();
+  it('marks a notification as read once across concurrent and later retries', async () => {
+    const created = await post('/api/v1/notifications', customer, {
+      userId: customer.userId, type: 'SYSTEM_ALERT', channel: 'IN_APP', subject: 'Read retry', body: 'Retry fixture',
+      commandKey: `read-retry-${randomUUID()}`,
+    }).expect(201);
+    const notificationId = created.body.notificationId;
+    const path = `/api/v1/notifications/${notificationId}/read?userId=${customer.userId}`;
+    const attempts = await Promise.all([patch(path, customer, {}).expect(200), patch(path, customer, {}).expect(200)]);
+    expect(attempts.map(result => result.body.duplicate).sort()).toEqual([false, true]);
+    const first = attempts.find(result => result.body.duplicate === false)!;
+    const second = attempts.find(result => result.body.duplicate === true)!;
+    expect(first.body.status).toBe('READ');
+    expect(first.body.readAt).toBeTruthy();
+    expect(second.body.readAt).toBe(first.body.readAt);
+    const replay = await patch(path, customer, {}).expect(200);
+    expect(replay.body).toMatchObject({ status: 'READ', duplicate: true, readAt: first.body.readAt });
+    const counts = await asSuper(u.privileged, async c => (await c.query(`SELECT (SELECT count(*)::int FROM "AuditLog" WHERE action='notification.read' AND "resourceId"=$1::uuid) AS audits, (SELECT count(*)::int FROM "OutboxEvent" WHERE "eventKey"=$2) AS events`, [notificationId, `notification-read-${notificationId}`])).rows[0]);
+    expect(counts).toEqual({ audits: 1, events: 1 });
   });
 
   it('gets and updates notification preferences', async () => {

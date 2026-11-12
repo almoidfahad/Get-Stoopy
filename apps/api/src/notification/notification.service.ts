@@ -195,15 +195,17 @@ export class NotificationService {
         isSuper: true,
       });
 
-      const notification = await tx.notification.findFirst({
-        where: { id: notificationId, userId },
-      });
+      // Lock and authorize before inspecting the state: simultaneous retries
+      // must not produce a second audit/outbox event or rewrite readAt.
+      const rows = await tx.$queryRaw`SELECT * FROM "Notification" WHERE "id"=${notificationId}::uuid AND "userId"=${userId}::uuid FOR UPDATE`;
+      const notification = (rows as any[])[0];
       if (!notification) {
         throw new NotFoundException({
           code: 'NOTIFICATION_NOT_FOUND',
           message: 'That notification does not exist.',
         });
       }
+      if (notification.status === 'READ') return this.notificationJson(notification, true);
 
       const updated = await tx.notification.update({
         where: { id: notificationId },
