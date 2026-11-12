@@ -8,6 +8,7 @@ import { assertDeliveryCommandKey, deliveryCompletionGate, deliveryOtpHash, gene
 import { DELIVERY_OTP_CHANNEL, type DeliveryOtpChannel } from './delivery-otp.channel.js';
 import { RiskSignalProducerService } from '../risk/risk-signal-producer.service.js';
 import { FinanceService } from '../finance/finance.service.js';
+import { assertLegacyCodCollectionSafe } from '../finance/cod-collection-safety.js';
 
 function hashPayload(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 function commandKey(key: string): void { try { assertDeliveryCommandKey(key); } catch (e: any) { throw new BadRequestException({ code: e.message ?? 'DELIVERY_COMMAND_KEY_INVALID', message: 'Invalid delivery command key' }); } }
@@ -225,6 +226,7 @@ export class DeliveryService {
       const suborder = await tx.vendorSuborder.findUniqueOrThrow({ where: { id: delivery.suborderId }, include: { order: true } });
       const gate = deliveryCompletionGate({ deliveryStatus: delivery.status, proofVerified: !!proof, paymentMethod: suborder.order.paymentMethod, paymentStatus: suborder.order.paymentStatus, codAccountingVerified: suborder.order.paymentMethod === 'COD' });
       if (gate) throw new ConflictException({ code: gate, message: 'Delivery completion gate is not satisfied' });
+      if (suborder.order.paymentMethod === 'COD') await assertLegacyCodCollectionSafe(tx, suborder);
       const now = new Date();
       const updated = await tx.delivery.update({ where: { id: deliveryId }, data: { status: 'COMPLETED', completedAt: now, completionCommandKey: input.commandKey, completionPayloadHash: payloadHash, version: { increment: 1 } } });
       await tx.riderAssignment.update({ where: { id: assignment.id }, data: { status: 'COMPLETED' } });

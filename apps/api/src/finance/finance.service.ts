@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import { createHash, randomUUID } from 'node:crypto';
 import { PrivilegedPrismaService, setRls } from '../common/prisma.js';
 import { codDueMinor, hasPermission, inGeographicScope, rateForDistance, validateRateSlabs, type AccessContext } from '@getstoopy/core';
+import { assertLegacyCodCollectionSafe } from './cod-collection-safety.js';
 
 const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
 function key(k: string) { if (!/^[A-Za-z0-9:_-]{8,128}$/.test(k)) throw new BadRequestException({ code: 'COMMAND_KEY_INVALID', message: 'Invalid command key' }); }
@@ -69,13 +70,15 @@ export class FinanceService {
 
   /** Called inside delivery completion transaction after delivery is COMPLETED. */
   async recordCompletionTx(tx: any, delivery: { id: string; assignmentId: string; riderId: string; countryId: string }, actor: string) {
+    // Defend the journal-writing entry point as well as the delivery endpoint.
+    const suborder = await tx.vendorSuborder.findUniqueOrThrow({ where: { id: (await tx.delivery.findUniqueOrThrow({ where: { id: delivery.id } })).suborderId }, include: { order: true } });
+    if (suborder.order.paymentMethod === 'COD') await assertLegacyCodCollectionSafe(tx, suborder);
     const snap = await tx.riderRateSnapshot.findUnique({ where: { assignmentId: delivery.assignmentId } });
     if (!snap) throw new ConflictException({ code: 'RIDER_RATE_SNAPSHOT_REQUIRED', message: 'Assignment rate snapshot is required' });
     const expense = await this.account(tx, `delivery-expense:${delivery.countryId}:${snap.currency}`, 'Delivery expense', 'EXPENSE', snap.currency, actor);
     const payable = await this.account(tx, `rider-earning-payable:${delivery.riderId}:${snap.currency}`, 'Rider earning payable', 'LIABILITY', snap.currency, actor);
     const earningJournal = await this.postJournalTx(tx, { businessEventKey: `rider-earning-${delivery.id}`, currency: snap.currency, description: 'Rider delivery earning on verified completion', actor, lines: [{ accountId: expense, side: 'DEBIT', amountMinor: snap.amountMinor }, { accountId: payable, side: 'CREDIT', amountMinor: snap.amountMinor }] });
     await tx.riderEarning.create({ data: { deliveryId: delivery.id, riderId: delivery.riderId, countryId: delivery.countryId, amountMinor: snap.amountMinor, currency: snap.currency, journalId: earningJournal.journalId } });
-    const suborder = await tx.vendorSuborder.findUniqueOrThrow({ where: { id: (await tx.delivery.findUniqueOrThrow({ where: { id: delivery.id } })).suborderId }, include: { order: true } });
     if (suborder.order.paymentMethod === 'COD') {
       const custody = await this.account(tx, `rider-cod-custody:${delivery.riderId}:${snap.currency}`, 'Rider COD custody', 'ASSET', snap.currency, actor);
       const clearing = await this.account(tx, `cod-clearing:${delivery.countryId}:${snap.currency}`, 'COD clearing', 'LIABILITY', snap.currency, actor);

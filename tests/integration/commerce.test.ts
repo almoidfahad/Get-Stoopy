@@ -13,6 +13,8 @@ import { checkoutDraftRetentionAllowed, runCheckoutDraftRetentionTick } from '..
 import { StructuredLogger } from '../../packages/observability/src/index';
 import { RecipientDraftService } from '../../apps/api/src/commerce/recipient-draft.service';
 import { CommerceService } from '../../apps/api/src/commerce/commerce.service';
+import { assertLegacyCodCollectionSafe } from '../../apps/api/src/finance/cod-collection-safety';
+import { PrivilegedPrismaService, setRls } from '../../apps/api/src/common/prisma';
 
 const u = urls();
 let app: any;
@@ -672,6 +674,33 @@ describe('cart and checkout quote orchestration', () => {
     }
     expect((await del(`${draftPath}?expectedDraftVersion=4`, buyer).expect(200)).body).toMatchObject({ state: 'EMPTY', draftVersion: 5 });
   }, 30000);
+
+  it('denies legacy COD collection for a real two-store order without changing financial state', async () => {
+    const buyer = await makeUser('cod-multi');
+    const admin = await makeUser('cod-multi-admin'); await grantKeys(admin, ['finance:cod:manage', 'dispatch:run:manage']);
+    const policy = await asSuper(u.privileged, async c => (await c.query(`SELECT version FROM "CodPolicy" WHERE "countryId"=$1`, [countryId])).rows[0]);
+    await put('/api/v1/admin/cod-policy', admin, { countryId, enabled: true, maxOrderMinor: '100000', ...(policy ? { version: policy.version } : {}) }).expect(200);
+    const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    const a = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId: variantA, quantity: 1, expectedVersion: cart.body.version }).expect(201);
+    const b = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId: variantB, quantity: 1, expectedVersion: a.body.version }).expect(201);
+    const quote = await post(`/api/v1/commerce/carts/${cart.body.cartId}/quotes`, buyer, { expectedVersion: b.body.version, destinationCityId: cityId, commandKey: `cod-multi-quote-${randomUUID()}` }).expect(201);
+    const order = await post('/api/v1/orders', buyer, { quoteId: quote.body.quoteId, expectedQuoteVersion: quote.body.version, commandKey: `cod-multi-order-${randomUUID()}`, paymentMethod: 'COD' }).expect(201);
+    expect(order.body.suborders).toHaveLength(2);
+    const prisma = app.get(PrivilegedPrismaService) as PrivilegedPrismaService;
+    for (const item of order.body.suborders) {
+      const refused = await post(`/api/v1/admin/dispatch/suborders/${item.suborderId}/runs`, admin, { commandKey: `cod-run-${randomUUID()}` }).expect(409);
+      expect(refused.body.code).toBe('COD_ALLOCATION_REQUIRED');
+      await expect(prisma.$transaction(async tx => {
+        await setRls(tx, { userId: buyer.userId, authorizationVersion: 1, isSuper: true });
+        const suborder = await tx.vendorSuborder.findUniqueOrThrow({ where: { id: item.suborderId }, include: { order: true } });
+        await assertLegacyCodCollectionSafe(tx, suborder);
+      })).rejects.toMatchObject({ response: { code: 'COD_ALLOCATION_REQUIRED' } });
+    }
+    const data = await asSuper(u.privileged, c => c.query(`SELECT (SELECT count(*)::int FROM "CodCollection" WHERE "orderId"=$1) AS collections, (SELECT count(*)::int FROM "Delivery" d JOIN "VendorSuborder" s ON s.id=d."suborderId" WHERE s."orderId"=$1) AS deliveries, (SELECT count(*)::int FROM "DispatchRun" r JOIN "VendorSuborder" s ON s.id=r."suborderId" WHERE s."orderId"=$1) AS runs`, [order.body.orderId]));
+    expect(data.rows[0]).toEqual({ collections: 0, deliveries: 0, runs: 0 });
+    // Restore inventory through the supported cancellation path before later tests.
+    await post(`/api/v1/orders/${order.body.orderId}/cancellation`, buyer, { expectedVersion: 1, commandKey: `cancel-cod-multi-${randomUUID()}`, reason: 'synthetic allocation guard test cleanup' }).expect(201);
+  }, 120000);
 
   it('creates an atomic multi-vendor quote with immutable snapshots, idempotency and release', async () => {
     const cart = await post('/api/v1/commerce/carts', customer, { countryId }).expect(201);

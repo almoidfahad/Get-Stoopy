@@ -6,6 +6,7 @@ import type { ApiEnv } from '@getstoopy/config';
 import { assertDispatchCommandKey, assertLatitudeLongitude, dispatchOfferToken, dispatchOfferTokenHash, hasPermission, inGeographicScope, rankDispatchCandidates, roadRouteEvidenceHash, verifyDispatchOfferToken, DISPATCH_MAX_CANDIDATES, type AccessContext, type DispatchCandidate, type RoadRoutePoint } from '@getstoopy/core';
 import { DisabledRoadRouteMatrix, GoogleRoutesRoadRouteMatrix, type RoadRouteMatrixPort, type RoadTravelMode } from './road-route.adapter.js';
 import { FinanceService } from '../finance/finance.service.js';
+import { assertLegacyCodCollectionSafe } from '../finance/cod-collection-safety.js';
 
 function hashPayload(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 function assertVersion(version: number): void { if (!Number.isInteger(version) || version < 1) throw new BadRequestException({ code: 'VERSION_INVALID', message: 'Invalid version' }); }
@@ -108,6 +109,10 @@ export class DispatchService {
         if (existing.commandKey !== input.commandKey || existing.payloadHash !== payloadHash) throw new ConflictException({ code: 'DISPATCH_RUN_EXISTS', message: 'Dispatch run already exists for suborder' });
         return this.runJson(existing, true);
       }
+      // Do not dispatch a COD order whose custody allocation cannot be posted
+      // safely by the legacy completion flow. Existing runs need separate review.
+      const dispatchSuborder = await tx.vendorSuborder.findUniqueOrThrow({ where: { id: suborderId }, include: { order: true } });
+      if (dispatchSuborder.order.paymentMethod === 'COD') await assertLegacyCodCollectionSafe(tx, dispatchSuborder);
       if (sub.status !== 'READY_FOR_PICKUP') throw new ConflictException({ code: 'SUBORDER_NOT_READY', message: 'Suborder must be manually ready for pickup' });
       if (!['PAYMENT_VERIFIED', 'AWAITING_COD'].includes(sub.paymentStatus)) throw new ConflictException({ code: 'PAYMENT_NOT_READY', message: 'Order payment is not verified or COD' });
       const destination = await tx.orderDeliveryDestination.findUnique({ where: { orderId: sub.orderId } });
