@@ -1,13 +1,16 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { StructuredLogger } from '@getstoopy/observability';
 
 /** Each transaction handles one entire quote or one standalone reservation.
  * The batch size is a soft reservation budget: an atomic quote can exceed it.
  */
 export async function runInventoryExpiryTick(pool: Pool, log: StructuredLogger, batchSize: number): Promise<number> {
-  const client = await pool.connect();
+  let client: PoolClient | undefined;
   let expired = 0;
   try {
+    // A transient connection failure must not reject and terminate the worker's
+    // polling loop. The next tick will attempt to acquire a connection again.
+    client = await pool.connect();
     // The database validates the supplied size; never run an unbounded loop.
     for (let unit = 0; unit < 500; unit++) {
       await client.query('BEGIN');
@@ -21,12 +24,14 @@ export async function runInventoryExpiryTick(pool: Pool, log: StructuredLogger, 
     }
     if (expired > 0) log.info('inventory_expiry_batch', { expired });
     return expired;
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    log.error('inventory_expiry_failed', { error: err instanceof Error ? err.message : 'unknown', expired });
+  } catch {
+    if (client) await client.query('ROLLBACK').catch(() => undefined);
+    // Database errors can contain connection details or values. Do not log
+    // exception text; retain the committed count for operational monitoring.
+    log.error('inventory_expiry_failed', { error: 'INVENTORY_EXPIRY_ERROR', expired });
     // Prior units committed independently and must not be reported as zero.
     return expired;
   } finally {
-    client.release();
+    client?.release();
   }
 }
