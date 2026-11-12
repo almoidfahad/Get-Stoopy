@@ -52,7 +52,7 @@ Review requires `finance:cod:review`, recent step-up, CSRF and country scope. Th
 - `REJECT` records reviewer/reason/version with no journal and no COD reduction.
 - `VERIFY` serializes per rider+currency with a transaction advisory lock, allocates FIFO to outstanding `CodCollection` rows, posts the deposit journal, then writes `CodAllocation` rows and marks the deposit `VERIFIED` in the same transaction.
 - Allocation cannot exceed the deposit or any collection. Overpayment is rejected as `COD_DEPOSIT_EXCEEDS_DUE`; unmatched/overpaid reconciliation remains a future manual queue.
-- Duplicate rider+channel+external reference is unique. Command-key replay returns the same deposit; changed payload returns `DEPOSIT_IDEMPOTENCY_CONFLICT`. Stale version returns `DEPOSIT_VERSION_CONFLICT`; an already reviewed deposit returns `DEPOSIT_ALREADY_REVIEWED`.
+- Duplicate rider+channel+external reference is unique at the database. Verification additionally blocks another verified deposit with the same exact country/reference across riders and methods, with important false-positive and bypass limitations; see `docs/180-cod-deposit-reference-collision.md`. Command-key replay returns the same deposit; changed payload returns `DEPOSIT_IDEMPOTENCY_CONFLICT`. Stale version returns `DEPOSIT_VERSION_CONFLICT`; an already reviewed deposit returns `DEPOSIT_ALREADY_REVIEWED`.
 
 ## Wallet read model
 

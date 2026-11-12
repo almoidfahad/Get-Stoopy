@@ -675,6 +675,55 @@ describe('rider earnings and COD deposit ledger', () => {
     const allocs = await asSuper(u.privileged, async c => c.query(`SELECT COUNT(*)::int AS n FROM "CodAllocation" WHERE "depositId"=$1`, [submitted.body.depositId]));
     expect(allocs.rows[0].n).toBe(1);
   });
+  it('serializes verification of the same exact deposit reference across different riders and methods', async () => {
+    const firstRider = await makeUser('cod-ref-a'); await prepareRider(firstRider, 'cod-ref-a');
+    const firstDelivery = await completedCodDelivery(firstRider);
+    const secondRider = await makeUser('cod-ref-b'); await prepareRider(secondRider, 'cod-ref-b');
+    const secondDelivery = await completedCodDelivery(secondRider);
+    const reviewer = await makeUser('cod-ref-reviewer'); await grantKeys(reviewer, ['finance:cod:review']);
+    const externalReference = `synthetic-ref-${randomUUID()}`;
+    const evidenceHash = createHash('sha256').update(randomUUID()).digest('hex');
+    const first = await post('/api/v1/riders/me/cod-deposits', firstRider, { amountMinor: '1000', currency: 'BDT', method: 'BANK', externalReference, evidenceHash, commandKey: `deposit-${randomUUID()}` }).expect(201);
+    const second = await post('/api/v1/riders/me/cod-deposits', secondRider, { amountMinor: '1000', currency: 'BDT', method: 'MERCHANT_MFS', externalReference, evidenceHash, commandKey: `deposit-${randomUUID()}` }).expect(201);
+    const bodies = [first, second].map(() => ({ expectedVersion: 1, decision: 'VERIFY', reason: 'synthetic trusted reference checked', commandKey: `review-${randomUUID()}` }));
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let requests: Promise<any>[] = [];
+    try {
+      await holder.query('BEGIN');
+      const holderPid = (await holder.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      await holder.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`cod-deposit-reference:${JSON.stringify([countryId, externalReference])}`]);
+      requests = [first, second].map((dep, i) => post(`/api/v1/admin/cod-deposits/${dep.body.depositId}/review`, reviewer, bodies[i]).then((res: any) => res));
+      const deadline = Date.now() + 10000; let waiting = 0;
+      while (Date.now() < deadline) {
+        waiting = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE state='active' AND wait_event_type='Lock' AND $1=ANY(pg_blocking_pids(pid)) AND query LIKE '%pg_advisory_xact_lock%'`, [holderPid])).rows[0].n;
+        if (waiting >= 2) break;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      expect(waiting).toBeGreaterThanOrEqual(2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const results = await Promise.all(requests);
+    expect(results.map(r => r.status).sort()).toEqual([201, 409]);
+    expect(results.find(r => r.status === 409).body.code).toBe('COD_DEPOSIT_REFERENCE_ALREADY_VERIFIED');
+    const winner = results.findIndex(r => r.status === 201); const loser = 1 - winner;
+    const deposits = [first, second];
+    const rows = await asSuper(u.privileged, c => c.query(`SELECT d.id,d.status,d."journalId",(SELECT count(*)::int FROM "CodAllocation" a WHERE a."depositId"=d.id) AS allocations FROM "CodDeposit" d WHERE d.id=ANY($1::uuid[])`, [[first.body.depositId, second.body.depositId]]));
+    const win = rows.rows.find((r: any) => r.id === deposits[winner].body.depositId);
+    const pending = rows.rows.find((r: any) => r.id === deposits[loser].body.depositId);
+    expect(win.status).toBe('VERIFIED'); expect(win.journalId).toBeTruthy(); expect(win.allocations).toBe(1);
+    expect(pending).toMatchObject({ status: 'PENDING_REVIEW', journalId: null, allocations: 0 });
+    const replay = await post(`/api/v1/admin/cod-deposits/${deposits[winner].body.depositId}/review`, reviewer, bodies[winner]).expect(201);
+    expect(replay.body.duplicate).toBe(true);
+    await post(`/api/v1/admin/cod-deposits/${deposits[loser].body.depositId}/review`, reviewer, { expectedVersion: 1, decision: 'REJECT', reason: 'reference requires reconciliation', commandKey: `reject-${randomUUID()}` }).expect(201);
+    const collections = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n,COALESCE(sum(a."amountMinor"),0)::bigint AS amount FROM "CodAllocation" a JOIN "CodCollection" c ON c.id=a."collectionId" WHERE c."deliveryId"=ANY($1::uuid[])`, [[firstDelivery.deliveryId, secondDelivery.deliveryId]]));
+    expect(collections.rows[0]).toEqual({ n: 1, amount: '1000' });
+  }, 120000);
+
   it('rejects deposit evidence without a journal and denies self-review', async () => {
     const rider = await makeUser('rider-finance-reject'); await prepareRider(rider, 'finance-reject');
     await completedCodDelivery(rider);

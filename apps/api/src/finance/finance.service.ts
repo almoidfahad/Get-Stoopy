@@ -140,6 +140,14 @@ export class FinanceService {
         await this.audit(tx, ctx.userId, 'finance.cod.deposit.rejected', 'CodDeposit', id, dep.countryId, reason);
         return this.depositJson(updated);
       }
+      // Serialize exact reference verification across riders, methods and
+      // currencies within a country. Riders provide untrusted references; this
+      // conservative collision check is not proof of a real bank/office deposit.
+      // Keep this lock before the rider/currency allocation lock everywhere.
+      const referenceLock = `cod-deposit-reference:${JSON.stringify([dep.countryId, dep.externalReference])}`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${referenceLock}, 0))`;
+      const duplicateReference = await tx.codDeposit.findFirst({ where: { countryId: dep.countryId, externalReference: dep.externalReference, status: 'VERIFIED', id: { not: dep.id } }, select: { id: true } });
+      if (duplicateReference) throw new ConflictException({ code: 'COD_DEPOSIT_REFERENCE_ALREADY_VERIFIED', message: 'Deposit reference requires separate reconciliation' });
       // Serialize verification per rider+currency. Append-only collection rows are never UPDATE-locked.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`cod-deposit:${dep.riderId}:${dep.currency}`}, 0))`;
       const collections = await tx.$queryRaw`SELECT * FROM "CodCollection" WHERE "riderId"=${dep.riderId}::uuid AND currency=${dep.currency}::varchar ORDER BY "collectedAt", id`;
