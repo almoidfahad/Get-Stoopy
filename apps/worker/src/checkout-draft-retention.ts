@@ -1,4 +1,4 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { StructuredLogger } from '@getstoopy/observability';
 
 export function checkoutDraftRetentionAllowed(nodeEnv: string, enabled: boolean, hasPrivilegedDatabase: boolean): boolean {
@@ -12,8 +12,9 @@ export function checkoutDraftRetentionAllowed(nodeEnv: string, enabled: boolean,
  */
 export async function runCheckoutDraftRetentionTick(pool: Pool, log: StructuredLogger, batchSize: number): Promise<number> {
   if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 500) throw new Error('CHECKOUT_DRAFT_BATCH_INVALID');
-  const client = await pool.connect();
+  let client: PoolClient | undefined;
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
     await client.query("SELECT set_config('app.is_super','true',true)");
     await client.query("SELECT set_config('app.user_id','00000000-0000-0000-0000-000000000000',true)");
@@ -41,9 +42,9 @@ export async function runCheckoutDraftRetentionTick(pool: Pool, log: StructuredL
     if (cleared) log.info('checkout_draft_retention_batch', { cleared });
     return cleared;
   } catch {
-    await client.query('ROLLBACK').catch(() => undefined);
+    if (client) await client.query('ROLLBACK').catch(() => undefined);
     // Never include row contents, database parameters or error detail in logs.
     log.error('checkout_draft_retention_failed', {});
     return 0;
-  } finally { client.release(); }
+  } finally { client?.release(); }
 }
