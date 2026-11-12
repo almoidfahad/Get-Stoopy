@@ -6,6 +6,11 @@ import { ConflictException } from '@nestjs/common';
  * single-suborder product-subtotal-only snapshot can use that legacy path.
  * This is an application guard, not a database constraint or readiness signal.
  */
+export async function assertCodSuborderSafe(tx: any, suborderId: string): Promise<void> {
+  const suborder = await tx.vendorSuborder.findUniqueOrThrow({ where: { id: suborderId }, include: { order: true } });
+  if (suborder.order.paymentMethod === 'COD') await assertLegacyCodCollectionSafe(tx, suborder);
+}
+
 export async function assertLegacyCodCollectionSafe(tx: any, suborder: {
   id: string; orderId: string; currency: string; subtotalMinor: bigint;
   order: { currency: string; amountMinor: bigint; pricingScope: string };

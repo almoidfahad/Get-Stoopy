@@ -13,6 +13,7 @@ import { runDispatchExpiryTick } from '../../apps/worker/src/dispatch-expiry';
 import { StructuredLogger } from '../../packages/observability/src/index';
 import { TEST_DELIVERY_OTP_SINK, type TestDeliveryOtpSink } from '../../apps/api/src/delivery/delivery-otp.channel';
 import { signSandboxWebhook } from '../../packages/core/src/payment';
+import * as codSafety from '../../apps/api/src/finance/cod-collection-safety';
 
 const u = urls();
 let app: any;
@@ -105,6 +106,28 @@ async function prepareRider(user: any, label: string) {
   await post(`/api/v1/admin/riders/${riderId}/zone-grants`, zoneAdmin, { serviceZoneId: zoneId, reason: 'pilot dispatch zone grant' }).expect(201);
   await post('/api/v1/riders/me/location-samples', user, { shiftId: shift.body.shiftId, latitude: 24.75, longitude: 90.4, accuracyMeters: 10, recordedAt: new Date().toISOString() }).expect(201);
   return riderId;
+}
+
+// A second store of the same vendor provides a real multi-suborder fixture.
+async function additionalDispatchVariant() {
+  const storeAdmin = await makeUser('otp-rate-store-admin'); await grantKeys(storeAdmin, ['catalog:store:activate']);
+  const moderator = await makeUser('otp-rate-moderator'); await grantKeys(moderator, ['catalog:product:review', 'catalog:product:publish']);
+  const store = await post('/api/v1/catalog/stores', owner, { vendorId, cityId, name: 'OTP Rate Store', slug: `otp-rate-${randomUUID().slice(0, 8)}`, addressLine: '123 Pilot Road, Mymensingh' }).expect(201);
+  const otherStoreId = store.body.storeId as string;
+  await post(`/api/v1/catalog/admin/stores/${otherStoreId}/activate`, storeAdmin, { version: 1, reason: 'store evidence verified' }).expect(201);
+  const product = await post(`/api/v1/catalog/stores/${otherStoreId}/products`, owner, { title: 'OTP Rate Product', description: 'A product for recipient issue limit tests', brand: 'Stoopy' }).expect(201);
+  const variant = await post(`/api/v1/catalog/products/${product.body.productId}/variants`, owner, { sku: `OTP-${randomUUID().slice(0, 8)}`, optionValues: {}, priceAmountMinor: '1000', currency: 'BDT' }).expect(201);
+  await post(`/api/v1/catalog/products/${product.body.productId}/submit`, owner, { version: 1 }).expect(201);
+  await post(`/api/v1/catalog/admin/products/${product.body.productId}/review`, moderator, { version: 2, decision: 'APPROVE', reason: 'product content verified' }).expect(201);
+  await post(`/api/v1/catalog/admin/products/${product.body.productId}/publish`, moderator, { version: 3, reason: 'approved for public catalog' }).expect(201);
+  await post(`/api/v1/inventory/variants/${variant.body.id}/initialize`, owner, { reorderLevel: 0 }).expect(201);
+  await post(`/api/v1/inventory/variants/${variant.body.id}/adjustments`, owner, { version: 1, delta: 10, commandKey: `stock-${randomUUID()}`, reason: 'OTP rate test stock' }).expect(201);
+  const pickupPoint = await post(`/api/v1/catalog/stores/${otherStoreId}/pickup-point`, owner, { latitude: 24.75, longitude: 90.4 }).expect(201);
+  await post(`/api/v1/catalog/admin/stores/${otherStoreId}/pickup-point/review`, serviceabilityAdmin, { version: pickupPoint.body.version, decision: 'APPROVE', reason: 'pickup geometry verified' }).expect(201);
+  await put(`/api/v1/catalog/stores/${otherStoreId}/operating-hours`, owner, { hours: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, openMinute: 0, closeMinute: 1440 })) }).expect(200);
+  const area = await post(`/api/v1/catalog/stores/${otherStoreId}/service-areas`, owner, { serviceZoneId: zoneId }).expect(201);
+  await post(`/api/v1/catalog/admin/service-areas/${area.body.serviceAreaId}/review`, serviceabilityAdmin, { version: 1, decision: 'APPROVE', reason: 'zone coverage verified' }).expect(201);
+  return variant.body.id as string;
 }
 
 beforeAll(async () => {
@@ -353,30 +376,61 @@ describe('pickup/OTP delivery proof and completion gating', () => {
     expect(active.body.assignment).toBeNull();
   }, 60000);
 
+  it('blocks progression of simulated legacy multi-store COD runs, offers and assignments', async () => {
+    const otherVariantId = await additionalDispatchVariant();
+    const rider = await makeUser('legacy-cod-rider'); const riderId = await prepareRider(rider, 'legacy-cod-rider');
+    await asSuper(u.privileged, c => c.query(`UPDATE "RiderShift" SET "status"='ENDED', "endedAt"=now(), "updatedAt"=now() WHERE "status"='ACTIVE' AND "riderId"<>$1`, [riderId]));
+    let { cartId, version } = await clearCart();
+    const a = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId, quantity: 1, expectedVersion: version }).expect(201);
+    const b = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId: otherVariantId, quantity: 1, expectedVersion: a.body.version }).expect(201);
+    const quote = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, { expectedVersion: b.body.version, destinationCityId: cityId, commandKey: `legacy-quote-${randomUUID()}` }).expect(201);
+    const order = await post('/api/v1/orders', customer, { quoteId: quote.body.quoteId, expectedQuoteVersion: quote.body.version, commandKey: `legacy-order-${randomUUID()}`, paymentMethod: 'COD' }).expect(201);
+    expect(order.body.suborders).toHaveLength(2);
+    await setDestination(order.body.orderId);
+    await post(`/api/v1/orders/${order.body.orderId}/delivery-recipient`, customer, { name: 'Synthetic Recipient', phone: '+8801712345678', commandKey: `legacy-recipient-${randomUUID()}` }).expect(201);
+    const suborderId = order.body.suborders[0].suborderId;
+    await post(`/api/v1/vendor/suborders/${suborderId}/accept`, owner, { expectedVersion: 1, commandKey: `accept-${randomUUID()}`, preparationMinutes: 15 }).expect(201);
+    await post(`/api/v1/vendor/suborders/${suborderId}/start-preparation`, owner, { expectedVersion: 2, commandKey: `prep-${randomUUID()}` }).expect(201);
+    await post(`/api/v1/vendor/suborders/${suborderId}/ready`, owner, { expectedVersion: 3, commandKey: `ready-${randomUUID()}` }).expect(201);
+
+    // Simulate persisted pre-guard states in this disposable test only. Always
+    // restore the real guard before exercising the endpoint under test.
+    async function legacyStep<T>(fn: () => Promise<T>): Promise<T> {
+      const bypass = vi.spyOn(codSafety, 'assertCodSuborderSafe').mockResolvedValue(undefined);
+      try { return await fn(); } finally { bypass.mockRestore(); }
+    }
+    const run = await legacyStep(() => post(`/api/v1/admin/dispatch/suborders/${suborderId}/runs`, dispatchAdmin, { commandKey: `legacy-run-${randomUUID()}` }).expect(201).then((res: any) => res));
+    const offerBody = { expectedVersion: 1, commandKey: `legacy-offer-${randomUUID()}` };
+    const blockedOffer = await post(`/api/v1/admin/dispatch/runs/${run.body.runId}/next-offer`, dispatchAdmin, offerBody).expect(409);
+    expect(blockedOffer.body.code).toBe('COD_ALLOCATION_REQUIRED');
+    const noOffer = await asSuper(u.privileged, c => c.query(`SELECT r.status,r.version,(SELECT count(*)::int FROM "DispatchOffer" o WHERE o."runId"=r.id) AS offers FROM "DispatchRun" r WHERE r.id=$1`, [run.body.runId]));
+    expect(noOffer.rows[0]).toEqual({ status: 'SEARCHING', version: 1, offers: 0 });
+
+    const offer = await legacyStep(() => post(`/api/v1/admin/dispatch/runs/${run.body.runId}/next-offer`, dispatchAdmin, offerBody).expect(201).then((res: any) => res));
+    const offered = await get('/api/v1/riders/me/dispatch-offers', rider).expect(200);
+    const token = offered.body.items.find((item: any) => item.offerId === offer.body.offerId).offerToken;
+    const acceptBody = { offerToken: token, commandKey: `legacy-accept-${randomUUID()}` };
+    const blockedAccept = await post(`/api/v1/riders/me/dispatch-offers/${offer.body.offerId}/accept`, rider, acceptBody).expect(409);
+    expect(blockedAccept.body.code).toBe('COD_ALLOCATION_REQUIRED');
+    const noAssignment = await asSuper(u.privileged, c => c.query(`SELECT o.status,(SELECT count(*)::int FROM "RiderAssignment" a WHERE a."offerId"=o.id) AS assignments FROM "DispatchOffer" o WHERE o.id=$1`, [offer.body.offerId]));
+    expect(noAssignment.rows[0]).toEqual({ status: 'OFFERED', assignments: 0 });
+
+    const accepted = await legacyStep(() => post(`/api/v1/riders/me/dispatch-offers/${offer.body.offerId}/accept`, rider, acceptBody).expect(201).then((res: any) => res));
+    const replay = await post(`/api/v1/riders/me/dispatch-offers/${offer.body.offerId}/accept`, rider, acceptBody).expect(201);
+    expect(replay.body.duplicate).toBe(true);
+    const pickup = await post(`/api/v1/riders/me/assignments/${accepted.body.assignmentId}/pickup`, rider, { commandKey: `legacy-pickup-${randomUUID()}` }).expect(409);
+    expect(pickup.body.code).toBe('COD_ALLOCATION_REQUIRED');
+    const noDelivery = await asSuper(u.privileged, c => c.query(`SELECT a.status,(SELECT count(*)::int FROM "Delivery" d WHERE d."assignmentId"=a.id) AS deliveries FROM "RiderAssignment" a WHERE a.id=$1`, [accepted.body.assignmentId]));
+    expect(noDelivery.rows[0]).toEqual({ status: 'ACTIVE', deliveries: 0 });
+  }, 120000);
+
   it('serializes recipient issue limits across an order’s separate deliveries', async () => {
-    // A second store of the same vendor creates a second real suborder in one order.
-    const storeAdmin = await makeUser('otp-rate-store-admin'); await grantKeys(storeAdmin, ['catalog:store:activate']);
-    const moderator = await makeUser('otp-rate-moderator'); await grantKeys(moderator, ['catalog:product:review', 'catalog:product:publish']);
-    const store = await post('/api/v1/catalog/stores', owner, { vendorId, cityId, name: 'OTP Rate Store', slug: `otp-rate-${randomUUID().slice(0, 8)}`, addressLine: '123 Pilot Road, Mymensingh' }).expect(201);
-    const otherStoreId = store.body.storeId as string;
-    await post(`/api/v1/catalog/admin/stores/${otherStoreId}/activate`, storeAdmin, { version: 1, reason: 'store evidence verified' }).expect(201);
-    const product = await post(`/api/v1/catalog/stores/${otherStoreId}/products`, owner, { title: 'OTP Rate Product', description: 'A product for recipient issue limit tests', brand: 'Stoopy' }).expect(201);
-    const variant = await post(`/api/v1/catalog/products/${product.body.productId}/variants`, owner, { sku: `OTP-${randomUUID().slice(0, 8)}`, optionValues: {}, priceAmountMinor: '1000', currency: 'BDT' }).expect(201);
-    await post(`/api/v1/catalog/products/${product.body.productId}/submit`, owner, { version: 1 }).expect(201);
-    await post(`/api/v1/catalog/admin/products/${product.body.productId}/review`, moderator, { version: 2, decision: 'APPROVE', reason: 'product content verified' }).expect(201);
-    await post(`/api/v1/catalog/admin/products/${product.body.productId}/publish`, moderator, { version: 3, reason: 'approved for public catalog' }).expect(201);
-    await post(`/api/v1/inventory/variants/${variant.body.id}/initialize`, owner, { reorderLevel: 0 }).expect(201);
-    await post(`/api/v1/inventory/variants/${variant.body.id}/adjustments`, owner, { version: 1, delta: 10, commandKey: `stock-${randomUUID()}`, reason: 'OTP rate test stock' }).expect(201);
-    const pickupPoint = await post(`/api/v1/catalog/stores/${otherStoreId}/pickup-point`, owner, { latitude: 24.75, longitude: 90.4 }).expect(201);
-    await post(`/api/v1/catalog/admin/stores/${otherStoreId}/pickup-point/review`, serviceabilityAdmin, { version: pickupPoint.body.version, decision: 'APPROVE', reason: 'pickup geometry verified' }).expect(201);
-    await put(`/api/v1/catalog/stores/${otherStoreId}/operating-hours`, owner, { hours: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, openMinute: 0, closeMinute: 1440 })) }).expect(200);
-    const area = await post(`/api/v1/catalog/stores/${otherStoreId}/service-areas`, owner, { serviceZoneId: zoneId }).expect(201);
-    await post(`/api/v1/catalog/admin/service-areas/${area.body.serviceAreaId}/review`, serviceabilityAdmin, { version: 1, decision: 'APPROVE', reason: 'zone coverage verified' }).expect(201);
+    const otherVariantId = await additionalDispatchVariant();
     const riders = [await makeUser('recipient-rate-a'), await makeUser('recipient-rate-b')];
     for (let i = 0; i < riders.length; i++) await prepareRider(riders[i], `recipient-rate-${i}`);
     let { cartId, version } = await clearCart();
     const firstItem = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId, quantity: 1, expectedVersion: version }).expect(201);
-    const secondItem = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId: variant.body.id, quantity: 1, expectedVersion: firstItem.body.version }).expect(201);
+    const secondItem = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId: otherVariantId, quantity: 1, expectedVersion: firstItem.body.version }).expect(201);
     const quote = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, { expectedVersion: secondItem.body.version, destinationCityId: cityId, commandKey: `quote-${randomUUID()}` }).expect(201);
     // This test exercises recipient OTP concurrency, not COD accounting. Use
     // synthetic prepaid payment because multi-suborder COD dispatch now fails closed.

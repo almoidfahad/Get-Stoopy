@@ -6,7 +6,7 @@ import type { ApiEnv } from '@getstoopy/config';
 import { assertDispatchCommandKey, assertLatitudeLongitude, dispatchOfferToken, dispatchOfferTokenHash, hasPermission, inGeographicScope, rankDispatchCandidates, roadRouteEvidenceHash, verifyDispatchOfferToken, DISPATCH_MAX_CANDIDATES, type AccessContext, type DispatchCandidate, type RoadRoutePoint } from '@getstoopy/core';
 import { DisabledRoadRouteMatrix, GoogleRoutesRoadRouteMatrix, type RoadRouteMatrixPort, type RoadTravelMode } from './road-route.adapter.js';
 import { FinanceService } from '../finance/finance.service.js';
-import { assertLegacyCodCollectionSafe } from '../finance/cod-collection-safety.js';
+import { assertCodSuborderSafe } from '../finance/cod-collection-safety.js';
 
 function hashPayload(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 function assertVersion(version: number): void { if (!Number.isInteger(version) || version < 1) throw new BadRequestException({ code: 'VERSION_INVALID', message: 'Invalid version' }); }
@@ -111,8 +111,7 @@ export class DispatchService {
       }
       // Do not dispatch a COD order whose custody allocation cannot be posted
       // safely by the legacy completion flow. Existing runs need separate review.
-      const dispatchSuborder = await tx.vendorSuborder.findUniqueOrThrow({ where: { id: suborderId }, include: { order: true } });
-      if (dispatchSuborder.order.paymentMethod === 'COD') await assertLegacyCodCollectionSafe(tx, dispatchSuborder);
+      await assertCodSuborderSafe(tx, suborderId);
       if (sub.status !== 'READY_FOR_PICKUP') throw new ConflictException({ code: 'SUBORDER_NOT_READY', message: 'Suborder must be manually ready for pickup' });
       if (!['PAYMENT_VERIFIED', 'AWAITING_COD'].includes(sub.paymentStatus)) throw new ConflictException({ code: 'PAYMENT_NOT_READY', message: 'Order payment is not verified or COD' });
       const destination = await tx.orderDeliveryDestination.findUnique({ where: { orderId: sub.orderId } });
@@ -160,6 +159,8 @@ export class DispatchService {
       }
       if (run.version !== input.expectedVersion) throw new ConflictException({ code: 'DISPATCH_VERSION_CONFLICT', message: 'Dispatch run version conflict' });
       if (run.status !== 'SEARCHING') throw new ConflictException({ code: 'DISPATCH_INVALID_STATE', message: 'Dispatch run is not searching' });
+      // A run may predate the COD allocation guard. Do not issue another offer.
+      await assertCodSuborderSafe(tx, run.suborderId);
       if (run.attemptCount >= run.maxAttempts) {
         await tx.dispatchRun.update({ where: { id: runId }, data: { status: 'MANUAL_REVIEW', version: { increment: 1 } } });
         await this.event(tx, runId, 'dispatch.run.manual_review', input.commandKey, { reason: 'MAX_ATTEMPTS' }, { actorUserId: ctx.userId, reason: 'Maximum dispatch attempts reached' });
@@ -235,6 +236,8 @@ export class DispatchService {
       if (new Date((nowRows as any[])[0].now) >= offer.expiresAt) throw new ConflictException({ code: 'OFFER_EXPIRED', message: 'Dispatch offer has expired' });
       if (action === 'accept') {
         if (run.status !== 'OFFERING') throw new ConflictException({ code: 'DISPATCH_INVALID_STATE', message: 'Dispatch run is not offering' });
+        // Old offers may still exist; reject remains available for recovery.
+        await assertCodSuborderSafe(tx, run.suborderId);
         const eligible = await tx.$queryRaw`SELECT gs_rider_dispatch_eligible(${ctx.riderId}::uuid, ${run.countryId}::uuid, ${run.pickupZoneId}::uuid, ${run.destinationZoneId}::uuid, ${offer.shiftId}::uuid, ${offer.locationSampleId}::uuid, ${offer.pickupZoneGrantId}::uuid, ${offer.destinationZoneGrantId}::uuid) AS eligible`;
         if (!(eligible as any[])[0]?.eligible) throw new ConflictException({ code: 'RIDER_NOT_ELIGIBLE', message: 'Rider is no longer eligible for this offer' });
         await tx.dispatchRun.update({ where: { id: run.id }, data: { status: 'ASSIGNED', version: { increment: 1 } } });

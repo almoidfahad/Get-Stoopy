@@ -8,7 +8,7 @@ import { assertDeliveryCommandKey, deliveryCompletionGate, deliveryOtpHash, gene
 import { DELIVERY_OTP_CHANNEL, type DeliveryOtpChannel } from './delivery-otp.channel.js';
 import { RiskSignalProducerService } from '../risk/risk-signal-producer.service.js';
 import { FinanceService } from '../finance/finance.service.js';
-import { assertLegacyCodCollectionSafe } from '../finance/cod-collection-safety.js';
+import { assertCodSuborderSafe, assertLegacyCodCollectionSafe } from '../finance/cod-collection-safety.js';
 
 function hashPayload(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 function commandKey(key: string): void { try { assertDeliveryCommandKey(key); } catch (e: any) { throw new BadRequestException({ code: e.message ?? 'DELIVERY_COMMAND_KEY_INVALID', message: 'Invalid delivery command key' }); } }
@@ -93,6 +93,8 @@ export class DeliveryService {
         return { deliveryId: existing.id, assignmentId, status: existing.status, version: existing.version, duplicate: true };
       }
       if (assignment.status !== 'ACTIVE' || assignment.suborderStatus !== 'READY_FOR_PICKUP') throw new ConflictException({ code: 'PICKUP_NOT_READY', message: 'Assignment/suborder is not ready for pickup' });
+      // An assignment may have been accepted before the dispatch guard existed.
+      await assertCodSuborderSafe(tx, assignment.suborderId);
       const recipient = await tx.deliveryRecipient.findUnique({ where: { orderId: assignment.orderId } });
       if (!recipient) throw new ConflictException({ code: 'RECIPIENT_REQUIRED', message: 'Buyer must set recipient contact before pickup' });
       const delivery = await tx.delivery.create({ data: { assignmentId, suborderId: assignment.suborderId, riderId, countryId: assignment.countryId, recipientId: recipient.id, pickupConfirmedAt: new Date(), pickupCommandKey: input.commandKey, pickupPayloadHash: payloadHash } });
