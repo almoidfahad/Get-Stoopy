@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { randomUUID, createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import http from 'node:http';
 import request from 'supertest';
 import pg from 'pg';
 import { Queue } from 'bullmq';
@@ -686,6 +687,73 @@ describe('cart and checkout quote orchestration', () => {
     }
     expect((await del(`${draftPath}?expectedDraftVersion=4`, buyer).expect(200)).body).toMatchObject({ state: 'EMPTY', draftVersion: 5 });
   }, 30000);
+
+  it('previews independent road distances for two stores using only a local synthetic route stub', async () => {
+    const buyer = await makeUser('test-road-preview');
+    const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    const first = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId: variantA, quantity: 1, expectedVersion: cart.body.version }).expect(201);
+    const second = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId: variantB, quantity: 1, expectedVersion: first.body.version }).expect(201);
+    const boundary = await asSuper(u.privileged, c => c.query(`SELECT id FROM "BoundaryVersion" WHERE "ownerType"='ZONE' AND "ownerId"=$1 AND "approvedBy" IS NOT NULL AND "validFrom"<=gs_dispatch_now()`, [zoneId]));
+    expect(boundary.rowCount).toBe(1);
+    const body = { expectedVersion: second.body.version, expectedDraftVersion: 0, serviceZoneId: zoneId, boundaryVersionId: boundary.rows[0].id, latitude: 12.751, longitude: 34.401, name: 'Synthetic Road Recipient', phone: '+8801712345678', addressLine: 'Synthetic road address' };
+    const draftPath = `/api/v1/commerce/carts/${cart.body.cartId}/recipient-draft`;
+    await put(draftPath, buyer, body).expect(200);
+    const path = `${draftPath}/road-distance-preview`;
+    const preview = { expectedVersion: body.expectedVersion, expectedDraftVersion: 1 };
+    expect((await post(path, buyer, preview).expect(503)).body.code).toBe('CHECKOUT_ROUTE_PREVIEW_DISABLED');
+    for (const vendor of [vendorA, vendorB]) {
+      await setStepUp(vendor.owner);
+      const pickup = await post(`/api/v1/catalog/stores/${vendor.storeId}/pickup-point`, vendor.owner, { latitude: 12.75, longitude: vendor.storeId === storeA ? 34.4 : 34.405 }).expect(201);
+      await post(`/api/v1/catalog/admin/stores/${vendor.storeId}/pickup-point/review`, serviceabilityAdmin, { version: pickup.body.version, decision: 'APPROVE', reason: 'synthetic pickup point verified' }).expect(201);
+    }
+    let captured: any; let mode = 'ok'; let resume!: () => void; let entered!: () => void;
+    let started = new Promise<void>(resolve => { entered = resolve; });
+    let gate = new Promise<void>(resolve => { resume = resolve; });
+    const server = http.createServer((req, res) => {
+      let text = ''; req.on('data', chunk => { text += chunk; });
+      req.on('end', async () => {
+        captured = JSON.parse(text);
+        if (mode === 'wait') { entered(); await gate; }
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(mode === 'invalid' ? [{ originIndex: 0, destinationIndex: 0, condition: 'ROUTE_NOT_FOUND' }] : [
+          { originIndex: 1, destinationIndex: 0, distanceMeters: 3200, duration: '300s', condition: 'ROUTE_EXISTS' },
+          { originIndex: 0, destinationIndex: 0, distanceMeters: 1500, duration: '120s', condition: 'ROUTE_EXISTS' },
+        ]));
+      });
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const port = (server.address() as any).port;
+    const drafts = app.get(RecipientDraftService) as any;
+    const oldEnv = { ...drafts.env };
+    Object.assign(drafts.env, { ROAD_ROUTING_ENABLED: true, ROAD_ROUTING_PROVIDER: 'google_routes', GOOGLE_ROUTES_API_KEY: 'synthetic-route-key-not-real', GOOGLE_ROUTES_BASE_URL: `http://127.0.0.1:${port}` });
+    try {
+      await request(app.getHttpServer()).post(path).set('Cookie', `gs_session_dev=${buyer.token}`).set('Origin', origin).send(preview).expect(403);
+      await post(path, stranger, preview).expect(404);
+      const ok = await post(path, buyer, preview).expect(201);
+      expect(ok.headers['cache-control']).toBe('no-store');
+      expect(ok.body).toMatchObject({ cartId: cart.body.cartId, cartVersion: body.expectedVersion, draftVersion: 1, mode: 'TEST_ONLY', routeType: 'INDIVIDUAL_STORE_TO_DESTINATION', quoteBound: false, coverageGuaranteed: false, orderAvailable: false, deliveryFeeMinor: null, totalMinor: null });
+      expect(ok.body.distances).toHaveLength(2);
+      expect(ok.body.distances.map((row: any) => row.storeId)).toEqual([storeA, storeB].sort());
+      expect(ok.body.distances.map((row: any) => row.distanceMeters)).toEqual([1500, 3200]);
+      for (const secret of [body.name, body.phone, body.addressLine, String(body.latitude), String(body.longitude)]) expect(JSON.stringify(ok.body)).not.toContain(secret);
+      expect(captured.origins).toHaveLength(2); expect(captured.destinations).toHaveLength(1);
+      for (const secret of [body.name, body.phone, body.addressLine]) expect(JSON.stringify(captured)).not.toContain(secret);
+      mode = 'invalid';
+      expect((await post(path, buyer, preview).expect(503)).body.code).toBe('CHECKOUT_ROUTE_PREVIEW_UNAVAILABLE');
+      mode = 'wait';
+      const pending = post(path, buyer, preview).then((res: any) => res);
+      try {
+        await started;
+        await patch(`/api/v1/commerce/carts/${cart.body.cartId}/items/${variantA}`, buyer, { quantity: 2, expectedVersion: body.expectedVersion }).expect(200);
+      } finally { resume(); }
+      const stale = await pending;
+      expect(stale.status).toBe(409); expect(stale.body.code).toBe('CHECKOUT_CART_VERSION_CONFLICT');
+      for (const secret of [body.name, body.phone, body.addressLine]) expect(JSON.stringify(stale.body)).not.toContain(secret);
+    } finally {
+      Object.assign(drafts.env, oldEnv);
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
+  }, 120000);
 
   it('denies legacy COD collection for a real two-store order without changing financial state', async () => {
     const buyer = await makeUser('cod-multi');

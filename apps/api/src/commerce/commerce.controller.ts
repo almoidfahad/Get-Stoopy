@@ -77,6 +77,8 @@ export class CommerceController {
   saveDraft(@Req() req: Request, @Param('cartId', ParseUUIDPipe) cartId: string, @Body() body: SaveRecipientDraftDto) { return this.drafts.save(this.ctx(req), cartId, body); }
   @Post('carts/:cartId/recipient-draft/preview') @Header('Cache-Control', 'no-store') @UseGuards(CsrfGuard)
   previewSavedDraft(@Req() req: Request, @Param('cartId', ParseUUIDPipe) cartId: string, @Body() body: PreviewSavedRecipientDraftDto) { return this.drafts.previewSaved(this.ctx(req), cartId, body); }
+  @Post('carts/:cartId/recipient-draft/road-distance-preview') @Header('Cache-Control', 'no-store') @UseGuards(CsrfGuard)
+  previewRoadDistances(@Req() req: Request, @Param('cartId', ParseUUIDPipe) cartId: string, @Body() body: PreviewSavedRecipientDraftDto) { return this.drafts.previewRoadDistances(this.ctx(req), cartId, body); }
   @Delete('carts/:cartId/recipient-draft') @Header('Cache-Control', 'no-store') @UseGuards(CsrfGuard)
   clearDraft(@Req() req: Request, @Param('cartId', ParseUUIDPipe) cartId: string, @Query('expectedDraftVersion') raw?: string) {
     if (!raw || !/^(0|[1-9][0-9]{0,9})$/.test(raw)) throw new BadRequestException({ code: 'DRAFT_VERSION_INVALID', message: 'expectedDraftVersion is required' });

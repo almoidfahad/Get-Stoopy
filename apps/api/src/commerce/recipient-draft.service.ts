@@ -6,6 +6,7 @@ import type { ApiEnv } from '@getstoopy/config';
 import { ENV } from '../common/env.js';
 import { PrivilegedPrismaService, setRls } from '../common/prisma.js';
 import { CommerceService } from './commerce.service.js';
+import { GoogleRoutesRoadRouteMatrix } from '../dispatch/road-route.adapter.js';
 
 type DraftInput = { expectedVersion: number; expectedDraftVersion: number; serviceZoneId: string; boundaryVersionId: string; latitude: number; longitude: number; name: string; phone: string; addressLine: string };
 type DraftEnvelope = { cartId: string; userId: string; cartVersion: number; serviceZoneId: string; boundaryVersionId: string; latitude: number; longitude: number; name: string; phone: string; addressLine: string };
@@ -112,6 +113,64 @@ export class RecipientDraftService {
       if (row.expiresAt <= await this.now(tx)) throw new ConflictException({ code: 'CHECKOUT_DRAFT_EXPIRED', message: 'Recipient draft has expired' });
       return { ...result, recipientSaved: true, draftVersion: row.version, quoteBound: false, coverageGuaranteed: false };
     }, { isolationLevel: 'RepeatableRead' });
+  }
+
+  /**
+   * Synthetic test-only road-distance preview. One independent route per store,
+   * not a multi-stop itinerary, map polyline, price or delivery guarantee.
+   * The only permitted provider is an explicitly configured local HTTP stub.
+   */
+  async previewRoadDistances(ctx: AccessContext, cartId: string, input: { expectedVersion: number; expectedDraftVersion: number }) {
+    const key = this.key();
+    this.version(input.expectedDraftVersion);
+    if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1 || input.expectedVersion > 2147483647) throw new BadRequestException({ code: 'VERSION_INVALID', message: 'Invalid cart version' });
+    if (input.expectedDraftVersion < 1) throw new BadRequestException({ code: 'DRAFT_VERSION_INVALID', message: 'Invalid draft version' });
+    let origin: string;
+    try {
+      const url = new URL(this.env.GOOGLE_ROUTES_BASE_URL);
+      if (!this.env.ROAD_ROUTING_ENABLED || this.env.ROAD_ROUTING_PROVIDER !== 'google_routes' || !this.env.GOOGLE_ROUTES_API_KEY || url.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(url.hostname) || !url.port || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('invalid stub');
+      origin = url.origin;
+    } catch { throw new ServiceUnavailableException({ code: 'CHECKOUT_ROUTE_PREVIEW_DISABLED', message: 'Road distance preview is not available' }); }
+
+    const snapshot = async () => this.db.$transaction(async tx => {
+      await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      const cart = await this.cart(tx, ctx, cartId, false);
+      if (cart.version !== input.expectedVersion) throw new ConflictException({ code: 'CHECKOUT_CART_VERSION_CONFLICT', message: 'Cart changed; refresh before checking delivery' });
+      const row = await tx.checkoutRecipientDraft.findUnique({ where: { cartId: cart.id } });
+      if ((row?.version ?? 0) !== input.expectedDraftVersion) throw new ConflictException({ code: 'CHECKOUT_DRAFT_VERSION_CONFLICT', message: 'Recipient draft changed; reload before checking delivery' });
+      if (!row?.envelope) throw new ConflictException({ code: 'CHECKOUT_DRAFT_REQUIRED', message: 'Save a recipient draft before checking delivery' });
+      if (!row.expiresAt || row.expiresAt <= await this.now(tx)) throw new ConflictException({ code: 'CHECKOUT_DRAFT_EXPIRED', message: 'Recipient draft has expired' });
+      const data = this.decrypt(row.envelope, key, cart);
+      if (data.cartVersion !== cart.version) throw new ConflictException({ code: 'CHECKOUT_DRAFT_CART_CHANGED', message: 'Cart changed since the recipient draft was saved' });
+      const coverage = await this.commerce.previewDeliveryTx(tx, ctx, cart.id, { ...data, expectedVersion: cart.version });
+      const items = await tx.cartItem.findMany({ where: { cartId: cart.id }, select: { storeId: true } });
+      const storeIds = [...new Set(items.map(item => item.storeId))].sort();
+      // Provider matrix supports at most 25 origins; never truncate a cart.
+      if (!storeIds.length || storeIds.length > 25) throw new ConflictException({ code: 'CHECKOUT_ROUTE_STORE_LIMIT', message: 'Road distance preview is unavailable for this cart' });
+      const points = await tx.$queryRaw<{ storeId: string; version: number; latitude: number; longitude: number }[]>`
+        SELECT "storeId", version, ST_Y("pickupPoint") AS latitude, ST_X("pickupPoint") AS longitude
+        FROM "StorePickupPoint" WHERE "storeId"=ANY(${storeIds}::uuid[]) AND status='APPROVED' ORDER BY "storeId"`;
+      if (points.length !== storeIds.length || points.some((point, i) => point.storeId !== storeIds[i])) throw new ConflictException({ code: 'CHECKOUT_ROUTE_PICKUP_REQUIRED', message: 'Approved pickup points are required' });
+      for (const point of points) {
+        try { assertLatitudeLongitude(point.latitude, point.longitude); } catch { throw new ConflictException({ code: 'CHECKOUT_ROUTE_PICKUP_REQUIRED', message: 'Approved pickup points are required' }); }
+      }
+      if (row.expiresAt <= await this.now(tx)) throw new ConflictException({ code: 'CHECKOUT_DRAFT_EXPIRED', message: 'Recipient draft has expired' });
+      return { cartId: cart.id, cartVersion: cart.version, draftVersion: row.version, expiresAt: row.expiresAt.toISOString(), serviceZoneId: coverage.serviceZoneId, boundaryVersionId: coverage.boundaryVersionId, destination: { latitude: data.latitude, longitude: data.longitude }, points };
+    }, { isolationLevel: 'RepeatableRead' });
+
+    const before = await snapshot();
+    let elements;
+    try {
+      const provider = new GoogleRoutesRoadRouteMatrix({ apiKey: this.env.GOOGLE_ROUTES_API_KEY!, baseUrl: origin, testMode: true });
+      const result = await provider.computeMatrix({ origins: before.points.map(({ latitude, longitude }) => ({ latitude, longitude })), destinations: [before.destination], travelMode: 'TWO_WHEELER' });
+      elements = result.elements;
+    } catch { throw new ServiceUnavailableException({ code: 'CHECKOUT_ROUTE_PREVIEW_UNAVAILABLE', message: 'Road distance preview is unavailable' }); }
+    // The provider call occurs outside a DB transaction. Recheck the saved
+    // draft, cart, coverage and pickup points, but do not claim future validity.
+    const after = await snapshot();
+    if (JSON.stringify(before) !== JSON.stringify(after)) throw new ConflictException({ code: 'CHECKOUT_ROUTE_PREVIEW_CHANGED', message: 'Delivery details changed; retry the preview' });
+    const distances = before.points.map((point, i) => ({ storeId: point.storeId, distanceMeters: elements.find(element => element.originIndex === i && element.destinationIndex === 0)!.distanceMeters }));
+    return { cartId: before.cartId, cartVersion: before.cartVersion, draftVersion: before.draftVersion, mode: 'TEST_ONLY', routeType: 'INDIVIDUAL_STORE_TO_DESTINATION', distances, quoteBound: false, coverageGuaranteed: false, orderAvailable: false, deliveryFeeMinor: null, totalMinor: null };
   }
 
   async clear(ctx: AccessContext, cartId: string, expectedDraftVersion: number) {
