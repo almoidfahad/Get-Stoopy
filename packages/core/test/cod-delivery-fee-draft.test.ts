@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { draftCodDeliveryFee } from '../src/cod-delivery-fee-draft';
+import { draftCodDeliveryFee, draftCodDistanceTier } from '../src/cod-delivery-fee-draft';
 
 describe('unwired COD delivery fee amount lookup', () => {
   it.each([
@@ -16,5 +16,18 @@ describe('unwired COD delivery fee amount lookup', () => {
   });
   it('never returns more than ৳30 for any of the specified Purbadhala tiers', () => {
     for (const tier of ['NEAR', 'MEDIUM', 'FAR'] as const) expect(draftCodDeliveryFee('PURBADHALA_SADAR', tier).feeMinor).toBeLessThanOrEqual(3000n);
+  });
+  it.each([
+    [0, 'NEAR', 2000n, 2000n], [1000, 'NEAR', 2000n, 2000n],
+    [1001, 'MEDIUM', 3000n, 2500n], [2000, 'MEDIUM', 3000n, 2500n],
+    [2001, 'FAR', 4000n, 3000n], [3000, 'FAR', 4000n, 3000n],
+  ] as const)('classifies %i meters at the specified inclusive boundaries', (meters, tier, mymensinghFee, purbadhalaFee) => {
+    expect(draftCodDistanceTier(meters)).toBe(tier);
+    expect(draftCodDeliveryFee('MYMENSINGH_CITY', draftCodDistanceTier(meters)).feeMinor).toBe(mymensinghFee);
+    expect(draftCodDeliveryFee('PURBADHALA_SADAR', draftCodDistanceTier(meters)).feeMinor).toBe(purbadhalaFee);
+  });
+  it('rejects missing, invalid and out-of-range distances, without rounding or fallback', () => {
+    for (const bad of [-1, 1.1, Number.NaN, Infinity, -Infinity, null, undefined, '1000', {}, Number.MAX_SAFE_INTEGER + 1]) expect(() => draftCodDistanceTier(bad as any)).toThrow('DELIVERY_DISTANCE_INVALID');
+    for (const bad of [3001, 1000000]) expect(() => draftCodDistanceTier(bad)).toThrow('DELIVERY_DISTANCE_OUT_OF_RANGE');
   });
 });
