@@ -86,6 +86,9 @@ export class RecipientDraftService {
       if (!row || !row.envelope) return { cartId: cart.id, draftVersion: row?.version ?? 0, state: 'EMPTY', draft: null };
       if (!row.expiresAt || row.expiresAt <= await this.now(tx)) return { cartId: cart.id, draftVersion: row.version, state: 'EXPIRED', draft: null };
       const data = this.decrypt(row.envelope, key, cart);
+      // Decryption and validation may cross the logical expiry boundary. Match
+      // saved preview: recheck database wall time before returning contact data.
+      if (row.expiresAt <= await this.now(tx)) return { cartId: cart.id, draftVersion: row.version, state: 'EXPIRED', draft: null };
       return { cartId: cart.id, draftVersion: row.version, state: 'DRAFT', expiresAt: row.expiresAt, draft: { cartVersion: data.cartVersion, serviceZoneId: data.serviceZoneId, boundaryVersionId: data.boundaryVersionId, latitude: data.latitude, longitude: data.longitude, name: data.name, phone: data.phone, addressLine: data.addressLine }, quoteBound: false, coverageGuaranteed: false };
     }, { isolationLevel: 'RepeatableRead' });
   }

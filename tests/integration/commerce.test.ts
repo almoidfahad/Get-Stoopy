@@ -662,6 +662,18 @@ describe('cart and checkout quote orchestration', () => {
     const stillSaved = await get(draftPath, buyer).expect(200);
     expect(stillSaved.body).toMatchObject({ state: 'DRAFT', draftVersion: 3 });
 
+    // Read must not return contact data when the logical expiry is crossed
+    // after the initial check but before the response is assembled.
+    const readClock = vi.spyOn(drafts, 'now').mockResolvedValueOnce(new Date(expiresAt.getTime() - 1)).mockResolvedValueOnce(expiresAt);
+    try {
+      const expiredRead = await get(draftPath, buyer).expect(200);
+      expect(expiredRead.body).toEqual({ cartId: cart.body.cartId, draftVersion: 3, state: 'EXPIRED', draft: null });
+      expect(expiredRead.headers['cache-control']).toBe('no-store');
+      for (const secret of [body.name, body.phone, body.addressLine, String(body.latitude), String(body.longitude)]) expect(JSON.stringify(expiredRead.body)).not.toContain(secret);
+      expect(readClock).toHaveBeenCalledTimes(2);
+    } finally { readClock.mockRestore(); }
+    expect((await get(draftPath, buyer).expect(200)).body).toMatchObject({ state: 'DRAFT', draftVersion: 3 });
+
     // Test-only corruption simulates a damaged ciphertext or unavailable key.
     // The API must never return the envelope or decryption failure details.
     const corrupt = 'private-corrupted-envelope';
