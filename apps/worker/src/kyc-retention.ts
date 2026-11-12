@@ -6,15 +6,23 @@ export interface KycRetentionTickResult { expired:number; purged:number; failed:
 const SYSTEM_USER='00000000-0000-0000-0000-000000000000';
 async function beginSuper(client:PoolClient){await client.query('BEGIN');await client.query("SELECT set_config('app.is_super','true',true)");await client.query("SELECT set_config('app.user_id',$1,true)",[SYSTEM_USER]);}
 
-/** Bounded expiry + approved purge. Every privileged context is transaction-local.
- * A storage failure rolls back only that request; the durable request remains APPROVED for retry. */
-export async function runKycRetentionTick(pool:Pool,storage:ObjectStorage,log:StructuredLogger,batchSize:number):Promise<KycRetentionTickResult>{
+/** Bounded expiry + test-only approved purge. Every privileged context is transaction-local.
+ * Object deletion is external to PostgreSQL and cannot be rolled back. */
+export async function runKycRetentionTick(pool:Pool,storage:ObjectStorage,log:StructuredLogger,batchSize:number,options?:{nodeEnv:string}):Promise<KycRetentionTickResult>{
  let client:PoolClient|undefined;const result:KycRetentionTickResult={expired:0,purged:0,failed:0};
  try{
   client=await pool.connect();
   await beginSuper(client);
   const expired=Number((await client.query('SELECT gs_kyc_retention_tick($1,NULL::uuid) AS n',[batchSize])).rows[0].n);
   await client.query('COMMIT');result.expired=expired;
+  // External deletion is not transactionally reversible. Until a durable,
+  // reviewed recovery and legal-hold protocol exists, do not purge outside
+  // disposable test environments. Expiry/restriction remains available.
+  if(options?.nodeEnv!=='test'){
+   log.warn('kyc_retention_purge_disabled',{reason:'TEST_ONLY'});
+   if(result.expired)log.info('kyc_retention_batch',{...result});
+   return result;
+  }
   await beginSuper(client);
   const requests=await client.query(`SELECT r.id,r."caseId",r."countryId" FROM "KycDeletionRequest" r JOIN "KycCase" c ON c.id=r."caseId" WHERE r.status='APPROVED' AND r."dueAt"<=CURRENT_TIMESTAMP AND c.status IN ('REJECTED','REVOKED','EXPIRED') AND NOT EXISTS (SELECT 1 FROM "KycLegalHold" h WHERE h."caseId"=c.id AND h."releasedAt" IS NULL) AND NOT EXISTS (SELECT 1 FROM "Vendor" v WHERE v."kycCaseId"=c.id AND v.status='ACTIVE') AND NOT EXISTS (SELECT 1 FROM "RiderProfile" rp WHERE rp."kycCaseId"=c.id AND rp.status='ACTIVE') ORDER BY r."dueAt",r.id LIMIT $1`,[batchSize]);
   await client.query('COMMIT');

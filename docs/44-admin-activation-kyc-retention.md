@@ -18,7 +18,7 @@ Status: implemented in development; production enablement requires owner/legal s
 ## Legal hold and deletion
 - A legal hold blocks deletion requests, approval and purge. Release requires a reason and is audited.
 - Deletion is maker–checker: requester prepares only after `retentionDueAt`; a different reviewer approves/rejects. Active linked parties block purge.
-- The worker (`KYC_RETENTION_ENABLED=true`, privileged DB + storage key) deletes encrypted objects, tombstones `StorageObject` as `DELETED`, marks the request `PURGED`, and appends retention/audit events. Storage failures other than missing objects roll back the request and leave it `APPROVED` for retry; privileged context is transaction-local.
+- The worker (`KYC_RETENTION_ENABLED=true`, privileged DB + storage key) can expire KYC and restrict linked parties, but external object purge is now **test-only**; see `docs/177-kyc-purge-test-only.md`. In tests it deletes encrypted objects, tombstones `StorageObject`, marks the request `PURGED`, and appends retention/audit events. A database rollback cannot restore objects already deleted, including on a partial failure. Privileged context is transaction-local.
 - Database triggers prevent unapproved linked-storage mutation/deletion.
 
 ## Operations

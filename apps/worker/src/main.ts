@@ -79,7 +79,7 @@ async function dispatchExpiryLoop() {
     await new Promise(r => setTimeout(r, env.DISPATCH_EXPIRY_POLL_MS));
   }
 }
-async function kycRetentionLoop() { while (!stopping && kycPool && kycStorage) { await runKycRetentionTick(kycPool, kycStorage, log, env.KYC_RETENTION_BATCH_SIZE); await new Promise(r => setTimeout(r, env.KYC_RETENTION_POLL_MS)); } }
+async function kycRetentionLoop() { while (!stopping && kycPool && kycStorage) { await runKycRetentionTick(kycPool, kycStorage, log, env.KYC_RETENTION_BATCH_SIZE, { nodeEnv: env.NODE_ENV }); await new Promise(r => setTimeout(r, env.KYC_RETENTION_POLL_MS)); } }
 async function checkoutDraftRetentionLoop() { while (!stopping && checkoutDraftPool) { await runCheckoutDraftRetentionTick(checkoutDraftPool, log, env.CHECKOUT_DRAFT_RETENTION_BATCH_SIZE); await new Promise(r => setTimeout(r, env.CHECKOUT_DRAFT_RETENTION_POLL_MS)); } }
 async function shutdown() { stopping = true; await worker.close(); await queue.close(); await queueConnection.quit(); await workerConnection.quit(); await pool.end(); if (inventoryPool) await inventoryPool.end(); if (dispatchPool) await dispatchPool.end(); if (kycPool) await kycPool.end(); if (checkoutDraftPool) await checkoutDraftPool.end(); process.exit(0); }
 process.on('SIGTERM', shutdown); process.on('SIGINT', shutdown);
