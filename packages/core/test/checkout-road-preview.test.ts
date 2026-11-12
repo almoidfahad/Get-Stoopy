@@ -14,7 +14,7 @@ describe('test-only checkout road-distance preview boundaries', () => {
     expect(db.$transaction).not.toHaveBeenCalled();
   });
   it('rejects nonlocal or malformed provider endpoints before database or network access', async () => {
-    for (const url of ['https://routes.googleapis.com', 'http://127.0.0.2:9999', 'http://localhost.evil.example:9999', 'http://127.0.0.1', 'http://user:pass@127.0.0.1:9999', 'http://127.0.0.1:9999/proxy', 'http://127.0.0.1:9999?x=1', 'file:///etc/passwd', 'invalid']) {
+    for (const url of ['https://routes.googleapis.com', 'http://127.0.0.2:9999', 'http://localhost:9999', 'http://localhost.evil.example:9999', 'http://127.0.0.1', 'http://user:pass@127.0.0.1:9999', 'http://127.0.0.1:9999/proxy', 'http://127.0.0.1:9999?x=1', 'file:///etc/passwd', 'invalid']) {
       const db = { $transaction: vi.fn() };
       const service = new RecipientDraftService(db as any, { ...base, GOOGLE_ROUTES_BASE_URL: url } as any, {} as any);
       await expect(service.previewRoadDistances(ctx, 'cart', input)).rejects.toMatchObject({ status: 503, response: { code: 'CHECKOUT_ROUTE_PREVIEW_DISABLED' } });

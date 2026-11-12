@@ -706,14 +706,16 @@ describe('cart and checkout quote orchestration', () => {
       const pickup = await post(`/api/v1/catalog/stores/${vendor.storeId}/pickup-point`, vendor.owner, { latitude: 12.75, longitude: vendor.storeId === storeA ? 34.4 : 34.405 }).expect(201);
       await post(`/api/v1/catalog/admin/stores/${vendor.storeId}/pickup-point/review`, serviceabilityAdmin, { version: pickup.body.version, decision: 'APPROVE', reason: 'synthetic pickup point verified' }).expect(201);
     }
-    let captured: any; let mode = 'ok'; let resume!: () => void; let entered!: () => void;
+    let captured: any; let mode = 'ok'; let redirectVisits = 0; let resume!: () => void; let entered!: () => void;
     let started = new Promise<void>(resolve => { entered = resolve; });
     let gate = new Promise<void>(resolve => { resume = resolve; });
     const server = http.createServer((req, res) => {
       let text = ''; req.on('data', chunk => { text += chunk; });
       req.on('end', async () => {
+        if (req.url === '/redirect-target') { redirectVisits++; res.writeHead(500); res.end(); return; }
         captured = JSON.parse(text);
         if (mode === 'wait') { entered(); await gate; }
+        if (mode === 'redirect') { res.writeHead(307, { Location: '/redirect-target' }); res.end(); return; }
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(mode === 'invalid' ? [{ originIndex: 0, destinationIndex: 0, condition: 'ROUTE_NOT_FOUND' }] : [
           { originIndex: 1, destinationIndex: 0, distanceMeters: 3200, duration: '300s', condition: 'ROUTE_EXISTS' },
@@ -740,6 +742,9 @@ describe('cart and checkout quote orchestration', () => {
       for (const secret of [body.name, body.phone, body.addressLine]) expect(JSON.stringify(captured)).not.toContain(secret);
       mode = 'invalid';
       expect((await post(path, buyer, preview).expect(503)).body.code).toBe('CHECKOUT_ROUTE_PREVIEW_UNAVAILABLE');
+      mode = 'redirect';
+      expect((await post(path, buyer, preview).expect(503)).body.code).toBe('CHECKOUT_ROUTE_PREVIEW_UNAVAILABLE');
+      expect(redirectVisits).toBe(0);
       mode = 'wait';
       const pending = post(path, buyer, preview).then((res: any) => res);
       try {

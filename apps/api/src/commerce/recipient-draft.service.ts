@@ -128,7 +128,7 @@ export class RecipientDraftService {
     let origin: string;
     try {
       const url = new URL(this.env.GOOGLE_ROUTES_BASE_URL);
-      if (!this.env.ROAD_ROUTING_ENABLED || this.env.ROAD_ROUTING_PROVIDER !== 'google_routes' || !this.env.GOOGLE_ROUTES_API_KEY || url.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(url.hostname) || !url.port || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('invalid stub');
+      if (!this.env.ROAD_ROUTING_ENABLED || this.env.ROAD_ROUTING_PROVIDER !== 'google_routes' || !this.env.GOOGLE_ROUTES_API_KEY || url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || !url.port || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('invalid stub');
       origin = url.origin;
     } catch { throw new ServiceUnavailableException({ code: 'CHECKOUT_ROUTE_PREVIEW_DISABLED', message: 'Road distance preview is not available' }); }
 
@@ -161,7 +161,8 @@ export class RecipientDraftService {
     const before = await snapshot();
     let elements;
     try {
-      const provider = new GoogleRoutesRoadRouteMatrix({ apiKey: this.env.GOOGLE_ROUTES_API_KEY!, baseUrl: origin, testMode: true });
+      // Never forward test coordinates or the stub key to a redirect target.
+      const provider = new GoogleRoutesRoadRouteMatrix({ apiKey: this.env.GOOGLE_ROUTES_API_KEY!, baseUrl: origin, testMode: true, fetchImpl: (url, init) => fetch(url, { ...init, redirect: 'error' }) });
       const result = await provider.computeMatrix({ origins: before.points.map(({ latitude, longitude }) => ({ latitude, longitude })), destinations: [before.destination], travelMode: 'TWO_WHEELER' });
       elements = result.elements;
     } catch { throw new ServiceUnavailableException({ code: 'CHECKOUT_ROUTE_PREVIEW_UNAVAILABLE', message: 'Road distance preview is unavailable' }); }
