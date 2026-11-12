@@ -188,6 +188,8 @@ describe('order/payment/COD sandbox foundation', () => {
     const quote = await createQuote(2);
     const commandKey = `order-${randomUUID().slice(0, 8)}`;
     const order = await post('/api/v1/orders', customer, { quoteId: quote.quoteId, expectedQuoteVersion: quote.version, commandKey, paymentMethod: 'SANDBOX_MANUAL' }).expect(201);
+    expect(order.headers['cache-control']).toBe('no-store');
+    expect((await get(`/api/v1/orders/${order.body.orderId}`, customer).expect(200)).headers['cache-control']).toBe('no-store');
     expect(order.body.amountMinor).toBe('2000');
     expect(order.body.paymentStatus).toBe('AWAITING_PAYMENT');
     expect(order.body.suborders).toHaveLength(1);
