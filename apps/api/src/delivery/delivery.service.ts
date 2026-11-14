@@ -8,6 +8,7 @@ import { assertDeliveryCommandKey, deliveryCompletionGate, deliveryOtpHash, gene
 import { DELIVERY_OTP_CHANNEL, type DeliveryOtpChannel } from './delivery-otp.channel.js';
 import { RiskSignalProducerService } from '../risk/risk-signal-producer.service.js';
 import { FinanceService } from '../finance/finance.service.js';
+import { assertCodSuborderSafe, assertLegacyCodCollectionSafe } from '../finance/cod-collection-safety.js';
 
 function hashPayload(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 function commandKey(key: string): void { try { assertDeliveryCommandKey(key); } catch (e: any) { throw new BadRequestException({ code: e.message ?? 'DELIVERY_COMMAND_KEY_INVALID', message: 'Invalid delivery command key' }); } }
@@ -55,6 +56,10 @@ export class DeliveryService {
     if (!name || name.length < 2 || name.length > 120) throw new BadRequestException({ code: 'RECIPIENT_NAME_INVALID', message: 'Recipient name is invalid' });
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      // Serialize the immutable one-per-order contact with retries and order
+      // cancellation, before checking either the existing contact or status.
+      const locked = await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id"=${orderId}::uuid AND "buyerId"=${ctx.userId}::uuid FOR UPDATE`;
+      if (!(locked as unknown[]).length) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
       const order = await tx.order.findFirst({ where: { id: orderId, buyerId: ctx.userId }, include: { country: true } });
       if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
       let phone: string;
@@ -66,6 +71,7 @@ export class DeliveryService {
         if (existing.commandKey !== input.commandKey || existing.payloadHash !== payloadHash) throw new ConflictException({ code: 'RECIPIENT_ALREADY_SET', message: 'Recipient contact is immutable once set' });
         return { recipientId: existing.id, orderId, maskedPhone: maskPhone(phone), duplicate: true };
       }
+      if (order.lifecycleStatus !== 'ACTIVE') throw new ConflictException({ code: 'ORDER_NOT_ACTIVE', message: 'Recipient cannot be added to a cancelled order' });
       const contactEnvelope = Buffer.from(encryptJson({ name, phoneE164: phone }, encryptionKey));
       const recipient = await tx.deliveryRecipient.create({ data: { orderId, countryId: order.countryId, contactEnvelope, phoneHash, commandKey: input.commandKey, payloadHash, setByUserId: ctx.userId } });
       await this.audit(tx, ctx, 'commerce.order.recipient_set', recipient.id, order.countryId);
@@ -87,6 +93,8 @@ export class DeliveryService {
         return { deliveryId: existing.id, assignmentId, status: existing.status, version: existing.version, duplicate: true };
       }
       if (assignment.status !== 'ACTIVE' || assignment.suborderStatus !== 'READY_FOR_PICKUP') throw new ConflictException({ code: 'PICKUP_NOT_READY', message: 'Assignment/suborder is not ready for pickup' });
+      // An assignment may have been accepted before the dispatch guard existed.
+      await assertCodSuborderSafe(tx, assignment.suborderId);
       const recipient = await tx.deliveryRecipient.findUnique({ where: { orderId: assignment.orderId } });
       if (!recipient) throw new ConflictException({ code: 'RECIPIENT_REQUIRED', message: 'Buyer must set recipient contact before pickup' });
       const delivery = await tx.delivery.create({ data: { assignmentId, suborderId: assignment.suborderId, riderId, countryId: assignment.countryId, recipientId: recipient.id, pickupConfirmedAt: new Date(), pickupCommandKey: input.commandKey, pickupPayloadHash: payloadHash } });
@@ -108,12 +116,17 @@ export class DeliveryService {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
       const delivery = await this.lockDelivery(tx, deliveryId);
       if (delivery.riderId !== riderId) throw new NotFoundException({ code: 'DELIVERY_NOT_FOUND', message: 'Delivery not found' });
-      if (delivery.status !== 'PICKED_UP') throw new ConflictException({ code: 'OTP_NOT_ALLOWED', message: 'OTP is allowed only after pickup and before delivery proof' });
+      // Replays remain readable after proof/completion, but never issue another OTP.
+      // Rider authorization and the delivery lock still precede the replay lookup.
       const existingCommand = await tx.deliveryOtpChallenge.findUnique({ where: { deliveryId_commandKey: { deliveryId, commandKey: input.commandKey } } });
       if (existingCommand) {
         if (existingCommand.payloadHash !== payloadHash) throw new ConflictException({ code: 'DELIVERY_IDEMPOTENCY_CONFLICT', message: 'Command key already used with different payload' });
         return { challengeId: existingCommand.id, status: existingCommand.status, expiresAt: existingCommand.expiresAt, sequence: existingCommand.sequence, duplicate: true };
       }
+      if (delivery.status !== 'PICKED_UP') throw new ConflictException({ code: 'OTP_NOT_ALLOWED', message: 'OTP is allowed only after pickup and before delivery proof' });
+      // Multiple suborders can share one order recipient. Serialize their issue
+      // counts through commit before sampling the database clock and cap.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`delivery-otp-recipient:${delivery.recipientId.toLowerCase()}`}, 0))`;
       const open = await tx.deliveryOtpChallenge.findFirst({ where: { deliveryId, status: 'ISSUED' } });
       const nowRows = await tx.$queryRaw`SELECT gs_dispatch_now() AS now`;
       const now = new Date((nowRows as any[])[0].now);
@@ -159,17 +172,20 @@ export class DeliveryService {
         if (existingAttempt.payloadHash !== payloadHash) throw new ConflictException({ code: 'DELIVERY_IDEMPOTENCY_CONFLICT', message: 'Command key already used with different payload' });
         return { deliveryId, challengeId, outcome: existingAttempt.outcome, duplicate: true };
       }
-      const recentAttempts = await tx.deliveryOtpAttempt.count({ where: { actorUserId: ctx.userId, occurredAt: { gt: new Date(Date.now() - 60_000) } } });
-      if (recentAttempts >= 10) throw new ConflictException({ code: 'OTP_RATE_LIMIT', message: 'Too many OTP attempts' });
+      // Delivery/challenge locks alone do not serialize attempts by the same
+      // rider on different deliveries. Hold a rider-scoped lock through commit.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`delivery-otp-attempt:${ctx.userId.toLowerCase()}`}, 0))`;
       const nowRows = await tx.$queryRaw`SELECT gs_dispatch_now() AS now`;
       const now = new Date((nowRows as any[])[0].now);
+      const recentAttempts = await tx.deliveryOtpAttempt.count({ where: { actorUserId: ctx.userId, occurredAt: { gt: new Date(now.getTime() - 60_000) } } });
+      if (recentAttempts >= 10) throw new ConflictException({ code: 'OTP_RATE_LIMIT', message: 'Too many OTP attempts' });
       if (challenge.status !== 'ISSUED') {
-        await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, outcome: 'LOCKED' } });
+        await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, occurredAt: now, outcome: 'LOCKED' } });
         return { deliveryId, challengeId, outcome: 'LOCKED', duplicate: false };
       }
       if (now >= challenge.expiresAt) {
         await tx.deliveryOtpChallenge.update({ where: { id: challengeId }, data: { status: 'EXPIRED', closedAt: now } });
-        await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, outcome: 'EXPIRED' } });
+        await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, occurredAt: now, outcome: 'EXPIRED' } });
         return { deliveryId, challengeId, outcome: 'EXPIRED', duplicate: false };
       }
       const valid = verifyDeliveryOtp(pepper, challengeId, input.code, challenge.codeHash);
@@ -177,12 +193,12 @@ export class DeliveryService {
       if (!valid) {
         const locked = attempts >= challenge.maxAttempts;
         await tx.deliveryOtpChallenge.update({ where: { id: challengeId }, data: { attempts, ...(locked ? { status: 'LOCKED', closedAt: now } : {}) } });
-        const attempt = await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, outcome: locked ? 'LOCKED' : 'INVALID' } });
+        const attempt = await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, occurredAt: now, outcome: locked ? 'LOCKED' : 'INVALID' } });
         await this.riskSignals.otpInvalidAttempt(tx, attempt.id);
         return { deliveryId, challengeId, outcome: locked ? 'LOCKED' : 'INVALID', attemptsRemaining: Math.max(0, challenge.maxAttempts - attempts), duplicate: false };
       }
       await tx.deliveryOtpChallenge.update({ where: { id: challengeId }, data: { status: 'VERIFIED', attempts, verifiedAt: now, closedAt: now } });
-      await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, outcome: 'VALID' } });
+      await tx.deliveryOtpAttempt.create({ data: { challengeId, actorUserId: ctx.userId, commandKey: input.commandKey, payloadHash, occurredAt: now, outcome: 'VALID' } });
       const proof = await tx.deliveryProof.create({ data: { deliveryId, challengeId, verifiedByUserId: ctx.userId, verifiedAt: now, evidenceHash: hashPayload({ deliveryId, challengeId, challengeHash: challenge.codeHash }) } });
       await tx.delivery.update({ where: { id: deliveryId }, data: { status: 'DELIVERED', deliveredAt: now, version: { increment: 1 } } });
       const suborder = await tx.vendorSuborder.findUniqueOrThrow({ where: { id: delivery.suborderId } });
@@ -212,6 +228,7 @@ export class DeliveryService {
       const suborder = await tx.vendorSuborder.findUniqueOrThrow({ where: { id: delivery.suborderId }, include: { order: true } });
       const gate = deliveryCompletionGate({ deliveryStatus: delivery.status, proofVerified: !!proof, paymentMethod: suborder.order.paymentMethod, paymentStatus: suborder.order.paymentStatus, codAccountingVerified: suborder.order.paymentMethod === 'COD' });
       if (gate) throw new ConflictException({ code: gate, message: 'Delivery completion gate is not satisfied' });
+      if (suborder.order.paymentMethod === 'COD') await assertLegacyCodCollectionSafe(tx, suborder);
       const now = new Date();
       const updated = await tx.delivery.update({ where: { id: deliveryId }, data: { status: 'COMPLETED', completedAt: now, completionCommandKey: input.commandKey, completionPayloadHash: payloadHash, version: { increment: 1 } } });
       await tx.riderAssignment.update({ where: { id: assignment.id }, data: { status: 'COMPLETED' } });

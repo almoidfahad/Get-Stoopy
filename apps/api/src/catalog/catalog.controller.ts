@@ -7,6 +7,7 @@ import { CsrfGuard } from '../common/csrf.js';
 import { CatalogService } from './catalog.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import type { AccessContext } from '@getstoopy/core';
+import { optionalPublicSearch, optionalPublicString, optionalPublicUuid } from '../common/public-query.js';
 
 class CreateStoreDto {
   @IsUUID() vendorId!: string;
@@ -141,14 +142,15 @@ export class CatalogController {
 export class PublicCatalogController {
   constructor(@Inject(CatalogService) private readonly catalog: CatalogService) {}
   @Get('products')
-  list(@Query('countryId', ParseUUIDPipe) countryId: string, @Query('cityId') cityId?: string, @Query('categoryId') categoryId?: string, @Query('q') q?: string, @Query('limit') limit?: string, @Query('cursor') cursor?: string) {
-    const parsedLimit = limit === undefined ? 20 : Number(limit);
+  list(@Query('countryId', ParseUUIDPipe) countryId: string, @Query('cityId') cityId?: unknown, @Query('categoryId') categoryId?: unknown, @Query('q') q?: unknown, @Query('limit') limit?: unknown, @Query('cursor') cursor?: unknown) {
+    const rawLimit = optionalPublicString(limit, 'LIMIT_INVALID', 'limit must be 1-50');
+    const parsedLimit = rawLimit === undefined ? 20 : Number(rawLimit);
     if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 50) throw new BadRequestException({ code: 'LIMIT_INVALID', message: 'limit must be 1-50' });
-    if (cityId !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cityId)) throw new BadRequestException({ code: 'CITY_ID_INVALID', message: 'Invalid cityId' });
-    if (categoryId !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId)) throw new BadRequestException({ code: 'CATEGORY_ID_INVALID', message: 'Invalid categoryId' });
-    if (cursor !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cursor)) throw new BadRequestException({ code: 'CURSOR_INVALID', message: 'Invalid cursor' });
-    if (q !== undefined && q.length > 120) throw new BadRequestException({ code: 'QUERY_INVALID', message: 'q is too long' });
-    return this.catalog.publicList({ countryId, ...(cityId ? { cityId } : {}), ...(categoryId ? { categoryId } : {}), ...(q?.trim() ? { q: q.trim() } : {}), limit: parsedLimit, ...(cursor ? { cursor } : {}) });
+    const city = optionalPublicUuid(cityId, 'CITY_ID_INVALID', 'cityId');
+    const category = optionalPublicUuid(categoryId, 'CATEGORY_ID_INVALID', 'categoryId');
+    const pageCursor = optionalPublicUuid(cursor, 'CURSOR_INVALID', 'cursor');
+    const search = optionalPublicSearch(q, 120);
+    return this.catalog.publicList({ countryId: countryId.toLowerCase(), ...(city ? { cityId: city } : {}), ...(category ? { categoryId: category } : {}), ...(search ? { q: search } : {}), limit: parsedLimit, ...(pageCursor ? { cursor: pageCursor } : {}) });
   }
   @Get('categories')
   categories(@Query('countryId', ParseUUIDPipe) countryId: string) { return this.catalog.publicCategories(countryId); }

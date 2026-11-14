@@ -1,0 +1,9 @@
+# Add-to-cart keyboard focus
+
+On the product page, activating Add to cart disabled the focused button while the request was pending. Browsers moved keyboard focus to the document body. An uncertain response also disabled it; acknowledging that response removed the focused acknowledgement button without a focus destination.
+
+The add button now remains focusable and reports `aria-disabled` when an option or quantity is invalid, an update is pending, or a prior result is uncertain. Its explicit handler guard and the existing in-flight guard prevent posting in those states. The button is described by the relevant option, quantity or uncertainty guidance. A polite status announces an in-progress add. After the user explicitly acknowledges an uncertain result, focus returns to Add to cart. This is not automatic retry, and the warning that the earlier request may still finish remains. In-memory acknowledgement is not durable idempotency or a guarantee that retrying will avoid duplicates.
+
+Local results: 609 unit/component tests and typecheck passed. A production web build passed in an isolated temporary copy with its own dependencies. A previous build in that copy failed because it used a symlinked dependency tree outside the copy; the independent dependency tree resolved that build setup issue. Chromium at 320, 390 and 1440 CSS pixels used a synthetic catalog/session and intercepted delayed failure to verify focus during a request, blocking repeated keyboard activation, unknown-result handling, focus after acknowledgement, an explicit successful retry, selected Axe checks and horizontal overflow. The user database, identity provider, real cart API and production were not used.
+
+This is one UX improvement, not end-to-end marketplace or accessibility signoff. Full keyboard/screen-reader/device testing, real identity and cart integration, checkout and other workflows remain to be completed.

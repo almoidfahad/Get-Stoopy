@@ -514,6 +514,7 @@ model ServiceZone {
   deliveryDestinations    OrderDeliveryDestination[]
   pickupDispatchRuns      DispatchRun[]              @relation("DispatchPickupZone")
   destinationDispatchRuns DispatchRun[]              @relation("DispatchDestinationZone")
+  boundaryPointer         ZoneBoundaryPointer?
 
   @@unique([cityId, code])
 }
@@ -540,9 +541,36 @@ model BoundaryVersion {
   contentHash String
   createdAt   DateTime                                   @default(now())
 
-  deliveryDestinations OrderDeliveryDestination[]
+  deliveryDestinations    OrderDeliveryDestination[]
+  zonePointers            ZoneBoundaryPointer[]
+  pointerHistoryCurrent   ZoneBoundaryPointerHistory[] @relation("PointerHistoryCurrent")
+  pointerHistoryPrevious  ZoneBoundaryPointerHistory[] @relation("PointerHistoryPrevious")
 
   @@unique([ownerType, ownerId, version])
+}
+
+// Owner-only, isolated foundation; not used for live serviceability.
+model ZoneBoundaryPointer {
+  zoneId     String          @id @db.Uuid
+  boundaryId String          @db.Uuid
+  version    Int
+  zone       ServiceZone                 @relation(fields: [zoneId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  boundary   BoundaryVersion             @relation(fields: [boundaryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  history    ZoneBoundaryPointerHistory[]
+}
+
+// Owner-only structural change history; not an authenticated approval audit.
+model ZoneBoundaryPointerHistory {
+  zoneId             String              @db.Uuid
+  version            Int
+  boundaryId         String              @db.Uuid
+  previousBoundaryId String?             @db.Uuid
+  recordedAt         DateTime            @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(3)
+  pointer            ZoneBoundaryPointer @relation(fields: [zoneId], references: [zoneId], onDelete: Restrict, onUpdate: Restrict)
+  boundary           BoundaryVersion     @relation("PointerHistoryCurrent", fields: [boundaryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  previousBoundary   BoundaryVersion?    @relation("PointerHistoryPrevious", fields: [previousBoundaryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([zoneId, version])
 }
 
 model StorePickupPoint {
@@ -1536,9 +1564,19 @@ model Cart {
   country   Country         @relation(fields: [countryId], references: [id])
   items     CartItem[]
   quotes    CheckoutQuote[]
+  recipientDraft CheckoutRecipientDraft?
 
   @@unique([userId, countryId])
   @@index([countryId, createdAt])
+}
+
+model CheckoutRecipientDraft {
+  cartId    String   @id @db.Uuid
+  version   Int      @default(1)
+  envelope  Bytes?
+  expiresAt DateTime?
+  updatedAt DateTime @updatedAt
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Restrict)
 }
 
 model CartItem {

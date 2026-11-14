@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({ refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 import { AddToCart, CartLineControls } from '../src/components/cart-controls';
 
-const variants = [{ id: 'one', label: 'Small' }, { id: 'two', label: 'Large' }];
+const variants = [{ id: 'one', label: 'Small', priceLabel: 'BDT 12.00' }, { id: 'two', label: 'Large', priceLabel: 'BDT 14.00' }];
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe('cart controls interactions', () => {
@@ -19,12 +19,36 @@ describe('cart controls interactions', () => {
     expect(input.getAttribute('aria-invalid')).toBe('true');
     expect(screen.getByText('Enter a whole number between 1 and 100.')).toBeTruthy();
     const button = screen.getByRole('button', { name: 'Add to cart' }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(button);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+  it('requires an explicit option and shows its actual price before adding', () => {
+    render(<AddToCart variants={variants} signedIn />);
+    const select = screen.getByLabelText('Option') as HTMLSelectElement;
+    expect(select.value).toBe('');
+    expect(screen.getByRole('button', { name: 'Add to cart' }).getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByRole('option', { name: 'Small — BDT 12.00 each' })).toBeTruthy();
+    fireEvent.change(select, { target: { value: 'two' } });
+    expect(screen.getByText(/Selected:/).textContent).toContain('Large · BDT 14.00 each');
+    expect(screen.getByRole('button', { name: 'Add to cart' }).getAttribute('aria-disabled')).toBe('false');
+  });
+  it('asks for a choice even when only one option can be ordered', () => {
+    render(<AddToCart variants={[variants[0]!]} signedIn />);
+    expect((screen.getByLabelText('Option') as HTMLSelectElement).value).toBe('');
+    expect(screen.getByRole('button', { name: 'Add to cart' }).getAttribute('aria-disabled')).toBe('true');
+    fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'one' } });
+    expect(screen.getByText(/Selected:/).textContent).toContain('Small · BDT 12.00 each');
+  });
+  it('updates the displayed price if the selected option refreshes', () => {
+    const { rerender } = render(<AddToCart variants={variants} signedIn />);
+    fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'one' } });
+    rerender(<AddToCart variants={[{ ...variants[0]!, priceLabel: 'BDT 15.00' }, variants[1]!]} signedIn />);
+    expect(screen.getByText(/Selected:/).textContent).toContain('BDT 15.00 each');
+    expect(screen.getByText(/does not reserve stock/)).toBeTruthy();
+  });
   it('submits the chosen option and quantity and clears success when the entry changes', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 })); vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ mutationConfirmed: true }), { status: 200 })); vi.stubGlobal('fetch', fetchMock);
     render(<AddToCart variants={variants} signedIn />);
     fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'two' } });
     fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: '100' } });
@@ -41,27 +65,215 @@ describe('cart controls interactions', () => {
     const select = screen.getByLabelText('Option') as HTMLSelectElement;
     const button = screen.getByRole('button', { name: 'Add to cart' }) as HTMLButtonElement;
     expect(select.value).toBe('');
-    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
     fireEvent.change(select, { target: { value: 'one' } });
-    expect(button.disabled).toBe(false);
+    expect(button.getAttribute('aria-disabled')).toBe('false');
+  });
+  it('does not restore a vanished choice that later reappears', () => {
+    const { rerender } = render(<AddToCart variants={variants} signedIn />);
+    fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'two' } });
+    rerender(<AddToCart variants={[variants[0]!]} signedIn />);
+    rerender(<AddToCart variants={variants} signedIn />);
+    expect((screen.getByLabelText('Option') as HTMLSelectElement).value).toBe('');
+    expect(screen.getByRole('button', { name: 'Add to cart' }).getAttribute('aria-disabled')).toBe('true');
   });
   it('disables inputs during an in-flight request and avoids duplicate posts', async () => {
     let finish!: (value: Response) => void;
     const fetchMock = vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; })); vi.stubGlobal('fetch', fetchMock);
     render(<AddToCart variants={variants} signedIn />);
+    fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'one' } });
     const button = screen.getByRole('button', { name: 'Add to cart' });
     fireEvent.click(button); fireEvent.click(button);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect((screen.getByLabelText('Quantity') as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByLabelText('Option') as HTMLSelectElement).disabled).toBe(true);
-    finish(new Response('{}', { status: 200 }));
+    finish(new Response(JSON.stringify({ mutationConfirmed: true }), { status: 200 }));
     await waitFor(() => expect(screen.getByRole('status')).toBeTruthy());
   });
-  it('suggests checking the cart after an ambiguous network failure', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+  it('preserves button focus during a pending request and an uncertain outcome without allowing another add', async () => {
+    let finish!: (response: Response) => void;
+    const fetchMock = vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
+    vi.stubGlobal('fetch', fetchMock);
     render(<AddToCart variants={variants} signedIn />);
+    const button = screen.getByRole('button', { name: 'Add to cart' });
+    button.focus();
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(button);
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'one' } });
+    fireEvent.click(button);
+    expect(document.activeElement).toBe(button);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(button);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    finish(new Response('{}', { status: 503 }));
+    await screen.findByRole('alert');
+    expect(document.activeElement).toBe(button);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    const description = button.getAttribute('aria-describedby');
+    expect(description && document.getElementById(description)?.textContent).toContain('Check your cart');
+    fireEvent.click(button);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it.each(['network', 'server'] as const)('requires acknowledgement after an ambiguous %s add outcome', async failure => {
+    const fetchMock = failure === 'network' ? vi.fn().mockRejectedValue(new Error('offline')) : vi.fn().mockResolvedValue(new Response('{}', { status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AddToCart variants={variants} signedIn />);
+    fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'one' } });
+    const button = screen.getByRole('button', { name: 'Add to cart' }) as HTMLButtonElement;
+    fireEvent.click(button);
+    expect((await screen.findByRole('alert')).textContent).toContain('result is unknown');
+    expect(screen.getByRole('link', { name: 'View cart' }).getAttribute('href')).toBe('/cart');
+    expect(screen.getByText(/reload cannot guarantee/)).toBeTruthy();
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: '2' } });
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByRole('alert')).toBeTruthy();
+    fireEvent.click(button);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const acknowledge = screen.getByRole('button', { name: 'I understand, enable adding again' });
+    acknowledge.focus();
+    fireEvent.click(acknowledge);
+    expect(document.activeElement).toBe(button);
+    expect(button.getAttribute('aria-disabled')).toBe('false');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+  it.each(['invalid-json', 'null', 'missing-marker'] as const)('treats a 2xx %s add response as unknown', async kind => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(kind === 'invalid-json' ? 'broken' : kind === 'null' ? 'null' : '{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AddToCart variants={variants} signedIn />);
+    fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'one' } });
+    const add = screen.getByRole('button', { name: 'Add to cart' });
+    add.focus(); fireEvent.click(add);
+    expect((await screen.findByRole('alert')).textContent).toContain('result is unknown');
+    expect(document.activeElement).toBe(add);
+    expect(add.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.queryByText('Added.', { exact: false })).toBeNull();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    fireEvent.click(add);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('does not move focus or claim removal when a 2xx response lacks confirmation', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })));
+    render(<><h1 id="cart-page-heading" tabIndex={-1}>Your cart</h1><CartLineControls variantId="one" productTitle="Item" quantity={2} version={7} /></>);
+    const remove = screen.getByRole('button', { name: 'Remove Item from cart' });
+    remove.focus(); fireEvent.click(remove);
+    expect((await screen.findByRole('alert')).textContent).toContain('result is unknown');
+    expect(document.activeElement).toBe(remove);
+    expect(screen.getByRole('link', { name: 'Reload cart' })).toBeTruthy();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+  it('offers sign-in after an expired-session preflight on the product without losing focus', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'SIGN_IN_REQUIRED' }), { status: 401 })));
+    render(<AddToCart variants={variants} signedIn />);
+    fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'one' } });
+    const add = screen.getByRole('button', { name: 'Add to cart' });
+    add.focus(); fireEvent.click(add);
+    expect((await screen.findByRole('alert')).textContent).toContain('Please sign in');
+    expect(document.activeElement).toBe(add);
+    expect(screen.getByRole('link', { name: 'Go to sign in' }).getAttribute('href')).toBe('/login');
+    expect(screen.queryByText('Added.', { exact: false })).toBeNull();
+    fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: '2' } });
+    expect(screen.queryByRole('link', { name: 'Go to sign in' })).toBeNull();
+  });
+  it('offers sign-in after an expired-session preflight while editing a cart line', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'SIGN_IN_REQUIRED' }), { status: 401 })));
+    render(<CartLineControls variantId="one" productTitle="Item" quantity={2} version={7} />);
+    const increase = screen.getByRole('button', { name: 'Increase quantity for Item' });
+    increase.focus(); fireEvent.click(increase);
+    expect((await screen.findByRole('alert')).textContent).toContain('Please sign in');
+    expect(document.activeElement).toBe(increase);
+    expect(screen.getByRole('link', { name: 'Go to sign in' }).getAttribute('href')).toBe('/login');
+    expect(screen.queryByRole('link', { name: 'Reload cart' })).toBeNull();
+  });
+  it('does not claim authentication is needed for a service outage', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 503 })));
+    render(<AddToCart variants={variants} signedIn />);
+    fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'one' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add to cart' }));
-    expect((await screen.findByRole('alert')).textContent).toContain('Check your cart before trying again');
+    expect((await screen.findByRole('alert')).textContent).toContain('result is unknown');
+    expect(screen.queryByRole('link', { name: 'Go to sign in' })).toBeNull();
+  });
+  it('does not mark an explicit rejected request as an unknown outcome', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'CART_VARIANT_NOT_SELLABLE' }), { status: 409 })));
+    render(<AddToCart variants={variants} signedIn />);
+    fireEvent.change(screen.getByLabelText('Option'), { target: { value: 'one' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add to cart' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('no longer available');
+    expect(screen.queryByRole('button', { name: 'I understand, enable adding again' })).toBeNull();
+  });
+  it('offers a cart reload and disables that line after an uncertain update', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('offline')); vi.stubGlobal('fetch', fetchMock);
+    render(<CartLineControls variantId="one" productTitle="Item" quantity={2} version={7} />);
+    const increase = screen.getByRole('button', { name: 'Increase quantity for Item' }) as HTMLButtonElement;
+    fireEvent.click(increase);
+    expect((await screen.findByRole('alert')).textContent).toContain('result is unknown');
+    expect(increase.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Remove Item from cart' }).getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByRole('link', { name: 'Reload cart' }).getAttribute('href')).toBe('/cart');
+    expect(screen.getByText(/earlier request may still complete later/)).toBeTruthy();
+    fireEvent.click(increase);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('retains focus while an update is pending, blocks repeat actions, and keeps focus after an explicit failure', async () => {
+    let finish!: (response: Response) => void;
+    const fetchMock = vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<CartLineControls variantId="one" productTitle="Item" quantity={2} version={7} />);
+    const increase = screen.getByRole('button', { name: 'Increase quantity for Item' });
+    increase.focus();
+    fireEvent.click(increase);
+    expect(document.activeElement).toBe(increase);
+    expect(increase.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByRole('status').textContent).toContain('Updating cart');
+    fireEvent.click(increase);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Item from cart' }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    finish(new Response(JSON.stringify({ code: 'CART_QUANTITY_LIMIT' }), { status: 400 }));
+    await screen.findByRole('alert');
+    expect(document.activeElement).toBe(increase);
+    expect(increase.getAttribute('aria-disabled')).toBe('false');
+  });
+  it.each([[1, 'Decrease quantity for Item'], [100, 'Increase quantity for Item']] as const)('blocks a quantity outside limits even though the control remains focusable', (quantity, name) => {
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
+    render(<CartLineControls variantId="one" productTitle="Item" quantity={quantity} version={7} />);
+    const button = screen.getByRole('button', { name });
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    button.focus();
+    expect(document.activeElement).toBe(button);
+    fireEvent.click(button);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('moves focus to the cart heading after a confirmed removal, before refreshing', async () => {
+    let finish!: (response: Response) => void;
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; })));
+    render(<><h1 id="cart-page-heading" tabIndex={-1}>Your cart</h1><CartLineControls variantId="one" productTitle="Item" quantity={2} version={7} /></>);
+    const button = screen.getByRole('button', { name: 'Remove Item from cart' });
+    button.focus(); fireEvent.click(button);
+    expect(document.activeElement).toBe(button);
+    finish(new Response(JSON.stringify({ mutationConfirmed: true }), { status: 200 }));
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Your cart' }));
+  });
+  it('does not steal focus if the user moves away during removal', async () => {
+    let finish!: (response: Response) => void;
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; })));
+    render(<><h1 id="cart-page-heading" tabIndex={-1}>Your cart</h1><button>Other action</button><CartLineControls variantId="one" productTitle="Item" quantity={2} version={7} /></>);
+    const remove = screen.getByRole('button', { name: 'Remove Item from cart' });
+    remove.focus(); fireEvent.click(remove);
+    const other = screen.getByRole('button', { name: 'Other action' }); other.focus();
+    finish(new Response(JSON.stringify({ mutationConfirmed: true }), { status: 200 }));
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
+    expect(document.activeElement).toBe(other);
+  });
+  it('does not move focus after an uncertain removal', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+    render(<><h1 id="cart-page-heading" tabIndex={-1}>Your cart</h1><CartLineControls variantId="one" productTitle="Item" quantity={2} version={7} /></>);
+    const remove = screen.getByRole('button', { name: 'Remove Item from cart' });
+    remove.focus(); fireEvent.click(remove);
+    await screen.findByRole('alert');
+    expect(document.activeElement).toBe(remove);
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
   it('refreshes on a conflicting cart edit without retrying the update', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'CART_VERSION_CONFLICT' }), { status: 409 })); vi.stubGlobal('fetch', fetchMock);

@@ -28,6 +28,22 @@ beforeAll(async () => {
 });
 afterAll(async () => { if (app) await app.close(); });
 describe('NestJS API shell', () => {
+  it('uses no-store across versioned API responses, including early failures and preflight', async () => {
+    const server = app.getHttpServer();
+    const orderPath = `/api/v1/orders/${randomUUID()}`;
+    const responses = [
+      await request(server).get('/api/v1/health/live').expect(200),
+      await request(server).get('/api/v1/payments/capabilities').expect(200),
+      await request(server).get('/api/v1/auth/me').set('Cookie', `gs_session_dev=${token}`).expect(200),
+      await request(server).get('/api/v1/auth/me').expect(401),
+      await request(server).get(orderPath).expect(401),
+      await request(server).post('/api/v1/auth/logout').set('Cookie', `gs_session_dev=${token}`).expect(403),
+      await request(server).get('/api/v1/not-a-route').expect(404),
+      await request(server).post('/api/v1/auth/session').set('Content-Type', 'application/json').send('{"invalid":').expect(400),
+      await request(server).options(orderPath).set('Origin', 'http://localhost:3000').set('Access-Control-Request-Method', 'GET').expect(204)
+    ];
+    for (const response of responses) expect(response.headers['cache-control']).toBe('no-store');
+  });
   it('health live', async () => { await request(app.getHttpServer()).get('/api/v1/health/live').expect(200); });
   it('health ready checks real database', async () => { await request(app.getHttpServer()).get('/api/v1/health/ready').expect(200); });
   it('rejects unauthenticated me', async () => { await request(app.getHttpServer()).get('/api/v1/auth/me').expect(401); });

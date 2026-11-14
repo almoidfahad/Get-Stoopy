@@ -1,0 +1,7 @@
+# Serviceability review transition errors
+
+Pickup and service-area review previously relied on PostgreSQL triggers to reject invalid status transitions. A reviewer submitting the current version with an invalid decision could receive an opaque server error instead of a useful conflict. This change checks the same transition rules in the application after authorization and version checks, while retaining database guards as the enforcement backstop.
+
+Pickup reviews are allowed only from DRAFT to APPROVED or REJECTED. Service-area reviews permit DRAFT to APPROVED/REJECTED, APPROVED to SUSPENDED, and SUSPENDED to APPROVED. Rejected areas must first be resubmitted by the vendor. Invalid states and decisions fail closed. Invalid transitions return `PICKUP_INVALID_TRANSITION` or `SERVICE_AREA_INVALID_TRANSITION` (409), do not change the record, and do not create review audit or outbox events. Stale versions remain version conflicts. Pickup's store row and service-area's area row are locked as in the existing workflows.
+
+Unit tests cover all state/decision combinations; PostgreSQL integration tests cover authorized invalid and valid sequences, stale versions, fixture cleanup, and event counts. These changes do not resolve all eligibility races or errors raised by other database constraints; database guards remain authoritative. No hosted database migration, real user data or production deployment was changed.

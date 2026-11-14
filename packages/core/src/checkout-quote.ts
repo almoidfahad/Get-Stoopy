@@ -6,10 +6,9 @@
  *
  * First, **never invent a total**. The quote API currently returns
  * `deliveryFeeMinor: null`, `totalMinor: null` and `paymentStatus:
- * 'NOT_IMPLEMENTED'`. A checkout screen that quietly rendered the subtotal as the
- * grand total would be lying to the buyer, so the summary exposes
- * `totalsImplemented` and `paymentImplemented` and the UI must label the missing
- * numbers instead of substituting them.
+ * 'NOT_IMPLEMENTED'`. This storefront has no approved delivery, tax, total or
+ * payment contract. Unexpected non-null fields cannot enable those features or
+ * establish a final amount; a reserved quote must still be releasable.
  *
  * Second, **re-derive what the buyer is asked to trust**. The server sends line
  * totals, group subtotals and a quote subtotal; this recomputes them with bigint
@@ -63,7 +62,10 @@ export type QuoteIssueKind =
   | 'line-total-mismatch'
   | 'group-subtotal-mismatch'
   | 'subtotal-mismatch'
-  | 'currency-mismatch';
+  | 'currency-mismatch'
+  | 'currency-invalid'
+  | 'quote-structure-invalid'
+  | 'unsupported-checkout-fields';
 
 export interface QuoteIssue {
   readonly kind: QuoteIssueKind;
@@ -77,15 +79,12 @@ export interface QuoteSummary {
   readonly lineCount: number;
   readonly unitCount: number;
   readonly storeCount: number;
-  /** null when any price is unparseable or currencies are mixed. */
+  /** null when prices are unparseable, currencies are mixed, or quote structure is inconsistent. */
   readonly subtotalMinor: bigint | null;
   readonly currency: string | null;
-  /**
-   * True only when the API actually returned both delivery and total. While the
-   * backend leaves them null this is false and the UI must say "not implemented".
-   */
-  readonly totalsImplemented: boolean;
-  readonly paymentImplemented: boolean;
+  /** This quote-only storefront does not yet implement totals or payment. */
+  readonly totalsImplemented: false;
+  readonly paymentImplemented: false;
   /**
    * Releasing is offered whenever the server still considers the quote RESERVED,
    * including an expired one that has not been swept yet: releasing it returns
@@ -102,7 +101,8 @@ function statusOf(state: string, expiresAt: number, now: number): QuoteStatus {
   if (state !== 'RESERVED') return 'unknown';
   // A RESERVED row past its deadline is expired for the buyer even before the
   // sweeper updates the column.
-  return Number.isFinite(expiresAt) && expiresAt <= now ? 'expired' : 'reserved';
+  if (!Number.isFinite(expiresAt)) return 'unknown';
+  return expiresAt <= now ? 'expired' : 'reserved';
 }
 
 export function summarizeQuote(quote: QuoteInput, now: Date = new Date()): QuoteSummary {
@@ -116,9 +116,46 @@ export function summarizeQuote(quote: QuoteInput, now: Date = new Date()): Quote
   let subtotal = 0n;
   let priceable = true;
   let currency: string | null = quote.currency;
+  if (typeof quote.currency !== 'string' || !/^[A-Z]{3}$/.test(quote.currency)) {
+    issues.push({ kind: 'currency-invalid', itemId: null });
+    currency = null;
+  }
+  // A numerically matching subtotal is not enough: every line must belong to
+  // exactly one represented store group, without duplicate IDs or variants.
+  // UUIDs from the API are case-insensitive; use canonical keys for comparison.
+  const key = (id: string) => id.toLowerCase();
+  const groups = new Set<string>();
+  const stores = new Set<string>();
+  const itemIds = new Set<string>();
+  const variants = new Set<string>();
+  const usedGroups = new Set<string>();
+  let structureInvalid = quote.items.length === 0 || quote.groups.length === 0;
+  for (const group of quote.groups) {
+    const groupId = key(group.groupId);
+    const storeId = key(group.storeId);
+    if (!groupId.trim() || !storeId.trim() || groups.has(groupId) || stores.has(storeId)) structureInvalid = true;
+    groups.add(groupId);
+    stores.add(storeId);
+  }
+  for (const item of quote.items) {
+    const itemId = key(item.itemId);
+    const variantId = key(item.variantId);
+    const groupId = key(item.groupId);
+    if (!itemId.trim() || !variantId.trim() || !groupId.trim() || itemIds.has(itemId) || variants.has(variantId) || !groups.has(groupId)) structureInvalid = true;
+    itemIds.add(itemId);
+    variants.add(variantId);
+    usedGroups.add(groupId);
+  }
+  if ([...groups].some(groupId => !usedGroups.has(groupId))) structureInvalid = true;
+  if (structureInvalid) issues.push({ kind: 'quote-structure-invalid', itemId: null });
+
   const groupTotals = new Map<string, bigint>();
 
   for (const item of quote.items) {
+    if (typeof item.currency !== 'string' || !/^[A-Z]{3}$/.test(item.currency)) {
+      issues.push({ kind: 'currency-invalid', itemId: item.itemId });
+      currency = null;
+    }
     if (item.currency !== quote.currency) {
       issues.push({ kind: 'currency-mismatch', itemId: item.itemId });
       currency = null;
@@ -134,7 +171,8 @@ export function summarizeQuote(quote: QuoteInput, now: Date = new Date()): Quote
       const expected = unit * BigInt(item.quantity);
       if (expected !== line) issues.push({ kind: 'line-total-mismatch', itemId: item.itemId });
       subtotal += line;
-      groupTotals.set(item.groupId, (groupTotals.get(item.groupId) ?? 0n) + line);
+      const groupId = key(item.groupId);
+      groupTotals.set(groupId, (groupTotals.get(groupId) ?? 0n) + line);
     } catch {
       issues.push({ kind: 'price-invalid', itemId: item.itemId });
       priceable = false;
@@ -142,12 +180,16 @@ export function summarizeQuote(quote: QuoteInput, now: Date = new Date()): Quote
   }
 
   for (const group of quote.groups) {
+    if (typeof group.currency !== 'string' || !/^[A-Z]{3}$/.test(group.currency)) {
+      issues.push({ kind: 'currency-invalid', itemId: null });
+      currency = null;
+    }
     if (group.currency !== quote.currency) {
       issues.push({ kind: 'currency-mismatch', itemId: null });
       currency = null;
     }
     try {
-      if (parseMinorUnits(group.subtotalMinor) !== (groupTotals.get(group.groupId) ?? 0n)) {
+      if (parseMinorUnits(group.subtotalMinor) !== (groupTotals.get(key(group.groupId)) ?? 0n)) {
         issues.push({ kind: 'group-subtotal-mismatch', itemId: null });
       }
     } catch {
@@ -165,17 +207,23 @@ export function summarizeQuote(quote: QuoteInput, now: Date = new Date()): Quote
     priceable = false;
   }
 
+  // The current contract provides no tax component, pricing policy or payment
+  // workflow. Unexpected fields are not evidence that any of these exist.
+  if (quote.deliveryFeeMinor !== null || quote.totalMinor !== null || quote.paymentStatus !== 'NOT_IMPLEMENTED') {
+    issues.push({ kind: 'unsupported-checkout-fields', itemId: null });
+  }
+
   const mixed = currency === null;
   return {
     status,
     secondsRemaining,
     lineCount: quote.items.length,
     unitCount: quote.items.reduce((total, item) => total + (Number.isInteger(item.quantity) ? item.quantity : 0), 0),
-    storeCount: new Set(quote.groups.map(group => group.storeId)).size,
-    subtotalMinor: priceable && !mixed && quote.items.length > 0 ? subtotal : null,
+    storeCount: stores.size,
+    subtotalMinor: priceable && !mixed && !structureInvalid ? subtotal : null,
     currency: mixed ? null : currency,
-    totalsImplemented: quote.deliveryFeeMinor !== null && quote.totalMinor !== null,
-    paymentImplemented: quote.paymentStatus !== 'NOT_IMPLEMENTED',
+    totalsImplemented: false,
+    paymentImplemented: false,
     canRelease: quote.state === 'RESERVED',
     issues,
   };
@@ -187,6 +235,9 @@ export const QUOTE_ISSUE_MESSAGES: Record<QuoteIssueKind, string> = {
   'group-subtotal-mismatch': 'A store subtotal no longer matches its items. Release this quote and request a new one.',
   'subtotal-mismatch': 'The quote subtotal no longer matches its items. Release this quote and request a new one.',
   'currency-mismatch': 'This quote mixes currencies, so no total can be shown.',
+  'currency-invalid': 'A currency in this quote is unavailable. Release it and request a new one.',
+  'quote-structure-invalid': 'The items or stores in this quote could not be verified. If stock is reserved, release this quote and request a new one.',
+  'unsupported-checkout-fields': 'This quote contains unsupported delivery, total or payment information. No final amount or payment is available; reserved stock can still be released.',
 };
 
 /** Buyer-facing copy for the codes the quote endpoints actually return. */
@@ -195,6 +246,7 @@ export const QUOTE_ERROR_MESSAGES: Record<string, string> = {
   MARKET_NOT_CONFIGURED: 'This deployment has no market configured yet.',
   CART_EMPTY: 'Your cart is empty, so there is nothing to quote.',
   CART_ITEM_LIMIT: 'Your cart holds too many different items to quote at once.',
+  CHECKOUT_SUBTOTAL_LIMIT: 'Your cart subtotal exceeds the supported limit. Reduce the quantity or remove an item before trying again.',
   CHECKOUT_CART_VERSION_CONFLICT: 'Your cart changed in another tab. The page has been refreshed — please try again.',
   CHECKOUT_QUOTE_VERSION_CONFLICT: 'This quote changed in another tab. The page has been refreshed.',
   CHECKOUT_QUOTE_ALREADY_RESERVED: 'You already have an active quote for this cart. Release it before requesting another.',

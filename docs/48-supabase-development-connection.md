@@ -45,8 +45,11 @@ or API key was created, altered or deleted. No production deployment was made.
 
 Preflight safety properties, asserted by tests:
 
-1. Every statement is a `SELECT`; the PostgreSQL session is opened with
-   `default_transaction_read_only=on`, so the server itself rejects any write.
+1. The preflight's fixed statements are `SELECT`s, and the session uses
+   `default_transaction_read_only=on` as defense in depth. This setting is not an
+   immutable security boundary: a privileged session can change it and SELECTs
+   can invoke functions with side effects. Use a restricted role and review the
+   queries. URL-parameter override risks were fixed later; see `docs/97-supabase-preflight-connection-safety.md`.
 2. TLS certificate verification stays enabled (`rejectUnauthorized: true`). A Supabase root CA
    may be supplied via `SUPABASE_DB_CA_CERT_PATH`; verification is never disabled to make a
    connection succeed.

@@ -11,6 +11,7 @@ import { webConfig } from '@/lib/config';
  */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
+const errorResponse = (message: string, status: number) => new Response(message, { status, headers: { 'Cache-Control': 'no-store' } });
 
 export async function GET(
   _req: Request,
@@ -18,8 +19,8 @@ export async function GET(
 ): Promise<Response> {
   const { id, imageId } = await params;
   const countryId = marketCountryId();
-  if (!countryId) return new Response('Not found', { status: 404 });
-  if (!UUID_RE.test(id) || !UUID_RE.test(imageId)) return new Response('Not found', { status: 404 });
+  if (!countryId) return errorResponse('Not found', 404);
+  if (!UUID_RE.test(id) || !UUID_RE.test(imageId)) return errorResponse('Not found', 404);
 
   let upstream: Response;
   try {
@@ -29,13 +30,13 @@ export async function GET(
       { cache: 'no-store' },
     );
   } catch {
-    return new Response('Unavailable', { status: 502 });
+    return errorResponse('Unavailable', 502);
   }
 
-  if (!upstream.ok) return new Response('Not found', { status: upstream.status === 404 ? 404 : 502 });
+  if (!upstream.ok) return errorResponse('Not found', upstream.status === 404 ? 404 : 502);
 
   const contentType = (upstream.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
-  if (!ALLOWED_TYPES.has(contentType)) return new Response('Unsupported media type', { status: 415 });
+  if (!ALLOWED_TYPES.has(contentType)) return errorResponse('Unsupported media type', 415);
 
   const body = await upstream.arrayBuffer();
   return new Response(body, {

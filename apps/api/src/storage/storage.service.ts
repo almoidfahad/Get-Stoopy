@@ -57,7 +57,14 @@ export class StorageService {
     if (data.length === 0) throw new BadRequestException({ code: 'EMPTY_OBJECT', message: 'Object body is empty' });
     const result = await this.db.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion });
-      const obj = await tx.storageObject.findFirst({ where: { id: objectId, ownerUserId: ctx.userId } });
+      // Serialize upload attempts before reading the state or writing the file.
+      // A unique token can be retried concurrently, and the previous plain read
+      // allowed two writers to overwrite the same object before either committed.
+      // RLS and the explicit owner predicate still apply to this row lock.
+      const rows = await tx.$queryRaw<Array<{ id: string; objectKey: string; sizeBytes: bigint | null; contentType: string; state: string; purpose: string }>>`
+        SELECT "id", "objectKey", "sizeBytes", "contentType", "state", "purpose"
+        FROM "StorageObject" WHERE "id"=${objectId}::uuid AND "ownerUserId"=${ctx.userId}::uuid FOR UPDATE`;
+      const obj = rows[0];
       if (!obj) throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
       if (obj.state !== 'PENDING_UPLOAD') throw new BadRequestException({ code: 'OBJECT_NOT_PENDING', message: 'Object is not pending upload' });
       if (Number(obj.sizeBytes) !== data.length) throw new BadRequestException({ code: 'SIZE_MISMATCH', message: 'Uploaded size does not match request' });
@@ -102,7 +109,13 @@ export class StorageService {
     if (typeof input.reason !== 'string' || input.reason.trim().length < 8 || input.reason.length > 512) throw new BadRequestException({ code: 'REVIEW_REASON_REQUIRED', message: 'A review reason is required' });
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
-      const obj = await tx.storageObject.findUnique({ where: { id: objectId } });
+      // A decision must be made against the latest committed state. Without a
+      // row lock two reviewers can both see QUARANTINED and overwrite each
+      // other's decision while each emits a successful audit record.
+      const rows = await tx.$queryRaw<Array<{ ownerUserId: string; purpose: string; state: string }>>`
+        SELECT "ownerUserId", "purpose", "state" FROM "StorageObject"
+        WHERE "id"=${objectId}::uuid FOR UPDATE`;
+      const obj = rows[0];
       if (!obj || !['kyc-document', 'payout-destination-proof'].includes(obj.purpose)) throw new NotFoundException({ code: 'OBJECT_NOT_FOUND', message: 'Storage object not found' });
       if (obj.ownerUserId === ctx.userId) throw new ForbiddenException({ code: 'SELF_REVIEW_DENIED', message: 'Reviewer cannot review their own object' });
       if (obj.state !== 'QUARANTINED') throw new BadRequestException({ code: 'OBJECT_NOT_QUARANTINED', message: 'Object is not quarantined' });

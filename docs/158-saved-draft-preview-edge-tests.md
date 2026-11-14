@@ -1,0 +1,7 @@
+# Saved-draft preview safety edge tests
+
+Additional disposable-PostGIS integration coverage exercises a saved-recipient preview paused after its snapshot while the buyer clears the draft. The in-flight request can still complete using its earlier consistent snapshot, with no contact/address/coordinates in the response and with explicit nonbinding flags. A subsequent request with the old version conflicts; the current tombstone requires a new draft. This is a point-in-time preview, not a guarantee that a draft is still present after it returns, and it must not authorize an order.
+
+A controlled test clock simulates the exact expiry boundary between the first and second time checks during coverage validation. The preview fails as expired without changing the row. The test replaces the service's clock method for this case; it is not a test of the actual database clock advancing. Another isolated test corrupts an encrypted envelope and checks that both read and preview fail closed with a generic unavailable error, without exposing ciphertext or recipient data; the owner can still clear the unreadable draft using its current version.
+
+These are test-only safeguards. They neither activate the draft in production nor bind a quote/order. Existing limitations around key rotation, privacy, deletion from backups/WAL, audited activation, current active boundary and authoritative pricing/tax remain. No hosted database changes or deployment are included.

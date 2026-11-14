@@ -10,7 +10,7 @@ describe('admin dashboard layout', () => {
   it('shows a public layout without fictional metrics or working admin links', async () => {
     mocks.apiFetch.mockResolvedValue(new Response(null, { status: 401 }));
     const html = await render();
-    expect(mocks.apiFetch).toHaveBeenCalledWith('/auth/me');
+    expect(mocks.apiFetch).toHaveBeenCalledWith('/auth/me', expect.objectContaining({ redirect: 'manual', signal: expect.any(AbortSignal) }));
     expect(html).toContain('Sign in to your account');
     expect(html).toContain('href="/login"');
     expect(html).toContain('Sales overview');
@@ -35,7 +35,7 @@ describe('admin dashboard layout', () => {
     expect(html).not.toContain('secret-csrf');
     expect(html).not.toContain('Admin access granted');
   });
-  it.each([403, 500])('does not mistake HTTP %s for a signed-out session', async status => {
+  it.each([201, 302, 403, 429, 500])('does not mistake HTTP %s for a signed-out session', async status => {
     mocks.apiFetch.mockResolvedValue(new Response(null, { status }));
     const html = await render();
     expect(html).toContain('Account session could not be checked');
@@ -43,7 +43,9 @@ describe('admin dashboard layout', () => {
   });
   it('treats network or configuration failures as unavailable', async () => {
     mocks.apiFetch.mockRejectedValue(new Error('unavailable'));
-    expect(await render()).toContain('Account session could not be checked');
+    const html = await render();
+    expect(html).toContain('Account session could not be checked');
+    expect(html).toMatch(/<a href="\/admin"[^>]*>Try again<\/a>/);
   });
   it.each([{}, { user: {} }, { user: { id: '' } }, { user: { id: 3 } }])('fails closed on malformed session data', async data => {
     mocks.apiFetch.mockResolvedValue(Response.json(data));

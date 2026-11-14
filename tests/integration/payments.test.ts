@@ -7,6 +7,7 @@ import { Redis } from 'ioredis';
 import { publishOutboxBatch } from '../../packages/events/src/index';
 import { urls, asSuper, asUser, approveStoreCoverage } from './helpers';
 import { signSandboxWebhook } from '../../packages/core/src/payment';
+import { ENV } from '../../apps/api/src/common/env';
 
 const u = urls();
 let app: any;
@@ -153,6 +154,31 @@ afterAll(async () => {
 });
 
 describe('order/payment/COD sandbox foundation', () => {
+  it('blocks direct subtotal-only order creation outside test without consuming the quote or stock', async () => {
+    const quote = await createQuote(1);
+    const inventoryBefore = await get(`/api/v1/inventory/variants/${variantId}`, owner).expect(200);
+    const env = app.get(ENV);
+    const original = env.NODE_ENV;
+    try {
+      for (const environment of ['development', 'staging', 'production']) {
+        env.NODE_ENV = environment;
+        for (const paymentMethod of ['COD', 'SANDBOX_MANUAL']) {
+          const response = await post('/api/v1/orders', customer, { quoteId: quote.quoteId, expectedQuoteVersion: quote.version, commandKey: `disabled-${randomUUID()}`, paymentMethod }).expect(503);
+          expect(response.body.code).toBe('ORDER_CREATION_DISABLED');
+        }
+      }
+    } finally { env.NODE_ENV = original; }
+    const quoteAfter = await get(`/api/v1/commerce/quotes/${quote.quoteId}`, customer).expect(200);
+    expect(quoteAfter.body.state).toBe('RESERVED');
+    expect(quoteAfter.body.version).toBe(quote.version);
+    const inventoryAfter = await get(`/api/v1/inventory/variants/${variantId}`, owner).expect(200);
+    expect(inventoryAfter.body.onHand).toBe(inventoryBefore.body.onHand);
+    expect(inventoryAfter.body.reserved).toBe(inventoryBefore.body.reserved);
+    const orderCount = await asSuper(u.privileged, async c => (await c.query(`SELECT count(*)::int AS n FROM "Order" WHERE "quoteId"=$1`, [quote.quoteId])).rows[0].n);
+    expect(orderCount).toBe(0);
+    await post(`/api/v1/commerce/quotes/${quote.quoteId}/release`, customer, { version: quote.version, reason: 'release after disabled order test' }).expect(201);
+  });
+
   it('exposes disabled live capabilities and creates an immutable order that consumes quote reservations', async () => {
     const caps = await get('/api/v1/payments/capabilities', customer).expect(200);
     expect(caps.body.liveEnabled).toBe(false);
@@ -162,6 +188,8 @@ describe('order/payment/COD sandbox foundation', () => {
     const quote = await createQuote(2);
     const commandKey = `order-${randomUUID().slice(0, 8)}`;
     const order = await post('/api/v1/orders', customer, { quoteId: quote.quoteId, expectedQuoteVersion: quote.version, commandKey, paymentMethod: 'SANDBOX_MANUAL' }).expect(201);
+    expect(order.headers['cache-control']).toBe('no-store');
+    expect((await get(`/api/v1/orders/${order.body.orderId}`, customer).expect(200)).headers['cache-control']).toBe('no-store');
     expect(order.body.amountMinor).toBe('2000');
     expect(order.body.paymentStatus).toBe('AWAITING_PAYMENT');
     expect(order.body.suborders).toHaveLength(1);
@@ -180,9 +208,25 @@ describe('order/payment/COD sandbox foundation', () => {
   it('verifies signed sandbox webhooks with exact amount/currency, idempotency and out-of-order protection', async () => {
     const quote = await createQuote(1);
     const order = await post('/api/v1/orders', customer, { quoteId: quote.quoteId, expectedQuoteVersion: quote.version, commandKey: `order-${randomUUID().slice(0, 8)}`, paymentMethod: 'SANDBOX_MANUAL' }).expect(201);
-    const intent = await post(`/api/v1/orders/${order.body.orderId}/payment-intents`, customer, { commandKey: `intent-${randomUUID().slice(0, 8)}` }).expect(201);
+    const intentKey = `intent-${randomUUID().slice(0, 8)}`;
+    const attempts = await Promise.all([
+      post(`/api/v1/orders/${order.body.orderId}/payment-intents`, customer, { commandKey: intentKey }).expect(201),
+      post(`/api/v1/orders/${order.body.orderId}/payment-intents`, customer, { commandKey: intentKey }).expect(201)
+    ]);
+    const intent = attempts.find(response => response.body.duplicate === false)!;
+    const intentReplay = attempts.find(response => response.body.duplicate === true)!;
+    expect(intent).toBeDefined();
+    expect(intentReplay).toBeDefined();
     expect(intent.body.checkout.mode).toBe('TEST_ONLY');
     expect(intent.body.checkout.redirectUrl).toBeNull();
+    expect(intentReplay.body).toMatchObject({ intentId: intent.body.intentId, duplicate: true });
+    // A known idempotency key is not proof of order ownership.
+    for (const key of [intentKey, `unseen-${randomUUID()}`]) {
+      const denied = await post(`/api/v1/orders/${order.body.orderId}/payment-intents`, stranger, { commandKey: key }).expect(404);
+      expect(denied.body.code).toBe('ORDER_NOT_FOUND');
+      expect(JSON.stringify(denied.body)).not.toContain(intent.body.merchantReference);
+      expect(JSON.stringify(denied.body)).not.toContain(intent.body.intentId);
+    }
     const base = { eventId: `evt-${randomUUID().slice(0, 8)}`, merchantReference: intent.body.merchantReference, providerReference: 'sandbox-txn-1', amountMinor: '1000', currency: 'BDT' };
     await webhook({ ...base, status: 'SUCCEEDED' }, 'wrong-secret').expect(401);
     const tampered = await webhook({ ...base, status: 'SUCCEEDED', amountMinor: '999' }).expect(200);
@@ -202,6 +246,10 @@ describe('order/payment/COD sandbox foundation', () => {
     expect(lateFail.body.status).toBe('IGNORED_OUT_OF_ORDER');
     const orderAfter = await get(`/api/v1/orders/${order.body.orderId}`, customer).expect(200);
     expect(orderAfter.body.paymentStatus).toBe('PAYMENT_VERIFIED');
+    const paidReplay = await post(`/api/v1/orders/${order.body.orderId}/payment-intents`, customer, { commandKey: intentKey }).expect(201);
+    expect(paidReplay.body).toMatchObject({ intentId: intent.body.intentId, status: 'VERIFIED', duplicate: true });
+    const deniedAfterPayment = await post(`/api/v1/orders/${order.body.orderId}/payment-intents`, stranger, { commandKey: intentKey }).expect(404);
+    expect(deniedAfterPayment.body.code).toBe('ORDER_NOT_FOUND');
     const intentAfter = await get(`/api/v1/payment-intents/${intent.body.intentId}`, customer).expect(200);
     expect(intentAfter.body.status).toBe('VERIFIED');
     expect(intentAfter.body.verificationMethod).toBe('SANDBOX_HMAC_WEBHOOK');
@@ -358,4 +406,223 @@ describe('cancellation, restock and refund review boundary', () => {
     const o2 = await post('/api/v1/orders', customer, { quoteId: q2.quoteId, expectedQuoteVersion: q2.version, commandKey: `order-${randomUUID().slice(0, 8)}`, paymentMethod: 'COD' }).expect(201);
     await expect(asSuper(u.privileged, c => c.query(`UPDATE "Order" SET "lifecycleStatus"='CANCELLED', version=version+1 WHERE id=$1`, [o2.body.orderId]))).rejects.toThrow(/order_cancellation_record_required/);
   });
+});
+
+describe('concurrent order idempotency', () => {
+  async function runOverlap(mode: 'replay' | 'different-quote' | 'different-key') {
+    const buyer = await makeUser(`order-race-${mode}`);
+    const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    const added = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId, quantity: 1, expectedVersion: cart.body.version }).expect(201);
+    const quote1 = (await post(`/api/v1/commerce/carts/${cart.body.cartId}/quotes`, buyer, { expectedVersion: added.body.version, destinationCityId: cityId, commandKey: `race-quote-${randomUUID()}` }).expect(201)).body;
+    let quote2: any;
+    if (mode === 'different-quote') {
+      const changed = await request(app.getHttpServer()).patch(`/api/v1/commerce/carts/${cart.body.cartId}/items/${variantId}`).set('Cookie', `gs_session_dev=${buyer.token}`).set('Origin', origin).set('X-CSRF-Token', buyer.csrf).send({ quantity: 2, expectedVersion: added.body.version }).expect(200);
+      quote2 = (await post(`/api/v1/commerce/carts/${cart.body.cartId}/quotes`, buyer, { expectedVersion: changed.body.version, destinationCityId: cityId, commandKey: `race-quote-${randomUUID()}` }).expect(201)).body;
+    }
+    const stock = await get(`/api/v1/inventory/variants/${variantId}`, owner).expect(200);
+    const commandKey = `order-race-${randomUUID()}`;
+    const firstBody = { quoteId: quote1.quoteId, expectedQuoteVersion: quote1.version, commandKey, paymentMethod: 'SANDBOX_MANUAL' };
+    const secondBody = mode === 'different-quote' ? { ...firstBody, quoteId: quote2.quoteId, expectedQuoteVersion: quote2.version }
+      : mode === 'different-key' ? { ...firstBody, commandKey: `order-race-${randomUUID()}` } : firstBody;
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let first: Promise<any> | undefined; let second: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN');
+      await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('SELECT id FROM "CheckoutQuote" WHERE id=$1 FOR UPDATE', [quote1.quoteId]);
+      const waitFor = async (count: number) => {
+        const deadline = Date.now() + 10000;
+        while (Date.now() < deadline) {
+          const waiting = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+            WHERE state='active' AND wait_event_type='Lock'
+              AND (query LIKE '%pg_advisory_xact_lock%' OR query LIKE '%FROM "CheckoutQuote"%FOR UPDATE%')`)).rows[0].n;
+          if (waiting >= count) return;
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        throw new Error(`Expected ${count} blocked order requests`);
+      };
+      first = post('/api/v1/orders', buyer, firstBody).then((r: any) => r);
+      await waitFor(1);
+      second = post('/api/v1/orders', buyer, secondBody).then((r: any) => r);
+      await waitFor(2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const [a, b] = await Promise.all([first!, second!]);
+    expect(a.status).toBe(201);
+    expect(a.body.duplicate).toBe(false);
+    if (mode === 'replay') {
+      expect(b.status).toBe(201);
+      expect(b.body).toMatchObject({ orderId: a.body.orderId, duplicate: true });
+    } else {
+      expect(b.status).toBe(409);
+      expect(b.body.code).toBe(mode === 'different-quote' ? 'ORDER_IDEMPOTENCY_CONFLICT' : 'ORDER_QUOTE_NOT_CONSUMABLE');
+    }
+    const records = await asSuper(u.privileged, c => c.query(`SELECT
+      (SELECT count(*)::int FROM "Order" WHERE "buyerId"=$1) AS orders,
+      (SELECT count(*)::int FROM "InventoryMovement" WHERE "reservationId"=$2 AND kind='CONSUME') AS consumes,
+      (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$3 AND action='commerce.order.created') AS audits,
+      (SELECT count(*)::int FROM "OutboxEvent" WHERE "eventKey"=$4) AS events`,
+      [buyer.userId, quote1.items[0].reservationId, a.body.orderId, `order-created-${a.body.orderId}`]));
+    expect(records.rows[0]).toEqual({ orders: 1, consumes: 1, audits: 1, events: 1 });
+    const consumed = await get(`/api/v1/commerce/quotes/${quote1.quoteId}`, buyer).expect(200);
+    expect(consumed.body.state).toBe('CONSUMED');
+    const after = await get(`/api/v1/inventory/variants/${variantId}`, owner).expect(200);
+    expect(after.body.onHand).toBe(stock.body.onHand - 1);
+    expect(after.body.reserved).toBe(stock.body.reserved - 1);
+    if (quote2) {
+      const other = await get(`/api/v1/commerce/quotes/${quote2.quoteId}`, buyer).expect(200);
+      expect(other.body.state).toBe('RESERVED');
+      await post(`/api/v1/commerce/quotes/${quote2.quoteId}/release`, buyer, { version: quote2.version, reason: 'order race test cleanup' }).expect(201);
+    }
+  }
+
+  it('replays the same in-flight command instead of failing on the consumed quote', async () => { await runOverlap('replay'); });
+  it('rejects the same key concurrently reused on a different quote', async () => { await runOverlap('different-quote'); });
+  it('prevents distinct commands from consuming the same quote twice', async () => { await runOverlap('different-key'); });
+});
+
+describe('COD policy consistency', () => {
+  async function currentPolicy() {
+    return asSuper(u.privileged, async c => (await c.query('SELECT id, enabled, version, "maxOrderMinor" FROM "CodPolicy" WHERE "countryId"=$1', [countryId])).rows[0]);
+  }
+  async function enablePolicy() {
+    const current = await currentPolicy();
+    return (await put('/api/v1/admin/cod-policy', codAdmin, { countryId, enabled: true, maxOrderMinor: '5000', ...(current ? { version: current.version } : {}) }).expect(200)).body;
+  }
+  async function blocked(monitor: pg.Client, count: number) {
+    const deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      const n = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE state='active' AND wait_event_type='Lock'
+        AND (query LIKE '%FROM "CodPolicy"%FOR UPDATE%' OR query LIKE '%pg_advisory_xact_lock%')`)).rows[0].n;
+      if (n >= count) return;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error(`Expected ${count} blocked COD transactions`);
+  }
+
+  it('returns a stable validation error for a COD cap outside PostgreSQL bigint range', async () => {
+    const before = await currentPolicy();
+    for (const maxOrderMinor of ['9223372036854775808', '999999999999999999999999']) {
+      const result = await put('/api/v1/admin/cod-policy', codAdmin, { countryId, enabled: true, maxOrderMinor, version: before.version }).expect(400);
+      expect(result.body.code).toBe('COD_MAX_INVALID');
+    }
+    expect(await currentPolicy()).toEqual(before);
+  });
+
+  it('serializes first policy creation for the same country', async () => {
+    const newCountryId = randomUUID();
+    await asSuper(u.privileged, async c => {
+      const free = (await c.query(`SELECT chr(65+n/26)||chr(65+n%26) AS code FROM generate_series(0,675) n
+        WHERE NOT EXISTS (SELECT 1 FROM "Country" WHERE iso2=chr(65+n/26)||chr(65+n%26)) LIMIT 1`)).rows[0].code;
+      await c.query(`INSERT INTO "Country"(id,iso2,name,"currencyCode","callingCode",timezone,status) VALUES ($1,$2,$3,'BDT','+999','UTC','ACTIVE')`, [newCountryId, free, 'COD test country']);
+      await c.query(`INSERT INTO "AdminScope"(id,"userId","geographyType","countryId","grantedBy") VALUES ($1,$2,'COUNTRY',$3,$2)`, [randomUUID(), codAdmin.userId, newCountryId]);
+      await c.query(`UPDATE "User" SET "authorizationVersion"="authorizationVersion"+1 WHERE id=$1`, [codAdmin.userId]);
+      await c.query(`UPDATE "Session" SET "authVersion"=(SELECT "authorizationVersion" FROM "User" WHERE id=$1) WHERE id=$2`, [codAdmin.userId, codAdmin.sessionId]);
+    });
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let first: Promise<any> | undefined; let second: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN');
+      await holder.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`cod-policy:${newCountryId}`]);
+      first = put('/api/v1/admin/cod-policy', codAdmin, { countryId: newCountryId, enabled: true, maxOrderMinor: '5000' }).then((r: any) => r);
+      await blocked(monitor, 1);
+      second = put('/api/v1/admin/cod-policy', codAdmin, { countryId: newCountryId, enabled: true, maxOrderMinor: '4000' }).then((r: any) => r);
+      await blocked(monitor, 2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const [a, b] = await Promise.all([first!, second!]);
+    expect(a.status).toBe(200);
+    expect(a.body).toMatchObject({ version: 1, maxOrderMinor: '5000' });
+    expect(b.status).toBe(409);
+    expect(b.body.code).toBe('COD_POLICY_VERSION_CONFLICT');
+    const rows = await asSuper(u.privileged, c => c.query(`SELECT
+      (SELECT count(*)::int FROM "CodPolicy" WHERE "countryId"=$1) AS policies,
+      (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$2 AND action='finance.cod.policy.created') AS audits`, [newCountryId, a.body.policyId]));
+    expect(rows.rows[0]).toEqual({ policies: 1, audits: 1 });
+  });
+
+  it('permits only one of two policy updates with the same version', async () => {
+    const policy = await enablePolicy();
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let first: Promise<any> | undefined; let second: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN'); await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('SELECT id FROM "CodPolicy" WHERE "countryId"=$1 FOR UPDATE', [countryId]);
+      first = put('/api/v1/admin/cod-policy', codAdmin, { countryId, enabled: true, maxOrderMinor: '4000', version: policy.version }).then((r: any) => r);
+      await blocked(monitor, 1);
+      second = put('/api/v1/admin/cod-policy', codAdmin, { countryId, enabled: true, maxOrderMinor: '3000', version: policy.version }).then((r: any) => r);
+      await blocked(monitor, 2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const [a, b] = await Promise.all([first!, second!]);
+    expect(a.status).toBe(200);
+    expect(a.body).toMatchObject({ version: policy.version + 1, maxOrderMinor: '4000' });
+    expect(b.status).toBe(409);
+    expect(b.body.code).toBe('COD_POLICY_VERSION_CONFLICT');
+    expect(await currentPolicy()).toMatchObject({ version: policy.version + 1, maxOrderMinor: '4000' });
+  });
+
+  async function policyOrderRace(orderFirst: boolean) {
+    const policy = await enablePolicy();
+    const buyer = await makeUser(`cod-policy-race-${orderFirst}`);
+    const cart = await post('/api/v1/commerce/carts', buyer, { countryId }).expect(201);
+    const item = await post(`/api/v1/commerce/carts/${cart.body.cartId}/items`, buyer, { variantId, quantity: 1, expectedVersion: cart.body.version }).expect(201);
+    const quote = (await post(`/api/v1/commerce/carts/${cart.body.cartId}/quotes`, buyer, { expectedVersion: item.body.version, destinationCityId: cityId, commandKey: `cod-quote-${randomUUID()}` }).expect(201)).body;
+    const stock = (await get(`/api/v1/inventory/variants/${variantId}`, owner).expect(200)).body;
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let order: Promise<any> | undefined; let change: Promise<any> | undefined;
+    const startOrder = () => post('/api/v1/orders', buyer, { quoteId: quote.quoteId, expectedQuoteVersion: quote.version, commandKey: `cod-order-${randomUUID()}`, paymentMethod: 'COD' }).then((r: any) => r);
+    const startChange = () => put('/api/v1/admin/cod-policy', codAdmin, { countryId, enabled: false, maxOrderMinor: '5000', version: policy.version }).then((r: any) => r);
+    try {
+      await holder.query('BEGIN'); await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('SELECT id FROM "CodPolicy" WHERE "countryId"=$1 FOR UPDATE', [countryId]);
+      if (orderFirst) order = startOrder(); else change = startChange();
+      await blocked(monitor, 1);
+      if (orderFirst) change = startChange(); else order = startOrder();
+      await blocked(monitor, 2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const [orderResult, changeResult] = await Promise.all([order!, change!]);
+    expect(changeResult.status).toBe(200);
+    expect(changeResult.body).toMatchObject({ enabled: false, version: policy.version + 1 });
+    if (orderFirst) {
+      expect(orderResult.status).toBe(201);
+      expect(orderResult.body).toMatchObject({ paymentMethod: 'COD', paymentStatus: 'AWAITING_COD', codEligibility: { policyVersion: policy.version, scope: 'PRODUCT_SUBTOTAL_ONLY' } });
+      expect((await get(`/api/v1/commerce/quotes/${quote.quoteId}`, buyer).expect(200)).body.state).toBe('CONSUMED');
+      const after = (await get(`/api/v1/inventory/variants/${variantId}`, owner).expect(200)).body;
+      expect(after.onHand).toBe(stock.onHand - 1);
+      expect(after.reserved).toBe(stock.reserved - 1);
+    } else {
+      expect(orderResult.status).toBe(409);
+      expect(orderResult.body.code).toBe('COD_NOT_ELIGIBLE');
+      const records = await asSuper(u.privileged, c => c.query(`SELECT
+        (SELECT count(*)::int FROM "Order" WHERE "buyerId"=$1) AS orders,
+        (SELECT count(*)::int FROM "InventoryMovement" WHERE "reservationId"=$2 AND kind='CONSUME') AS consumes`, [buyer.userId, quote.items[0].reservationId]));
+      expect(records.rows[0]).toEqual({ orders: 0, consumes: 0 });
+      expect((await get(`/api/v1/commerce/quotes/${quote.quoteId}`, buyer).expect(200)).body.state).toBe('RESERVED');
+      await post(`/api/v1/commerce/quotes/${quote.quoteId}/release`, buyer, { version: quote.version, reason: 'COD policy race cleanup' }).expect(201);
+    }
+  }
+  it('rejects an order when policy is disabled first', async () => { await policyOrderRace(false); });
+  it('snapshots the previous policy when the order wins before disablement', async () => { await policyOrderRace(true); });
 });

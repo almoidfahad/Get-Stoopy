@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ArrowRight, BarChart3, Boxes, CircleDollarSign, ClipboardList, LayoutDashboard, Package, RotateCcw, Settings, ShoppingBag, Store, Star, WalletCards } from 'lucide-react';
-import { apiFetch } from '@/lib/bff';
+import { readSession } from '@/lib/session-read';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,12 +9,10 @@ type SessionState = 'signed-out' | 'unavailable' | 'no-membership' | 'has-member
 /** This is presentation only. Any future vendor data endpoint must authorize independently. */
 async function vendorSession(): Promise<SessionState> {
   try {
-    const response = await apiFetch('/auth/me');
-    if (response.status === 401) return 'signed-out';
-    if (!response.ok) return 'unavailable';
-    const data: unknown = await response.json();
-    if (!data || typeof data !== 'object') return 'unavailable';
-    const session = data as { user?: { id?: unknown }; vendorMemberships?: unknown };
+    const result = await readSession();
+    if (result.state === 'signed-out') return 'signed-out';
+    if (result.state !== 'ok') return 'unavailable';
+    const session = result.data as { user?: { id?: unknown }; vendorMemberships?: unknown };
     if (!session.user || typeof session.user.id !== 'string' || !session.user.id || !Array.isArray(session.vendorMemberships)) return 'unavailable';
     if (!session.vendorMemberships.every(item => item && typeof item === 'object' && typeof item.vendorId === 'string' && item.vendorId && typeof item.countryId === 'string' && item.countryId && (item.storeId === undefined || typeof item.storeId === 'string'))) return 'unavailable';
     return session.vendorMemberships.length ? 'has-membership' : 'no-membership';
@@ -85,7 +83,7 @@ export default async function VendorDashboard() {
           </header>
           <main id="vendor-main" tabIndex={-1} className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-red-100 bg-[#fff3f2] px-5 py-6 sm:px-7"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-brand-red">Vendor workspace</p><h1 className="mt-2 text-2xl font-black tracking-tight text-neutral-950 sm:text-3xl">Welcome to your dashboard<span className="text-brand-red">.</span></h1><p className="mt-2 text-sm leading-6 text-neutral-600">An overview space for your store, designed around your business.</p></div><Link href="/shop" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-red-200 bg-white px-5 py-2 text-sm font-bold text-brand-red hover:border-brand-red">Browse the shop <ArrowRight size={16} /></Link></div>
-            <section aria-labelledby="access-heading" className="mt-5 rounded-2xl border border-neutral-200 bg-white px-5 py-4"><div className="flex flex-wrap items-center justify-between gap-4"><div><h2 id="access-heading" className="text-sm font-bold text-neutral-950">{message.title}</h2><p className="mt-1 text-sm leading-6 text-neutral-600">{message.body}</p></div>{state === 'signed-out' ? <Link href="/login" className="inline-flex min-h-11 items-center rounded-full bg-brand-red px-5 py-2 text-sm font-bold text-white hover:bg-brand-red-hover">Sign in</Link> : state === 'unavailable' ? <Link href="/vendor" className="inline-flex min-h-11 items-center rounded-full border border-neutral-300 px-5 py-2 text-sm font-bold hover:border-neutral-900">Try again</Link> : null}</div></section>
+            <section aria-labelledby="access-heading" className="mt-5 rounded-2xl border border-neutral-200 bg-white px-5 py-4"><div className="flex flex-wrap items-center justify-between gap-4"><div><h2 id="access-heading" className="text-sm font-bold text-neutral-950">{message.title}</h2><p className="mt-1 text-sm leading-6 text-neutral-600">{message.body}</p></div>{state === 'signed-out' ? <Link href="/login" className="inline-flex min-h-11 items-center rounded-full bg-brand-red px-5 py-2 text-sm font-bold text-white hover:bg-brand-red-hover">Sign in</Link> : state === 'unavailable' ? <a href="/vendor" className="inline-flex min-h-11 items-center rounded-full border border-neutral-300 px-5 py-2 text-sm font-bold hover:border-neutral-900">Try again</a> : null}</div></section>
             <section aria-labelledby="overview-heading" className="mt-7"><div className="mb-4 flex flex-wrap items-end justify-between gap-2"><h2 id="overview-heading" className="text-xl font-bold tracking-tight">Overview</h2><p className="text-xs text-neutral-600">Dashboard metrics are not connected.</p></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(({ title, Icon }) => <article key={title} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"><div className="flex items-start gap-4"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-brand-red"><Icon size={21} aria-hidden="true" /></span><div><h3 className="text-sm font-semibold text-neutral-600">{title}</h3><p className="mt-2 text-base font-bold text-neutral-800">Unavailable</p></div></div></article>)}</div></section>
             <div className="mt-5 grid gap-4 xl:grid-cols-3"><EmptyPanel title="Sales overview" description="Sales reporting is not connected to this dashboard." icon={BarChart3} /><EmptyPanel title="Order status" description="Order status reporting is not connected to this dashboard." icon={Boxes} /><EmptyPanel title="Recent orders" description="Orders are not connected to this dashboard." icon={ClipboardList} /><EmptyPanel title="Top selling products" description="Product performance reporting is not connected to this dashboard." icon={Package} /><EmptyPanel title="Earnings overview" description="Earnings reporting is not connected to this dashboard." icon={WalletCards} /><EmptyPanel title="Store performance" description="Store performance reporting is not connected to this dashboard." icon={BarChart3} /></div>
             <p className="mt-6 text-xs leading-5 text-neutral-600">Dashboard layout only. Vendor tools, reports and store switching are not available here yet.</p>

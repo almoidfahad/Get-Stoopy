@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -82,11 +83,21 @@ export class NotificationService {
         isSuper: true,
       });
 
-      // Idempotency: reject if this user already used this commandKey.
+      // Serialize the per-user command before the lookup; a unique index alone
+      // would turn simultaneous retries into an unhandled uniqueness error.
+      // The lock is coordination only: requireOwner already authorized access.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`notification-create:${input.userId.toLowerCase()}:${input.commandKey}`}, 0))`;
       const existing = await tx.notification.findFirst({
         where: { userId: input.userId, commandKey: input.commandKey },
       });
       if (existing) {
+        // Compare stored fields rather than hashing potentially sensitive text.
+        // The legacy payloadHash contains only the key and cannot detect a
+        // changed message; comparing fields also works for existing rows.
+        const templateId = input.templateId?.toLowerCase() ?? null;
+        if (existing.type !== input.type || existing.channel !== input.channel || existing.subject !== input.subject || existing.body !== input.body || existing.templateId !== templateId) {
+          throw new ConflictException({ code: 'NOTIFICATION_IDEMPOTENCY_CONFLICT', message: 'Notification command key already used with different content' });
+        }
         return this.notificationJson(existing, true);
       }
 
@@ -195,15 +206,17 @@ export class NotificationService {
         isSuper: true,
       });
 
-      const notification = await tx.notification.findFirst({
-        where: { id: notificationId, userId },
-      });
+      // Lock and authorize before inspecting the state: simultaneous retries
+      // must not produce a second audit/outbox event or rewrite readAt.
+      const rows = await tx.$queryRaw`SELECT * FROM "Notification" WHERE "id"=${notificationId}::uuid AND "userId"=${userId}::uuid FOR UPDATE`;
+      const notification = (rows as any[])[0];
       if (!notification) {
         throw new NotFoundException({
           code: 'NOTIFICATION_NOT_FOUND',
           message: 'That notification does not exist.',
         });
       }
+      if (notification.status === 'READ') return this.notificationJson(notification, true);
 
       const updated = await tx.notification.update({
         where: { id: notificationId },

@@ -4,6 +4,17 @@ export const LOCATION_MAX_ACCURACY_METERS = 100;
 export const LOCATION_FRESHNESS_SECONDS = 120;
 export const LOCATION_MAX_FUTURE_SKEW_SECONDS = 30;
 
+/** Match the database transition guard; unknown states/decisions fail closed. */
+export function isAllowedServiceAreaReview(status: string, decision: string): boolean {
+  return (status === 'DRAFT' && (decision === 'APPROVE' || decision === 'REJECT')) ||
+    (status === 'APPROVED' && decision === 'SUSPEND') ||
+    (status === 'SUSPENDED' && decision === 'APPROVE');
+}
+
+export function isAllowedPickupReview(status: string, decision: string): boolean {
+  return status === 'DRAFT' && (decision === 'APPROVE' || decision === 'REJECT');
+}
+
 export function assertLatitudeLongitude(latitude: number, longitude: number): void {
   if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) throw new Error('LATITUDE_INVALID');
   if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) throw new Error('LONGITUDE_INVALID');
@@ -13,6 +24,9 @@ export function assertOperatingHours(hours: OperatingHourInput[]): void {
   if (!Array.isArray(hours) || hours.length === 0 || hours.length > MAX_OPERATING_HOUR_ROWS) throw new Error('OPERATING_HOURS_INVALID');
   const byDay = new Map<number, OperatingHourInput[]>();
   for (const h of hours) {
+    // Callers may pass untrusted JSON despite the TypeScript annotation. Do
+    // not dereference null or accept an array/primitive as a window.
+    if (!h || typeof h !== 'object' || Array.isArray(h)) throw new Error('OPERATING_HOURS_INVALID');
     if (!Number.isInteger(h.dayOfWeek) || h.dayOfWeek < 0 || h.dayOfWeek > 6) throw new Error('OPERATING_DAY_INVALID');
     if (!Number.isInteger(h.openMinute) || h.openMinute < 0 || h.openMinute > 1439) throw new Error('OPERATING_OPEN_INVALID');
     if (!Number.isInteger(h.closeMinute) || h.closeMinute < 1 || h.closeMinute > 1440) throw new Error('OPERATING_CLOSE_INVALID');

@@ -2,8 +2,10 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import pg from 'pg';
 import {
   CA_ENV,
+  buildClientOptions,
   QUERIES,
   REQUIRED_ROLES,
   URL_ENV,
@@ -77,6 +79,48 @@ describe('Supabase read-only preflight', () => {
     expect(() => describeTarget('https://db.example.supabase.co')).toThrow('postgresql://');
     expect(() => describeTarget('postgresql://u:p@localhost:5432/postgres')).toThrow('restricted to');
     expect(() => describeTarget('postgresql://u:p@evil-supabase.co.attacker.test:5432/postgres')).toThrow('restricted to');
+  });
+
+  it.each([
+    '?host=attacker.invalid', '?port=1', '?sslmode=disable', '?sslmode=no-verify',
+    '?sslmode=require', '?ssl=no-verify', '?sslrootcert=/etc/passwd',
+    '?options=-c%20default_transaction_read_only%3Doff',
+    '?sslmode=verify-full&host=attacker.invalid', '?sslmode=verify-full&sslmode=disable',
+    '?uselibpqcompat=true', '#fragment',
+  ])('rejects URL override %s before any connection is attempted', suffix => {
+    expect(() => describeTarget(directUrl + suffix)).toThrow('Refusing URL parameters');
+    const result = runCli({ [URL_ENV]: directUrl + suffix });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Refusing URL parameters');
+    expect(result.stderr).not.toContain(SECRET);
+  });
+
+  it('keeps the checked host, verified TLS and read-only options despite hostile PG defaults', () => {
+    const original = { PGHOST: process.env.PGHOST, PGSSLMODE: process.env.PGSSLMODE, PGOPTIONS: process.env.PGOPTIONS };
+    try {
+      process.env.PGHOST = 'attacker.invalid';
+      process.env.PGSSLMODE = 'no-verify';
+      process.env.PGOPTIONS = '-c default_transaction_read_only=off';
+      const options = buildClientOptions(directUrl + '?sslmode=verify-full', 'example-CA');
+      expect(options).not.toHaveProperty('connectionString');
+      const params = new pg.Client(options).connectionParameters;
+      expect(params.host).toBe('db.exampleprojectref.supabase.co');
+      expect(params.port).toBe(5432);
+      expect(params.database).toBe('postgres');
+      expect(params.ssl).toEqual({ rejectUnauthorized: true, ca: 'example-CA' });
+      expect(params.options).toContain('default_transaction_read_only=on');
+      expect(params.options).toContain('statement_timeout=15000');
+    } finally {
+      for (const [key, value] of Object.entries(original)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
+  it('requires explicit URL credentials instead of inheriting PostgreSQL environment defaults', () => {
+    expect(() => buildClientOptions('postgresql://db.exampleprojectref.supabase.co/postgres')).toThrow('must include a user and password');
+    expect(() => buildClientOptions('postgresql://postgres@db.exampleprojectref.supabase.co/postgres')).toThrow('must include a user and password');
   });
 
   it('classifies pooler modes and blocks transaction-mode migration use', () => {

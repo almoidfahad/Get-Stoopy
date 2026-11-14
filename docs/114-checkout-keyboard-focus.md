@@ -1,0 +1,9 @@
+# Checkout reservation keyboard focus
+
+Checkout previously disabled the focused reserve or release button while a request was pending, moving keyboard focus to the document body. Once a release succeeded, the release button disappeared with no explicit focus destination.
+
+Reserve and release controls now remain focusable and expose `aria-disabled` while blocked. Their explicit activation guards and the existing synchronous in-flight guard prevent duplicate operations. The reserve button describes its current prerequisite or the active reservation; a polite status announces an update and the quote status is a live status. When a release response or conflict recovery shows a quote no longer reserved, focus moves to the quote heading only if the user is still focused on the release control. If the user moved elsewhere, focus is not stolen. An uncertain reservation still retries the exact same payload and attempt ID; this change does not automatically retry or alter backend behavior.
+
+Local results: 613 unit/component tests, typecheck and an isolated production web build passed. Chromium with a synthetic catalog/session and intercepted checkout responses checked pending focus, blocked repeated keyboard activation, uncertain reservation retry with identical payload, successful release and focus destination at 320, 390 and 1440 CSS pixels. Selected Axe scans and overflow checks passed in the released state. Component tests also cover conflict recovery and the user moving focus during release. No real identity provider, cart or checkout service was used.
+
+This is not end-to-end or accessibility signoff. It does not implement addresses, delivery charges, payment or order placement, and does not resolve cross-tab or persisted uncertainty after reload. Real backend, real devices and screen-reader testing remain outstanding. No Supabase connection, user database change or production deployment was performed.

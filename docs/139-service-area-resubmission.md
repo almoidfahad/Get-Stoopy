@@ -1,0 +1,7 @@
+# Service-area proposal and review consistency
+
+A rejected service-area proposal can be resubmitted by a vendor. Previously that transition changed the area back to DRAFT but did not create the proposal audit and outbox records created on an initial proposal. The duplicate-proposal path also read an existing area without coordinating with the concurrent review lock, potentially reporting DRAFT from a stale read.
+
+The existing store lock still serializes initial proposals. For an existing area, the proposal path now also locks that area before reading its current state, coordinating with review. An authorized rejected-to-draft transition writes a proposal audit and version-keyed outbox event in the same transaction as the update; repeating an already-draft proposal remains a no-write duplicate. The event uses a new version-qualified key while retaining the original event key for first creation. Existing membership, geographic, reviewer independence and database guards remain.
+
+CI integration tests cover reject, resubmit, duplicate, exact proposal audit/event counts and a forced overlap between duplicate proposal and review. Either the duplicate precedes approval and returns DRAFT, or it follows approval and returns a conflict; it must not report a stale DRAFT after approval. Tests use isolated PostgreSQL fixtures, not customer data. This is not a complete audit or a fix for every workflow; no remote database migration or production deployment was performed.

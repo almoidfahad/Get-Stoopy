@@ -1,0 +1,9 @@
+# Order delivery contact and destination consistency
+
+The existing post-order endpoints store a separate encrypted recipient contact and a geographically checked, immutable delivery destination. Previously, both performed an unlocked existence check before inserting their one-per-order record. Simultaneous requests could race the unique constraint and return an internal error rather than a safe replay or conflict. They could also add details to an order after cancellation.
+
+Both APIs now lock the buyer-scoped order row before reading the existing record or order lifecycle. Concurrent identical requests return the original result as a duplicate; a changed command or payload returns the existing stable conflict. A new contact or destination cannot be added after cancellation, while an exact replay of a record created earlier remains possible. Cancellation uses the same order lock. The database's owner, immutable-record, active-zone, boundary and RLS checks remain in place. No schema migration is needed.
+
+Disposable PostgreSQL tests force overlapping identical and different submissions for both endpoints, verify one row/audit/outbox, buyer isolation and encrypted contact at rest, and check the outbox does not contain the test name, phone or address. A cancellation-first overlap verifies no new contact or address is written after cancellation. The API lifecycle check does not add a database-level guard for direct privileged writers.
+
+These are **post-order** foundations; they do not provide recipient/address capture before quoting, authoritative delivery charges, a complete total, address management UI or production COD checkout. The destination address remains plaintext in its existing access-controlled database field; only the contact envelope is encrypted. Production key management, data retention, hosted compatibility, full privacy review and end-to-end fulfillment remain unverified. No hosted data or deployment was changed.

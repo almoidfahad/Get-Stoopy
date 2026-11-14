@@ -106,31 +106,28 @@ describe('notification lifecycle', () => {
     expect(res.body.duplicate).toBe(false);
   });
 
-  it('rejects a duplicate command key with the same notification', async () => {
-    const commandKey = `notif-dup-${randomUUID().slice(0, 8)}`;
-    await post('/api/v1/notifications', customer, {
-      userId: customer.userId,
-      type: 'DELIVERY_UPDATE',
-      channel: 'IN_APP',
-      subject: 'Delivery update',
-      body: 'Your item is on the way.',
-      templateId: null,
-      commandKey,
-    }).expect(201);
-
-    const res = await post('/api/v1/notifications', customer, {
-      userId: customer.userId,
-      type: 'PAYMENT_REMINDER', // different type, same command key
-      channel: 'SMS',
-      subject: 'Payment reminder',
-      body: 'Please pay.',
-      templateId: null,
-      commandKey,
-    }).expect(201);
-
-    // Same command key for same user returns the existing notification (idempotent)
-    expect(res.body.duplicate).toBe(true);
-    expect(res.body.type).toBe('DELIVERY_UPDATE'); // original type preserved
+  it('serializes same-user creation retries and rejects reused keys with different content', async () => {
+    const commandKey = `notif-dup-${randomUUID()}`;
+    const templateId = randomUUID();
+    const input = { userId: customer.userId, type: 'DELIVERY_UPDATE', channel: 'IN_APP', subject: 'Delivery update', body: 'Your item is on the way.', templateId, commandKey };
+    const attempts = await Promise.all([
+      post('/api/v1/notifications', customer, input).expect(201),
+      post('/api/v1/notifications', customer, input).expect(201),
+    ]);
+    expect(attempts.map(result => result.body.duplicate).sort()).toEqual([false, true]);
+    const original = attempts.find(result => result.body.duplicate === false)!;
+    expect(attempts[0].body.notificationId).toBe(attempts[1].body.notificationId);
+    const retry = await post('/api/v1/notifications', customer, { ...input, templateId: templateId.toUpperCase() }).expect(201);
+    expect(retry.body).toMatchObject({ notificationId: original.body.notificationId, duplicate: true });
+    for (const change of [{ type: 'SYSTEM_ALERT' }, { channel: 'SMS' }, { subject: 'Different' }, { body: 'Different' }, { templateId: null }]) {
+      const response = await post('/api/v1/notifications', customer, { ...input, ...change }).expect(409);
+      expect(response.body.code).toBe('NOTIFICATION_IDEMPOTENCY_CONFLICT');
+    }
+    const other = await post('/api/v1/notifications', stranger, { ...input, userId: stranger.userId }).expect(201);
+    expect(other.body.duplicate).toBe(false);
+    expect(other.body.notificationId).not.toBe(original.body.notificationId);
+    const counts = await asSuper(u.privileged, async c => (await c.query(`SELECT (SELECT count(*)::int FROM "Notification" WHERE "userId"=$1 AND "commandKey"=$2) AS notifications, (SELECT count(*)::int FROM "NotificationAttempt" WHERE "notificationId"=$3) AS attempts, (SELECT count(*)::int FROM "AuditLog" WHERE action='notification.created' AND "resourceId"=$3) AS audits, (SELECT count(*)::int FROM "OutboxEvent" WHERE "eventKey"=$4) AS events`, [customer.userId, commandKey, original.body.notificationId, `notification-created-${original.body.notificationId}`])).rows[0]);
+    expect(counts).toEqual({ notifications: 1, attempts: 1, audits: 1, events: 1 });
   });
 
   it('lists notifications with pagination', async () => {
@@ -172,14 +169,24 @@ describe('notification lifecycle', () => {
     expect(res.body.notificationId).toBe(notificationId);
   });
 
-  it('marks a notification as read', async () => {
-    const list = await get(`/api/v1/notifications?userId=${customer.userId}&status=PENDING&limit=1`, customer).expect(200);
-    expect(list.body.items.length).toBeGreaterThan(0);
-    const notificationId = list.body.items[0].notificationId;
-
-    const res = await patch(`/api/v1/notifications/${notificationId}/read?userId=${customer.userId}`, customer, {}).expect(200);
-    expect(res.body.status).toBe('READ');
-    expect(res.body.readAt).toBeDefined();
+  it('marks a notification as read once across concurrent and later retries', async () => {
+    const created = await post('/api/v1/notifications', customer, {
+      userId: customer.userId, type: 'SYSTEM_ALERT', channel: 'IN_APP', subject: 'Read retry', body: 'Retry fixture',
+      commandKey: `read-retry-${randomUUID()}`,
+    }).expect(201);
+    const notificationId = created.body.notificationId;
+    const path = `/api/v1/notifications/${notificationId}/read?userId=${customer.userId}`;
+    const attempts = await Promise.all([patch(path, customer, {}).expect(200), patch(path, customer, {}).expect(200)]);
+    expect(attempts.map(result => result.body.duplicate).sort()).toEqual([false, true]);
+    const first = attempts.find(result => result.body.duplicate === false)!;
+    const second = attempts.find(result => result.body.duplicate === true)!;
+    expect(first.body.status).toBe('READ');
+    expect(first.body.readAt).toBeTruthy();
+    expect(second.body.readAt).toBe(first.body.readAt);
+    const replay = await patch(path, customer, {}).expect(200);
+    expect(replay.body).toMatchObject({ status: 'READ', duplicate: true, readAt: first.body.readAt });
+    const counts = await asSuper(u.privileged, async c => (await c.query(`SELECT (SELECT count(*)::int FROM "AuditLog" WHERE action='notification.read' AND "resourceId"=$1::uuid) AS audits, (SELECT count(*)::int FROM "OutboxEvent" WHERE "eventKey"=$2) AS events`, [notificationId, `notification-read-${notificationId}`])).rows[0]);
+    expect(counts).toEqual({ audits: 1, events: 1 });
   });
 
   it('gets and updates notification preferences', async () => {

@@ -11,6 +11,8 @@ describe('vendor inventory workspace', () => {
     expect(html).toContain('not saved or sent to the store');
     expect(html).toContain('href="/vendor"');
     expect(html).not.toContain('<form');
-    expect(html).not.toContain('<button');
+    const records = html.split('<section aria-labelledby="inventory-records-heading"')[1].split('</section>')[0];
+    expect(records).not.toContain('<button');
+    expect(html).toContain('Clear calculation</button>');
   });
 });

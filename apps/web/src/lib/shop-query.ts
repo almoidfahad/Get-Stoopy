@@ -1,4 +1,4 @@
-import { buildShopQuery } from '@getstoopy/core';
+import { buildShopQuery } from '@getstoopy/core/browser';
 
 type SearchValue = string | string[] | undefined;
 export type ShopInput = Record<string, SearchValue>;
@@ -29,4 +29,22 @@ export function normalizeShopQuery(raw: ShopInput): {
 /** Avoid linking to a malformed cursor that the request layer would silently drop. */
 export function isValidShopCursor(cursor: unknown): cursor is string {
   return typeof cursor === 'string' && buildShopQuery({ cursor }).has('cursor');
+}
+
+/** Rebuild URLs from the supported catalog filters only; never accept a return URL. */
+export function shopHref(raw: ShopInput): string {
+  const { q, categoryId, cursor } = normalizeShopQuery(raw);
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  if (categoryId) params.set('categoryId', categoryId);
+  if (cursor) params.set('cursor', cursor);
+  const query = params.toString();
+  return query ? `/shop?${query}` : '/shop';
+}
+
+/** Product links carry only the filters needed to return to the listing. */
+export function productHref(id: string, context: ShopInput = {}): string {
+  const listing = shopHref(context);
+  const query = listing.includes('?') ? listing.slice(listing.indexOf('?')) : '';
+  return `/shop/${encodeURIComponent(id)}${query}`;
 }

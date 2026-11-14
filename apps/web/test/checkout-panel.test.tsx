@@ -11,7 +11,7 @@ const quote: QuoteInput = {
   subtotalMinor: '100', version: 1, expiresAt: '2030-01-01T00:00:00Z', closedAt: null,
   deliveryFeeMinor: null, totalMinor: null, paymentStatus: 'NOT_IMPLEMENTED', groups: [], items: [],
 };
-const props = { cartVersion: 1, currency: 'BDT', cities: [{ cityId: 'city', name: 'City', code: 'C', storeCount: 1 }], truncated: false, reservationUnavailable: null };
+const props = { cartId: 'cart', cartVersion: 1, currency: 'BDT', cities: [{ cityId: 'city', name: 'City', code: 'C', storeCount: 1 }], truncated: false, reservationUnavailable: null };
 
 describe('checkout panel reservation safeguards', () => {
   it('disables city selection immediately for a recovered reservation, before the clock effect runs', () => {
@@ -20,10 +20,17 @@ describe('checkout panel reservation safeguards', () => {
     expect(html).toContain('Reserve stock and get quote');
   });
 
+  it('does not offer a COD order before recipient details and total are implemented', () => {
+    const html = renderToStaticMarkup(<CheckoutPanel {...props} initialQuote={quote} />);
+    expect(html).toContain('Cash on delivery');
+    expect(html).toContain('Not available in checkout yet.');
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>\s*Payment not available/);
+  });
+
   it('disables new reservations when required inputs are unavailable', () => {
     const html = renderToStaticMarkup(<CheckoutPanel {...props} initialQuote={quote} reservationUnavailable="Cities unavailable" />);
     expect(html).toContain('Cities unavailable');
     expect(html).toMatch(/<select[^>]*disabled=""/);
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Reserve stock and get quote/);
+    expect(html).toMatch(/<button[^>]*aria-disabled="true"[^>]*>Reserve stock and get quote/);
   });
 });

@@ -1,0 +1,9 @@
+# Product card accessibility and 404 investigation
+
+Product-card link names now include the product title, available brand and store, and the same price or availability text shown visually. A card with multiple prices uses “From”; missing prices and stock are not invented. Long brand and price text can wrap on narrow cards. Component tests cover same-name products from different stores, missing prices, out-of-stock items and price ranges. Chromium with a synthetic local catalog checked the link name, keyboard navigation, long-brand overflow and selected Axe results at 320, 390 and 1440 pixels. Typecheck, web build and 540 tests passed. No actual screen reader, real catalog, cross-browser or real-device test was performed.
+
+## JavaScript-disabled 404 investigation
+
+In the local Next 15.5.28 production build, requesting a missing product directly returns HTTP 404, but with JavaScript disabled the product-not-found content was not visible. A build of the preceding product-not-found implementation behaved the same. The generated 404 HTML used Next's `__next_error__` shell; inspection of the installed app-render implementation showed an empty body in its error RSC seed. This is consistent with the JavaScript-dependent behavior discussed in [Next.js discussion #61823](https://github.com/vercel/next.js/discussions/61823), but does not establish the cause of every deployment or route.
+
+No workaround was shipped for that issue: returning the component normally would risk an incorrect 200 status, and a middleware/API duplicate lookup would add substantial correctness and deployment risk. A solution needs independent investigation and verification of server-rendered HTML, accurate HTTP status, client navigation and live deployment behavior. The filtered-results link on the 404 page still requires the page to render. Production was not changed.

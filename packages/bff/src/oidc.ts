@@ -3,8 +3,10 @@ export interface OidcConfig { issuer: string; clientId: string; clientSecret: st
 export interface LoginTransaction { state: string; nonce: string; verifier: string; redirectUri: string; createdAt: number; }
 export async function discover(cfg: OidcConfig): Promise<client.Configuration> {
   const issuer = new URL(cfg.issuer);
-  const localDev = cfg.allowInsecureHttp === true && issuer.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(issuer.hostname);
-  if (cfg.allowInsecureHttp && !localDev) throw new Error('INSECURE_OIDC_ONLY_LOCALHOST_DEV');
+  const localDev = cfg.allowInsecureHttp === true && issuer.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(issuer.hostname);
+  // The development flag permits only loopback HTTP; it must not reject a
+  // normal HTTPS issuer or disable TLS checks for its advertised endpoints.
+  if (issuer.protocol !== 'https:' && !localDev) throw new Error('INSECURE_OIDC_ONLY_LOCALHOST_DEV');
   return client.discovery(issuer, cfg.clientId, cfg.clientSecret, undefined, localDev ? { execute: [client.allowInsecureRequests] } : undefined);
 }
 export async function beginLogin(cfg: OidcConfig, config?: client.Configuration): Promise<{ url: URL; transaction: LoginTransaction }> {

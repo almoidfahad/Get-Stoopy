@@ -1,0 +1,11 @@
+# Expired-session commerce recovery
+
+A browser can retain a session cookie after the API considers that session invalid or expired. The cart get-or-create preflight previously treated an upstream 401 as a generic service outage. Cart and checkout then offered retry instead of sign-in, while an already-open product or cart page could only show a generic failure.
+
+The cart preflight now maps 401 to the existing sign-in state; other non-success responses and network failures remain unavailable. Cart mutations and new quote requests stop before their downstream command when that preflight requires sign-in. Product and cart-line controls show a direct sign-in link for the BFF's explicit 401 `SIGN_IN_REQUIRED` response and keep keyboard focus on the original control. The checkout panel also offers sign-in, while retaining its conservative uncertain-attempt behavior: leaving the page may lose the in-memory retry payload, and an earlier request could still finish. After signing in, the buyer is told to check checkout for a reserved quote.
+
+This does not remove stale cookies or treat cookie presence on a product page as proof of an authenticated session. It does not alter the interpretation of unrelated 403/429/5xx failures or normalize every possible error from a downstream mutation or quote release. The cart and checkout warnings do not prove whether an earlier command or reservation completed; cross-tab/durable idempotency remains unresolved.
+
+Verification: 804 unit/component tests, typecheck and an isolated production web build passed. Tests cover 401 versus 403/429/5xx, prevention of downstream cart/quote commands, the actual BFF route, actionable links, focus, and checkout retry uncertainty. At 320, 390 and 1440 CSS pixels Chromium used a synthetic API through the local BFF to exercise expired-session cart/checkout notices, product and cart-line actions, the checkout warning and a 503 outage; selected Axe and overflow checks passed. A JavaScript-disabled 390px check covered the server-rendered notices and keyboard sign-in links. No real identity or commerce service was used.
+
+Real session expiry, provider sign-in, real-backend end-to-end, cross-tab concurrency and full accessibility/device testing remain outstanding. No Supabase connection, user data change or production deployment was performed.

@@ -16,15 +16,17 @@ export default async function CartPage() {
       result.state === 'sign-in'
         ? { title: 'Sign in to view your cart', body: 'Your cart belongs to your account, so you need to be signed in.' }
         : result.state === 'not-configured'
-          ? { title: 'Market not configured', body: 'This deployment has no market country set, so carts are unavailable. No demo cart is substituted.' }
+          ? { title: 'Cart not available yet', body: 'Cart services aren’t available here yet. Please check back later.' }
           : { title: 'Cart unavailable', body: 'The cart service could not be reached. Please try again shortly.' };
-    return <CommerceNotice stage="Cart" title={copy.title} body={copy.body} signIn={result.state === 'sign-in'} />;
+    return <CommerceNotice stage="Cart" title={copy.title} body={copy.body} signIn={result.state === 'sign-in'} retry={result.state === 'unavailable'} />;
   }
 
   const cart = result.cart;
   const summary = summarizeCart(cart.items);
   const currency = summary.currency ?? cart.currency;
-  const subtotal = summary.subtotalMinor === null ? null : formatMinorUnits(summary.subtotalMinor.toString(), currency);
+  // A disagreement with the server must not be presented as a settled subtotal.
+  const subtotal = summary.subtotalMinor === null || summary.issues.some(issue => issue.kind === 'line-total-mismatch')
+    ? null : formatMinorUnits(summary.subtotalMinor.toString(), currency);
   const issuesByVariant = new Map<string, string[]>();
   const cartWide: string[] = [];
   for (const issue of summary.issues) {
@@ -63,18 +65,21 @@ export default async function CartPage() {
         <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
           <ul className="divide-y divide-neutral-200 overflow-hidden rounded-2xl border border-neutral-200">
             {cart.items.map(item => {
-              const unit = formatMinorUnits(item.unitPriceMinor, item.currency);
-              const lineTotal = formatMinorUnits(item.lineTotalMinor, item.currency);
               const issues = issuesByVariant.get(item.variantId) ?? [];
+              const itemIssues = summary.issues.filter(issue => issue.variantId === item.variantId);
+              const invalidUnit = itemIssues.some(issue => issue.kind === 'price-invalid' || issue.kind === 'currency-invalid');
+              const invalidTotal = invalidUnit || itemIssues.some(issue => issue.kind === 'line-total-mismatch' || issue.kind === 'quantity-invalid');
+              const unit = invalidUnit ? null : formatMinorUnits(item.unitPriceMinor, item.currency);
+              const lineTotal = invalidTotal ? null : formatMinorUnits(item.lineTotalMinor, item.currency);
               return (
                 <li key={item.id} className="flex flex-col gap-5 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
                   <div className="min-w-0">
-                    <Link href={`/shop/${item.productId}`} className="font-bold text-neutral-950 hover:text-brand-red">
+                    <Link href={`/shop/${item.productId}`} className="break-words font-bold text-neutral-950 hover:text-brand-red [overflow-wrap:anywhere]">
                       {item.title}
                     </Link>
-                    <p className="text-sm text-neutral-600">{item.storeName}</p>
+                    <p className="break-words text-sm text-neutral-600 [overflow-wrap:anywhere]">{item.storeName}</p>
                     <p className="mt-1 text-sm text-neutral-700">
-                      {unit ?? 'Price unavailable'} each · <span className="font-semibold">{lineTotal ?? '—'}</span>
+                      {unit ? `${unit} each` : 'Unit price unavailable'} · <span className="font-semibold">{lineTotal ?? 'Line total unavailable'}</span>
                     </p>
                     {issues.length > 0 ? (
                       <ul className="mt-2 space-y-1 text-sm font-medium text-brand-red">

@@ -1,0 +1,12 @@
+# Database grant scope hardening
+
+The previous `scripts/db-grants.sql` enumerated every table in `public` owned by the executing role, changed privileges for each and added broad default table grants. In a shared database, an app owner that also owned unrelated tables could change their ACLs; future unrelated tables created by that owner could inherit grants. This is a risk in the script, not evidence that it was executed against the Supabase project.
+
+The script now requires `gs_owner`, checks that every named application table exists and is owned by that role before applying grants, uses an explicit 103-table inventory instead of schema-wide enumeration, and wraps changes in a transaction. It does not grant access to the Prisma migration ledger or add new default table grants. Existing table-specific overrides remain in place. The inventory test compares the names with the Prisma models so new models require an explicit review. PostgreSQL integration tests exercise unrelated existing and future tables, reruns, wrong-role/missing-table rejection and transaction rollback against a disposable local CI database; those tests refuse remote hosts and non-fixture database names.
+
+## Important limitations
+
+- This is **not** approval or proof that sharing the Supabase project is safe. The changes have not been applied there. A shared database needs a dedicated migration owner and independent review of schema exposure, extension placement, functions, RLS, permissions, credentials, migration and rollback plans, backup/recovery and other applications. Ownership alone does not establish that a same-named table belongs to this app.
+- Removing the script's default-grant statements does not undo default grants or individual grants that already exist. Review existing privileges separately; do not blindly revoke privileges in a shared project. Supabase's own defaults for other owners and API roles are unaffected by this change.
+- The first migration creates PostGIS; compatibility with Supabase's extension schema and role permissions remains unverified. Prisma, application SQL, functions and grants assume `public`. Separate roles do not provide complete isolation from API-exposed objects or privileged functions.
+- Testing and deployment still require an isolated development database, a configured API, Redis and an identity provider. No production rollout, real backend connection or remote database changes were performed by this increment.

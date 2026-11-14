@@ -13,6 +13,7 @@ import { runDispatchExpiryTick } from '../../apps/worker/src/dispatch-expiry';
 import { StructuredLogger } from '../../packages/observability/src/index';
 import { TEST_DELIVERY_OTP_SINK, type TestDeliveryOtpSink } from '../../apps/api/src/delivery/delivery-otp.channel';
 import { signSandboxWebhook } from '../../packages/core/src/payment';
+import * as codSafety from '../../apps/api/src/finance/cod-collection-safety';
 
 const u = urls();
 let app: any;
@@ -105,6 +106,28 @@ async function prepareRider(user: any, label: string) {
   await post(`/api/v1/admin/riders/${riderId}/zone-grants`, zoneAdmin, { serviceZoneId: zoneId, reason: 'pilot dispatch zone grant' }).expect(201);
   await post('/api/v1/riders/me/location-samples', user, { shiftId: shift.body.shiftId, latitude: 24.75, longitude: 90.4, accuracyMeters: 10, recordedAt: new Date().toISOString() }).expect(201);
   return riderId;
+}
+
+// A second store of the same vendor provides a real multi-suborder fixture.
+async function additionalDispatchVariant() {
+  const storeAdmin = await makeUser('otp-rate-store-admin'); await grantKeys(storeAdmin, ['catalog:store:activate']);
+  const moderator = await makeUser('otp-rate-moderator'); await grantKeys(moderator, ['catalog:product:review', 'catalog:product:publish']);
+  const store = await post('/api/v1/catalog/stores', owner, { vendorId, cityId, name: 'OTP Rate Store', slug: `otp-rate-${randomUUID().slice(0, 8)}`, addressLine: '123 Pilot Road, Mymensingh' }).expect(201);
+  const otherStoreId = store.body.storeId as string;
+  await post(`/api/v1/catalog/admin/stores/${otherStoreId}/activate`, storeAdmin, { version: 1, reason: 'store evidence verified' }).expect(201);
+  const product = await post(`/api/v1/catalog/stores/${otherStoreId}/products`, owner, { title: 'OTP Rate Product', description: 'A product for recipient issue limit tests', brand: 'Stoopy' }).expect(201);
+  const variant = await post(`/api/v1/catalog/products/${product.body.productId}/variants`, owner, { sku: `OTP-${randomUUID().slice(0, 8)}`, optionValues: {}, priceAmountMinor: '1000', currency: 'BDT' }).expect(201);
+  await post(`/api/v1/catalog/products/${product.body.productId}/submit`, owner, { version: 1 }).expect(201);
+  await post(`/api/v1/catalog/admin/products/${product.body.productId}/review`, moderator, { version: 2, decision: 'APPROVE', reason: 'product content verified' }).expect(201);
+  await post(`/api/v1/catalog/admin/products/${product.body.productId}/publish`, moderator, { version: 3, reason: 'approved for public catalog' }).expect(201);
+  await post(`/api/v1/inventory/variants/${variant.body.id}/initialize`, owner, { reorderLevel: 0 }).expect(201);
+  await post(`/api/v1/inventory/variants/${variant.body.id}/adjustments`, owner, { version: 1, delta: 10, commandKey: `stock-${randomUUID()}`, reason: 'OTP rate test stock' }).expect(201);
+  const pickupPoint = await post(`/api/v1/catalog/stores/${otherStoreId}/pickup-point`, owner, { latitude: 24.75, longitude: 90.4 }).expect(201);
+  await post(`/api/v1/catalog/admin/stores/${otherStoreId}/pickup-point/review`, serviceabilityAdmin, { version: pickupPoint.body.version, decision: 'APPROVE', reason: 'pickup geometry verified' }).expect(201);
+  await put(`/api/v1/catalog/stores/${otherStoreId}/operating-hours`, owner, { hours: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, openMinute: 0, closeMinute: 1440 })) }).expect(200);
+  const area = await post(`/api/v1/catalog/stores/${otherStoreId}/service-areas`, owner, { serviceZoneId: zoneId }).expect(201);
+  await post(`/api/v1/catalog/admin/service-areas/${area.body.serviceAreaId}/review`, serviceabilityAdmin, { version: 1, decision: 'APPROVE', reason: 'zone coverage verified' }).expect(201);
+  return variant.body.id as string;
 }
 
 beforeAll(async () => {
@@ -285,7 +308,9 @@ describe('pickup/OTP delivery proof and completion gating', () => {
     const pickupReplay = await post(`/api/v1/riders/me/assignments/${assignmentId}/pickup`, rider, { commandKey: pickupKey }).expect(201);
     expect(pickupReplay.body.duplicate).toBe(true);
     await post(`/api/v1/riders/me/deliveries/${deliveryId}/complete`, rider, { expectedVersion: 1, commandKey: `complete-${randomUUID().slice(0, 8)}` }).expect(409);
-    const issued = await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges`, rider, { commandKey: `otp-${randomUUID().slice(0, 8)}` }).expect(201);
+    const issueKey = `otp-${randomUUID().slice(0, 8)}`;
+    const issuePath = `/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges`;
+    const issued = await post(issuePath, rider, { commandKey: issueKey }).expect(201);
     expect(issued.body.code).toBeUndefined();
     expect(issued.body.maskedPhone).toBe('******5678');
     const challengeId = issued.body.challengeId as string;
@@ -298,9 +323,21 @@ describe('pickup/OTP delivery proof and completion gating', () => {
     expect(verified.body.outcome).toBe('VALID');
     const verifiedReplay = await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges/${challengeId}/verify`, rider, { code, commandKey: verifyKey }).expect(201);
     expect(verifiedReplay.body.duplicate).toBe(true);
+    // A lost issue response can be retried even after another request verified it.
+    const issueReplay = await post(issuePath, rider, { commandKey: issueKey }).expect(201);
+    expect(issueReplay.body).toMatchObject({ challengeId, status: 'VERIFIED', duplicate: true });
+    expect(issueReplay.body.code).toBeUndefined();
+    await post(issuePath, riderA, { commandKey: issueKey }).expect(404);
+    const newIssue = await post(issuePath, rider, { commandKey: `otp-${randomUUID().slice(0, 8)}` }).expect(409);
+    expect(newIssue.body.code).toBe('OTP_NOT_ALLOWED');
     const completeKey = `complete-${randomUUID().slice(0, 8)}`;
     const completed = await post(`/api/v1/riders/me/deliveries/${deliveryId}/complete`, rider, { expectedVersion: 2, commandKey: completeKey }).expect(201);
     expect(completed.body.status).toBe('COMPLETED');
+    const completedIssueReplay = await post(issuePath, rider, { commandKey: issueKey }).expect(201);
+    expect(completedIssueReplay.body).toMatchObject({ challengeId, status: 'VERIFIED', duplicate: true });
+    expect(otpSink.consume(challengeId)).toBeNull();
+    const issueCounts = await asSuper(u.privileged, async c => c.query(`SELECT (SELECT count(*)::int FROM "DeliveryOtpChallenge" WHERE "deliveryId"=$1) AS challenges, (SELECT count(*)::int FROM "DeliveryEvent" WHERE "deliveryId"=$1 AND "eventType"='delivery.otp.issued') AS events, (SELECT count(*)::int FROM "OutboxEvent" WHERE "aggregateId"=$1 AND "eventType"='delivery.otp.issued') AS outbox`, [deliveryId]));
+    expect(issueCounts.rows[0]).toEqual({ challenges: 1, events: 1, outbox: 1 });
     const projection = await get(`/api/v1/riders/me/deliveries/${deliveryId}`, rider).expect(200);
     expect(projection.body.status).toBe('COMPLETED'); expect(projection.body.proof.method).toBe('RECIPIENT_OTP');
     expect(JSON.stringify(projection.body)).not.toContain(code);
@@ -338,6 +375,202 @@ describe('pickup/OTP delivery proof and completion gating', () => {
     const active = await get('/api/v1/riders/me/assignment', rider).expect(200);
     expect(active.body.assignment).toBeNull();
   }, 60000);
+
+  it('blocks progression of simulated legacy multi-store COD runs, offers and assignments', async () => {
+    const otherVariantId = await additionalDispatchVariant();
+    const rider = await makeUser('legacy-cod-rider'); const riderId = await prepareRider(rider, 'legacy-cod-rider');
+    await asSuper(u.privileged, c => c.query(`UPDATE "RiderShift" SET "status"='ENDED', "endedAt"=now(), "updatedAt"=now() WHERE "status"='ACTIVE' AND "riderId"<>$1`, [riderId]));
+    let { cartId, version } = await clearCart();
+    const a = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId, quantity: 1, expectedVersion: version }).expect(201);
+    const b = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId: otherVariantId, quantity: 1, expectedVersion: a.body.version }).expect(201);
+    const quote = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, { expectedVersion: b.body.version, destinationCityId: cityId, commandKey: `legacy-quote-${randomUUID()}` }).expect(201);
+    const order = await post('/api/v1/orders', customer, { quoteId: quote.body.quoteId, expectedQuoteVersion: quote.body.version, commandKey: `legacy-order-${randomUUID()}`, paymentMethod: 'COD' }).expect(201);
+    expect(order.body.suborders).toHaveLength(2);
+    await setDestination(order.body.orderId);
+    await post(`/api/v1/orders/${order.body.orderId}/delivery-recipient`, customer, { name: 'Synthetic Recipient', phone: '+8801712345678', commandKey: `legacy-recipient-${randomUUID()}` }).expect(201);
+    const suborderId = order.body.suborders[0].suborderId;
+    await post(`/api/v1/vendor/suborders/${suborderId}/accept`, owner, { expectedVersion: 1, commandKey: `accept-${randomUUID()}`, preparationMinutes: 15 }).expect(201);
+    await post(`/api/v1/vendor/suborders/${suborderId}/start-preparation`, owner, { expectedVersion: 2, commandKey: `prep-${randomUUID()}` }).expect(201);
+    await post(`/api/v1/vendor/suborders/${suborderId}/ready`, owner, { expectedVersion: 3, commandKey: `ready-${randomUUID()}` }).expect(201);
+
+    // Simulate persisted pre-guard states in this disposable test only. Always
+    // restore the real guard before exercising the endpoint under test.
+    async function legacyStep<T>(fn: () => Promise<T>): Promise<T> {
+      const bypass = vi.spyOn(codSafety, 'assertCodSuborderSafe').mockResolvedValue(undefined);
+      try { return await fn(); } finally { bypass.mockRestore(); }
+    }
+    const run = await legacyStep(() => post(`/api/v1/admin/dispatch/suborders/${suborderId}/runs`, dispatchAdmin, { commandKey: `legacy-run-${randomUUID()}` }).expect(201).then((res: any) => res));
+    const offerBody = { expectedVersion: 1, commandKey: `legacy-offer-${randomUUID()}` };
+    const blockedOffer = await post(`/api/v1/admin/dispatch/runs/${run.body.runId}/next-offer`, dispatchAdmin, offerBody).expect(409);
+    expect(blockedOffer.body.code).toBe('COD_ALLOCATION_REQUIRED');
+    const noOffer = await asSuper(u.privileged, c => c.query(`SELECT r.status,r.version,(SELECT count(*)::int FROM "DispatchOffer" o WHERE o."runId"=r.id) AS offers FROM "DispatchRun" r WHERE r.id=$1`, [run.body.runId]));
+    expect(noOffer.rows[0]).toEqual({ status: 'SEARCHING', version: 1, offers: 0 });
+
+    const offer = await legacyStep(() => post(`/api/v1/admin/dispatch/runs/${run.body.runId}/next-offer`, dispatchAdmin, offerBody).expect(201).then((res: any) => res));
+    const offered = await get('/api/v1/riders/me/dispatch-offers', rider).expect(200);
+    const token = offered.body.items.find((item: any) => item.offerId === offer.body.offerId).offerToken;
+    const acceptBody = { offerToken: token, commandKey: `legacy-accept-${randomUUID()}` };
+    const blockedAccept = await post(`/api/v1/riders/me/dispatch-offers/${offer.body.offerId}/accept`, rider, acceptBody).expect(409);
+    expect(blockedAccept.body.code).toBe('COD_ALLOCATION_REQUIRED');
+    const noAssignment = await asSuper(u.privileged, c => c.query(`SELECT o.status,(SELECT count(*)::int FROM "RiderAssignment" a WHERE a."offerId"=o.id) AS assignments FROM "DispatchOffer" o WHERE o.id=$1`, [offer.body.offerId]));
+    expect(noAssignment.rows[0]).toEqual({ status: 'OFFERED', assignments: 0 });
+
+    const accepted = await legacyStep(() => post(`/api/v1/riders/me/dispatch-offers/${offer.body.offerId}/accept`, rider, acceptBody).expect(201).then((res: any) => res));
+    const replay = await post(`/api/v1/riders/me/dispatch-offers/${offer.body.offerId}/accept`, rider, acceptBody).expect(201);
+    expect(replay.body.duplicate).toBe(true);
+    const pickup = await post(`/api/v1/riders/me/assignments/${accepted.body.assignmentId}/pickup`, rider, { commandKey: `legacy-pickup-${randomUUID()}` }).expect(409);
+    expect(pickup.body.code).toBe('COD_ALLOCATION_REQUIRED');
+    const noDelivery = await asSuper(u.privileged, c => c.query(`SELECT a.status,(SELECT count(*)::int FROM "Delivery" d WHERE d."assignmentId"=a.id) AS deliveries FROM "RiderAssignment" a WHERE a.id=$1`, [accepted.body.assignmentId]));
+    expect(noDelivery.rows[0]).toEqual({ status: 'ACTIVE', deliveries: 0 });
+  }, 120000);
+
+  it('serializes recipient issue limits across an order’s separate deliveries', async () => {
+    const otherVariantId = await additionalDispatchVariant();
+    const riders = [await makeUser('recipient-rate-a'), await makeUser('recipient-rate-b')];
+    for (let i = 0; i < riders.length; i++) await prepareRider(riders[i], `recipient-rate-${i}`);
+    let { cartId, version } = await clearCart();
+    const firstItem = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId, quantity: 1, expectedVersion: version }).expect(201);
+    const secondItem = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId: otherVariantId, quantity: 1, expectedVersion: firstItem.body.version }).expect(201);
+    const quote = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, { expectedVersion: secondItem.body.version, destinationCityId: cityId, commandKey: `quote-${randomUUID()}` }).expect(201);
+    // This test exercises recipient OTP concurrency, not COD accounting. Use
+    // synthetic prepaid payment because multi-suborder COD dispatch now fails closed.
+    const order = await post('/api/v1/orders', customer, { quoteId: quote.body.quoteId, expectedQuoteVersion: quote.body.version, commandKey: `order-${randomUUID()}`, paymentMethod: 'SANDBOX_MANUAL' }).expect(201);
+    expect(order.body.suborders).toHaveLength(2);
+    const intent = await post(`/api/v1/orders/${order.body.orderId}/payment-intents`, customer, { commandKey: `intent-${randomUUID()}` }).expect(201);
+    const raw = JSON.stringify({ eventId: `evt-${randomUUID()}`, merchantReference: intent.body.merchantReference, status: 'SUCCEEDED', amountMinor: order.body.amountMinor, currency: order.body.currency });
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    await request(app.getHttpServer()).post('/api/v1/payments/webhooks/sandbox').set('Content-Type', 'application/json').set('x-gs-timestamp', timestamp).set('x-gs-signature', signSandboxWebhook(webhookSecret, timestamp, raw)).send(raw).expect(200);
+    await setDestination(order.body.orderId);
+    const recipient = await post(`/api/v1/orders/${order.body.orderId}/delivery-recipient`, customer, { name: 'Test Recipient', phone: '+8801712345678', commandKey: `recipient-${randomUUID()}` }).expect(201);
+    for (const sub of order.body.suborders) {
+      await post(`/api/v1/vendor/suborders/${sub.suborderId}/accept`, owner, { expectedVersion: 1, commandKey: `accept-${randomUUID()}`, preparationMinutes: 15 }).expect(201);
+      await post(`/api/v1/vendor/suborders/${sub.suborderId}/start-preparation`, owner, { expectedVersion: 2, commandKey: `prep-${randomUUID()}` }).expect(201);
+      await post(`/api/v1/vendor/suborders/${sub.suborderId}/ready`, owner, { expectedVersion: 3, commandKey: `ready-${randomUUID()}` }).expect(201);
+    }
+    const deliveries: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      await asSuper(u.privileged, c => c.query(`UPDATE "RiderShift" SET "status"='ENDED', "endedAt"=now(), "updatedAt"=now() WHERE "status"='ACTIVE' AND "riderId" IN (SELECT id FROM "RiderProfile" WHERE "userId" <> ALL($1::uuid[]))`, [riders.slice(i).map(r => r.userId)]));
+      // Hide the second rider for the first offer, without ending its shift.
+      if (i === 0) await asSuper(u.privileged, c => c.query(`UPDATE "RiderShift" SET "status"='ENDED', "endedAt"=now(), "updatedAt"=now() WHERE "status"='ACTIVE' AND "riderId" IN (SELECT id FROM "RiderProfile" WHERE "userId"=$1)`, [riders[1].userId]));
+      if (i === 1) {
+        const shift = await post('/api/v1/riders/me/shifts', riders[i], { consentVersion: 'gps-v1' }).expect(201);
+        await post('/api/v1/riders/me/location-samples', riders[i], { shiftId: shift.body.shiftId, latitude: 24.75, longitude: 90.4, accuracyMeters: 10, recordedAt: new Date().toISOString() }).expect(201);
+      }
+      const run = await post(`/api/v1/admin/dispatch/suborders/${order.body.suborders[i].suborderId}/runs`, dispatchAdmin, { commandKey: `run-${randomUUID()}` }).expect(201);
+      const offer = await post(`/api/v1/admin/dispatch/runs/${run.body.runId}/next-offer`, dispatchAdmin, { expectedVersion: 1, commandKey: `offer-${randomUUID()}` }).expect(201);
+      const offers = await get('/api/v1/riders/me/dispatch-offers', riders[i]).expect(200);
+      const token = offers.body.items.find((o: any) => o.offerId === offer.body.offerId)?.offerToken;
+      expect(token).toBeTruthy();
+      const accepted = await post(`/api/v1/riders/me/dispatch-offers/${offer.body.offerId}/accept`, riders[i], { offerToken: token, commandKey: `accept-${randomUUID()}` }).expect(201);
+      const pickup = await post(`/api/v1/riders/me/assignments/${accepted.body.assignmentId}/pickup`, riders[i], { commandKey: `pickup-${randomUUID()}` }).expect(201);
+      deliveries.push(pickup.body.deliveryId);
+    }
+    // Seed four expired challenges in the last hour, two per delivery; each
+    // delivery has one issue left and the shared recipient has one slot left.
+    await asSuper(u.privileged, async c => {
+      for (const deliveryId of deliveries) for (let sequence = 1; sequence <= 2; sequence++) {
+        const id = randomUUID();
+        await c.query(`INSERT INTO "DeliveryOtpChallenge"(id,"deliveryId","recipientId",sequence,"codeHash","maxAttempts",channel,"commandKey","payloadHash","issuedAt","expiresAt") VALUES ($1,$2,$3,$4,$5,5,'test',$6,$5,gs_dispatch_now()-interval '3 minutes',gs_dispatch_now()-interval '2 minutes')`, [id, deliveryId, recipient.body.recipientId, sequence, 'a'.repeat(64), `seed-${id}`]);
+        await c.query(`UPDATE "DeliveryOtpChallenge" SET status='EXPIRED',"closedAt"=gs_dispatch_now()-interval '2 minutes' WHERE id=$1`, [id]);
+      }
+    });
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    const keys = [`issue-${randomUUID()}`, `issue-${randomUUID()}`];
+    const paths = deliveries.map(id => `/api/v1/riders/me/deliveries/${id}/otp-challenges`);
+    let first: Promise<any> | undefined; let second: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN');
+      await holder.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`delivery-otp-recipient:${recipient.body.recipientId.toLowerCase()}`]);
+      first = post(paths[0], riders[0], { commandKey: keys[0] }).then((r: any) => r);
+      second = post(paths[1], riders[1], { commandKey: keys[1] }).then((r: any) => r);
+      const deadline = Date.now() + 4000; let waiters = 0;
+      while (Date.now() < deadline) {
+        waiters = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE state='active' AND wait_event_type='Lock' AND query LIKE '%pg_advisory_xact_lock(hashtextextended%'`)).rows[0].n;
+        if (waiters >= 2) break;
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      expect(waiters).toBeGreaterThanOrEqual(2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const results = await Promise.all([first!, second!]);
+    expect(results.map(r => r.status).sort()).toEqual([201, 409]);
+    expect(results.find(r => r.status === 409).body.code).toBe('OTP_RECIPIENT_RATE_LIMIT');
+    const winner = results.findIndex(r => r.status === 201);
+    const challengeId = results[winner].body.challengeId as string;
+    expect(results[winner].body.duplicate).toBe(false);
+    expect(otpSink.consume(challengeId)).toMatch(/^[0-9]{6}$/);
+    const replay = await post(paths[winner], riders[winner], { commandKey: keys[winner] }).expect(201);
+    expect(replay.body).toMatchObject({ challengeId, duplicate: true });
+    expect(otpSink.consume(challengeId)).toBeNull();
+    const rows = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "DeliveryOtpChallenge" WHERE "recipientId"=$1 AND "issuedAt">gs_dispatch_now()-interval '1 hour'`, [recipient.body.recipientId]));
+    expect(rows.rows[0].n).toBe(5);
+    const outbox = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "OutboxEvent" WHERE "aggregateId"=ANY($1::uuid[]) AND "eventType"='delivery.otp.issued'`, [deliveries]));
+    expect(outbox.rows[0].n).toBe(1);
+  }, 120000);
+
+  it('serializes a rider’s verification limit across different deliveries', async () => {
+    const rider = await makeUser('rider-otp-rate-race'); await prepareRider(rider, 'otp-rate-race');
+    const challenges: { deliveryId: string; challengeId: string; code: string; verifyKey: string }[] = [];
+    for (let i = 0; i < 2; i++) {
+      const { assignmentId } = await assignedDelivery(rider, 'SANDBOX_MANUAL');
+      const pickup = await post(`/api/v1/riders/me/assignments/${assignmentId}/pickup`, rider, { commandKey: `pickup-${randomUUID()}` }).expect(201);
+      const deliveryId = pickup.body.deliveryId as string;
+      const issued = await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges`, rider, { commandKey: `otp-${randomUUID()}` }).expect(201);
+      const challengeId = issued.body.challengeId as string;
+      const code = otpSink.consume(challengeId)!;
+      const verifyKey = `verify-${randomUUID()}`;
+      await post(`/api/v1/riders/me/deliveries/${deliveryId}/otp-challenges/${challengeId}/verify`, rider, { code, commandKey: verifyKey }).expect(201);
+      await post(`/api/v1/riders/me/deliveries/${deliveryId}/complete`, rider, { expectedVersion: 2, commandKey: `complete-${randomUUID()}` }).expect(201);
+      challenges.push({ deliveryId, challengeId, code, verifyKey });
+    }
+    const path = (c: typeof challenges[number]) => `/api/v1/riders/me/deliveries/${c.deliveryId}/otp-challenges/${c.challengeId}/verify`;
+    // Two successful verifies plus seven closed-challenge attempts leave one slot.
+    for (let i = 0; i < 7; i++) {
+      const response = await post(path(challenges[0]), rider, { code: challenges[0].code, commandKey: `closed-${randomUUID()}` }).expect(201);
+      expect(response.body.outcome).toBe('LOCKED');
+    }
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let first: Promise<any> | undefined; let second: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN');
+      await holder.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`delivery-otp-attempt:${rider.userId.toLowerCase()}`]);
+      first = post(path(challenges[0]), rider, { code: challenges[0].code, commandKey: `race-${randomUUID()}` }).then((r: any) => r);
+      second = post(path(challenges[1]), rider, { code: challenges[1].code, commandKey: `race-${randomUUID()}` }).then((r: any) => r);
+      const deadline = Date.now() + 4000;
+      let waiters = 0;
+      while (Date.now() < deadline) {
+        waiters = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE state='active' AND wait_event_type='Lock' AND query LIKE '%pg_advisory_xact_lock(hashtextextended%'`)).rows[0].n;
+        if (waiters >= 2) break;
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      expect(waiters).toBeGreaterThanOrEqual(2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const results = await Promise.all([first!, second!]);
+    expect(results.map(r => r.status).sort()).toEqual([201, 409]);
+    expect(results.find(r => r.status === 201).body.outcome).toBe('LOCKED');
+    expect(results.find(r => r.status === 409).body.code).toBe('OTP_RATE_LIMIT');
+    const total = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "DeliveryOtpAttempt" WHERE "actorUserId"=$1 AND "occurredAt">gs_dispatch_now()-interval '60 seconds'`, [rider.userId]));
+    expect(total.rows[0].n).toBe(10);
+    // Idempotent replay must still succeed at the limit and not add an attempt.
+    const replay = await post(path(challenges[0]), rider, { code: challenges[0].code, commandKey: challenges[0].verifyKey }).expect(201);
+    expect(replay.body).toMatchObject({ outcome: 'VALID', duplicate: true });
+    const differentCode = challenges[0].code === '000000' ? '111111' : '000000';
+    const conflict = await post(path(challenges[0]), rider, { code: differentCode, commandKey: challenges[0].verifyKey }).expect(409);
+    expect(conflict.body.code).toBe('DELIVERY_IDEMPOTENCY_CONFLICT');
+    const final = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n FROM "DeliveryOtpAttempt" WHERE "actorUserId"=$1`, [rider.userId]));
+    expect(final.rows[0].n).toBe(10);
+  }, 120000);
 
   it('locks an OTP challenge after the configured invalid-attempt limit', async () => {
     const rider = await makeUser('rider-otp-lock'); await prepareRider(rider, 'otp-lock');
@@ -442,6 +675,55 @@ describe('rider earnings and COD deposit ledger', () => {
     const allocs = await asSuper(u.privileged, async c => c.query(`SELECT COUNT(*)::int AS n FROM "CodAllocation" WHERE "depositId"=$1`, [submitted.body.depositId]));
     expect(allocs.rows[0].n).toBe(1);
   });
+  it('serializes verification of the same exact deposit reference across different riders and methods', async () => {
+    const firstRider = await makeUser('cod-ref-a'); await prepareRider(firstRider, 'cod-ref-a');
+    const firstDelivery = await completedCodDelivery(firstRider);
+    const secondRider = await makeUser('cod-ref-b'); await prepareRider(secondRider, 'cod-ref-b');
+    const secondDelivery = await completedCodDelivery(secondRider);
+    const reviewer = await makeUser('cod-ref-reviewer'); await grantKeys(reviewer, ['finance:cod:review']);
+    const externalReference = `synthetic-ref-${randomUUID()}`;
+    const evidenceHash = createHash('sha256').update(randomUUID()).digest('hex');
+    const first = await post('/api/v1/riders/me/cod-deposits', firstRider, { amountMinor: '1000', currency: 'BDT', method: 'BANK', externalReference, evidenceHash, commandKey: `deposit-${randomUUID()}` }).expect(201);
+    const second = await post('/api/v1/riders/me/cod-deposits', secondRider, { amountMinor: '1000', currency: 'BDT', method: 'MERCHANT_MFS', externalReference, evidenceHash, commandKey: `deposit-${randomUUID()}` }).expect(201);
+    const bodies = [first, second].map(() => ({ expectedVersion: 1, decision: 'VERIFY', reason: 'synthetic trusted reference checked', commandKey: `review-${randomUUID()}` }));
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let requests: Promise<any>[] = [];
+    try {
+      await holder.query('BEGIN');
+      const holderPid = (await holder.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      await holder.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`cod-deposit-reference:${JSON.stringify([countryId, externalReference])}`]);
+      requests = [first, second].map((dep, i) => post(`/api/v1/admin/cod-deposits/${dep.body.depositId}/review`, reviewer, bodies[i]).then((res: any) => res));
+      const deadline = Date.now() + 10000; let waiting = 0;
+      while (Date.now() < deadline) {
+        waiting = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE state='active' AND wait_event_type='Lock' AND $1=ANY(pg_blocking_pids(pid)) AND query LIKE '%pg_advisory_xact_lock%'`, [holderPid])).rows[0].n;
+        if (waiting >= 2) break;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      expect(waiting).toBeGreaterThanOrEqual(2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const results = await Promise.all(requests);
+    expect(results.map(r => r.status).sort()).toEqual([201, 409]);
+    expect(results.find(r => r.status === 409).body.code).toBe('COD_DEPOSIT_REFERENCE_ALREADY_VERIFIED');
+    const winner = results.findIndex(r => r.status === 201); const loser = 1 - winner;
+    const deposits = [first, second];
+    const rows = await asSuper(u.privileged, c => c.query(`SELECT d.id,d.status,d."journalId",(SELECT count(*)::int FROM "CodAllocation" a WHERE a."depositId"=d.id) AS allocations FROM "CodDeposit" d WHERE d.id=ANY($1::uuid[])`, [[first.body.depositId, second.body.depositId]]));
+    const win = rows.rows.find((r: any) => r.id === deposits[winner].body.depositId);
+    const pending = rows.rows.find((r: any) => r.id === deposits[loser].body.depositId);
+    expect(win.status).toBe('VERIFIED'); expect(win.journalId).toBeTruthy(); expect(win.allocations).toBe(1);
+    expect(pending).toMatchObject({ status: 'PENDING_REVIEW', journalId: null, allocations: 0 });
+    const replay = await post(`/api/v1/admin/cod-deposits/${deposits[winner].body.depositId}/review`, reviewer, bodies[winner]).expect(201);
+    expect(replay.body.duplicate).toBe(true);
+    await post(`/api/v1/admin/cod-deposits/${deposits[loser].body.depositId}/review`, reviewer, { expectedVersion: 1, decision: 'REJECT', reason: 'reference requires reconciliation', commandKey: `reject-${randomUUID()}` }).expect(201);
+    const collections = await asSuper(u.privileged, c => c.query(`SELECT count(*)::int AS n,COALESCE(sum(a."amountMinor"),0)::bigint AS amount FROM "CodAllocation" a JOIN "CodCollection" c ON c.id=a."collectionId" WHERE c."deliveryId"=ANY($1::uuid[])`, [[firstDelivery.deliveryId, secondDelivery.deliveryId]]));
+    expect(collections.rows[0]).toEqual({ n: 1, amount: '1000' });
+  }, 120000);
+
   it('rejects deposit evidence without a journal and denies self-review', async () => {
     const rider = await makeUser('rider-finance-reject'); await prepareRider(rider, 'finance-reject');
     await completedCodDelivery(rider);
@@ -565,5 +847,120 @@ describe('vendor settlement maker-checker with verified destination', () => {
       const retried=await post('/api/v1/admin/vendor-settlements',f.maker,{...prepareBody(f),commandKey:`settlement-${randomUUID()}`}).expect(201);expect(retried.body.settlementId).not.toBe(prepared.body.settlementId);
       await expect(asSuper(u.privileged,async c=>{await c.query(`SELECT set_config('app.user_id',$1,true)`,[f.checker.userId]);await c.query(`SELECT set_config('app.is_super','true',true)`);await c.query(`UPDATE "VendorSettlement" SET status='REJECTED',version=2,"reviewedByUserId"=$1,"reviewedAt"=now(),"reviewCommandKey"='bypass-review-key',"reviewPayloadHash"='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',"reviewReason"='attempted bypass' WHERE id=$2`,[f.checker.userId,retried.body.settlementId]);})).rejects.toThrow(/settlement_review_required/);
     }finally{clock.mockRestore();}
+  });
+});
+
+describe('recipient and destination write consistency', () => {
+  async function pendingCodOrder() {
+    let { cartId, version } = await clearCart();
+    const added = await post(`/api/v1/commerce/carts/${cartId}/items`, customer, { variantId, quantity: 1, expectedVersion: version }).expect(201);
+    version = added.body.version;
+    const quote = await post(`/api/v1/commerce/carts/${cartId}/quotes`, customer, { expectedVersion: version, destinationCityId: cityId, commandKey: `details-quote-${randomUUID()}` }).expect(201);
+    return (await post('/api/v1/orders', customer, { quoteId: quote.body.quoteId, expectedQuoteVersion: quote.body.version, commandKey: `details-order-${randomUUID()}`, paymentMethod: 'COD' }).expect(201)).body;
+  }
+  async function waitForOrderWaiters(monitor: pg.Client, count: number) {
+    const deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      const n = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE state='active' AND wait_event_type='Lock' AND query LIKE '%FROM "Order"%FOR UPDATE%'`)).rows[0].n;
+      if (n >= count) return;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error(`Expected ${count} blocked order operations`);
+  }
+  const bodyFor = (kind: 'recipient' | 'destination') => kind === 'recipient'
+    ? { name: 'Example Recipient', phone: '+8801712345678', commandKey: `recipient-${randomUUID()}` }
+    : { serviceZoneId: zoneId, boundaryVersionId: boundaryId, latitude: 24.751, longitude: 90.401, addressLine: 'Example private delivery address', commandKey: `destination-${randomUUID()}` };
+  async function race(kind: 'recipient' | 'destination', changed: boolean) {
+    const order = await pendingCodOrder();
+    const path = `/api/v1/orders/${order.orderId}/delivery-${kind}`;
+    const body = bodyFor(kind);
+    const other = changed ? { ...body, ...(kind === 'recipient' ? { name: 'Different Recipient' } : { addressLine: 'Another private delivery address' }) } : body;
+    await post(path, stranger, body).expect(404);
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let first: Promise<any> | undefined; let second: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN'); await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('SELECT id FROM "Order" WHERE id=$1 FOR UPDATE', [order.orderId]);
+      first = post(path, customer, body).then((r: any) => r);
+      await waitForOrderWaiters(monitor, 1);
+      second = post(path, customer, other).then((r: any) => r);
+      await waitForOrderWaiters(monitor, 2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const [a, b] = await Promise.all([first!, second!]);
+    expect(a.status).toBe(201);
+    expect(a.body.duplicate).toBe(false);
+    if (changed) {
+      expect(b.status).toBe(409);
+      expect(b.body.code).toBe(kind === 'recipient' ? 'RECIPIENT_ALREADY_SET' : 'DESTINATION_ALREADY_SET');
+    } else {
+      expect(b.status).toBe(201);
+      expect(b.body.duplicate).toBe(true);
+      expect(b.body[kind === 'recipient' ? 'recipientId' : 'destinationId']).toBe(a.body[kind === 'recipient' ? 'recipientId' : 'destinationId']);
+    }
+    const row = await asSuper(u.privileged, c => c.query(kind === 'recipient'
+      ? 'SELECT id,"contactEnvelope" FROM "DeliveryRecipient" WHERE "orderId"=$1'
+      : 'SELECT id,"addressLine" FROM "OrderDeliveryDestination" WHERE "orderId"=$1', [order.orderId]));
+    expect(row.rowCount).toBe(1);
+    const hidden = await asUser(u.runtime, stranger.userId, c => c.query(kind === 'recipient'
+      ? 'SELECT id FROM "DeliveryRecipient" WHERE "orderId"=$1'
+      : 'SELECT id FROM "OrderDeliveryDestination" WHERE "orderId"=$1', [order.orderId]));
+    expect(hidden.rowCount).toBe(0);
+    if (kind === 'recipient') {
+      expect(a.body.maskedPhone).toBe('******5678');
+      expect(row.rows[0].contactEnvelope.toString()).not.toContain('Example Recipient');
+      expect(row.rows[0].contactEnvelope.toString()).not.toContain('+8801712345678');
+    } else expect(row.rows[0].addressLine).toBe('Example private delivery address');
+    const action = kind === 'recipient' ? 'commerce.order.recipient_set' : 'commerce.order.destination_set';
+    const auditResource = kind === 'recipient' ? row.rows[0].id : order.orderId;
+    const eventKey = kind === 'recipient' ? `order-recipient-${order.orderId}` : `order-destination-${order.orderId}`;
+    const effects = await asSuper(u.privileged, c => c.query(`SELECT
+      (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$1 AND action=$2) AS audits,
+      (SELECT count(*)::int FROM "OutboxEvent" WHERE "eventKey"=$3) AS events,
+      (SELECT payload::text FROM "OutboxEvent" WHERE "eventKey"=$3) AS payload`, [auditResource, action, eventKey]));
+    expect(effects.rows[0]).toMatchObject({ audits: 1, events: 1 });
+    expect(effects.rows[0].payload).not.toContain('Example Recipient');
+    expect(effects.rows[0].payload).not.toContain('+8801712345678');
+    expect(effects.rows[0].payload).not.toContain('Example private delivery address');
+  }
+  for (const kind of ['recipient', 'destination'] as const) {
+    it(`replays an overlapping ${kind} submission exactly once`, async () => { await race(kind, false); });
+    it(`rejects an overlapping changed ${kind} submission`, async () => { await race(kind, true); });
+  }
+
+  it('does not add contact or destination after an overlapping cancellation wins', async () => {
+    const order = await pendingCodOrder();
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let cancellation: Promise<any> | undefined; let recipient: Promise<any> | undefined; let destination: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN'); await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('SELECT id FROM "Order" WHERE id=$1 FOR UPDATE', [order.orderId]);
+      cancellation = post(`/api/v1/orders/${order.orderId}/cancellation`, customer, { expectedVersion: order.version, commandKey: `cancel-${randomUUID()}`, reason: 'cancel order before delivery setup' }).then((r: any) => r);
+      await waitForOrderWaiters(monitor, 1);
+      recipient = post(`/api/v1/orders/${order.orderId}/delivery-recipient`, customer, bodyFor('recipient')).then((r: any) => r);
+      destination = post(`/api/v1/orders/${order.orderId}/delivery-destination`, customer, bodyFor('destination')).then((r: any) => r);
+      await waitForOrderWaiters(monitor, 3);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const [cancelled, contactResult, destinationResult] = await Promise.all([cancellation!, recipient!, destination!]);
+    expect(cancelled.status).toBe(201);
+    for (const result of [contactResult, destinationResult]) {
+      expect(result.status).toBe(409);
+      expect(result.body.code).toBe('ORDER_NOT_ACTIVE');
+    }
+    const rows = await asSuper(u.privileged, c => c.query(`SELECT
+      (SELECT count(*)::int FROM "DeliveryRecipient" WHERE "orderId"=$1) AS recipients,
+      (SELECT count(*)::int FROM "OrderDeliveryDestination" WHERE "orderId"=$1) AS destinations`, [order.orderId]));
+    expect(rows.rows[0]).toEqual({ recipients: 0, destinations: 0 });
   });
 });

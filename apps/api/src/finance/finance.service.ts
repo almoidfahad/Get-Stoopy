@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import { createHash, randomUUID } from 'node:crypto';
 import { PrivilegedPrismaService, setRls } from '../common/prisma.js';
 import { codDueMinor, hasPermission, inGeographicScope, rateForDistance, validateRateSlabs, type AccessContext } from '@getstoopy/core';
+import { assertLegacyCodCollectionSafe } from './cod-collection-safety.js';
 
 const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
 function key(k: string) { if (!/^[A-Za-z0-9:_-]{8,128}$/.test(k)) throw new BadRequestException({ code: 'COMMAND_KEY_INVALID', message: 'Invalid command key' }); }
@@ -69,13 +70,15 @@ export class FinanceService {
 
   /** Called inside delivery completion transaction after delivery is COMPLETED. */
   async recordCompletionTx(tx: any, delivery: { id: string; assignmentId: string; riderId: string; countryId: string }, actor: string) {
+    // Defend the journal-writing entry point as well as the delivery endpoint.
+    const suborder = await tx.vendorSuborder.findUniqueOrThrow({ where: { id: (await tx.delivery.findUniqueOrThrow({ where: { id: delivery.id } })).suborderId }, include: { order: true } });
+    if (suborder.order.paymentMethod === 'COD') await assertLegacyCodCollectionSafe(tx, suborder);
     const snap = await tx.riderRateSnapshot.findUnique({ where: { assignmentId: delivery.assignmentId } });
     if (!snap) throw new ConflictException({ code: 'RIDER_RATE_SNAPSHOT_REQUIRED', message: 'Assignment rate snapshot is required' });
     const expense = await this.account(tx, `delivery-expense:${delivery.countryId}:${snap.currency}`, 'Delivery expense', 'EXPENSE', snap.currency, actor);
     const payable = await this.account(tx, `rider-earning-payable:${delivery.riderId}:${snap.currency}`, 'Rider earning payable', 'LIABILITY', snap.currency, actor);
     const earningJournal = await this.postJournalTx(tx, { businessEventKey: `rider-earning-${delivery.id}`, currency: snap.currency, description: 'Rider delivery earning on verified completion', actor, lines: [{ accountId: expense, side: 'DEBIT', amountMinor: snap.amountMinor }, { accountId: payable, side: 'CREDIT', amountMinor: snap.amountMinor }] });
     await tx.riderEarning.create({ data: { deliveryId: delivery.id, riderId: delivery.riderId, countryId: delivery.countryId, amountMinor: snap.amountMinor, currency: snap.currency, journalId: earningJournal.journalId } });
-    const suborder = await tx.vendorSuborder.findUniqueOrThrow({ where: { id: (await tx.delivery.findUniqueOrThrow({ where: { id: delivery.id } })).suborderId }, include: { order: true } });
     if (suborder.order.paymentMethod === 'COD') {
       const custody = await this.account(tx, `rider-cod-custody:${delivery.riderId}:${snap.currency}`, 'Rider COD custody', 'ASSET', snap.currency, actor);
       const clearing = await this.account(tx, `cod-clearing:${delivery.countryId}:${snap.currency}`, 'COD clearing', 'LIABILITY', snap.currency, actor);
@@ -137,6 +140,14 @@ export class FinanceService {
         await this.audit(tx, ctx.userId, 'finance.cod.deposit.rejected', 'CodDeposit', id, dep.countryId, reason);
         return this.depositJson(updated);
       }
+      // Serialize exact reference verification across riders, methods and
+      // currencies within a country. Riders provide untrusted references; this
+      // conservative collision check is not proof of a real bank/office deposit.
+      // Keep this lock before the rider/currency allocation lock everywhere.
+      const referenceLock = `cod-deposit-reference:${JSON.stringify([dep.countryId, dep.externalReference])}`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${referenceLock}, 0))`;
+      const duplicateReference = await tx.codDeposit.findFirst({ where: { countryId: dep.countryId, externalReference: dep.externalReference, status: 'VERIFIED', id: { not: dep.id } }, select: { id: true } });
+      if (duplicateReference) throw new ConflictException({ code: 'COD_DEPOSIT_REFERENCE_ALREADY_VERIFIED', message: 'Deposit reference requires separate reconciliation' });
       // Serialize verification per rider+currency. Append-only collection rows are never UPDATE-locked.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`cod-deposit:${dep.riderId}:${dep.currency}`}, 0))`;
       const collections = await tx.$queryRaw`SELECT * FROM "CodCollection" WHERE "riderId"=${dep.riderId}::uuid AND currency=${dep.currency}::varchar ORDER BY "collectedAt", id`;

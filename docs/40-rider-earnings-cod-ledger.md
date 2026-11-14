@@ -30,7 +30,7 @@ It does **not** implement withdrawals, Sunday payout scheduling, provider transf
 Delivery completion remains fail-closed. After the normal pickup/OTP/prepaid gates:
 
 - Every `COMPLETED` delivery must have exactly one `RiderEarning` at COMMIT.
-- Every completed COD delivery must additionally have exactly one `CodCollection` at COMMIT, with amount/currency equal to the stored order total.
+- The current DB guard requires each completed COD delivery to have exactly one `CodCollection` at COMMIT, with amount/currency equal to the stored **order amount**. This amount is product subtotal only, not a customer final total; for a multi-suborder order, repeating it per delivery would overcount. Application-level restrictions in `docs/179-cod-multi-delivery-safety.md` now block new dispatch and completion of such orders; the database constraint itself does not prevent that overcount.
 - Migration `0042` replaces the old hard COD block with a snapshot requirement plus a deferred `delivery_finance_consistent` trigger; `0043` fixes a PL/pgSQL variable/alias ambiguity. Prepaid completion still requires `PAYMENT_VERIFIED`.
 
 Journals are balanced, positive-minor-unit, hash-deduplicated and posted inside the completion transaction:
@@ -52,7 +52,7 @@ Review requires `finance:cod:review`, recent step-up, CSRF and country scope. Th
 - `REJECT` records reviewer/reason/version with no journal and no COD reduction.
 - `VERIFY` serializes per rider+currency with a transaction advisory lock, allocates FIFO to outstanding `CodCollection` rows, posts the deposit journal, then writes `CodAllocation` rows and marks the deposit `VERIFIED` in the same transaction.
 - Allocation cannot exceed the deposit or any collection. Overpayment is rejected as `COD_DEPOSIT_EXCEEDS_DUE`; unmatched/overpaid reconciliation remains a future manual queue.
-- Duplicate rider+channel+external reference is unique. Command-key replay returns the same deposit; changed payload returns `DEPOSIT_IDEMPOTENCY_CONFLICT`. Stale version returns `DEPOSIT_VERSION_CONFLICT`; an already reviewed deposit returns `DEPOSIT_ALREADY_REVIEWED`.
+- Duplicate rider+channel+external reference is unique at the database. Verification additionally blocks another verified deposit with the same exact country/reference across riders and methods, with important false-positive and bypass limitations; see `docs/180-cod-deposit-reference-collision.md`. Command-key replay returns the same deposit; changed payload returns `DEPOSIT_IDEMPOTENCY_CONFLICT`. Stale version returns `DEPOSIT_VERSION_CONFLICT`; an already reviewed deposit returns `DEPOSIT_ALREADY_REVIEWED`.
 
 ## Wallet read model
 

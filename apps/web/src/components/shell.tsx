@@ -33,10 +33,10 @@ export function Shell({ children, fullWidth = false }: { children: React.ReactNo
         <div className="border-b border-neutral-100 bg-white">
           <div className="site-container flex flex-wrap items-center justify-between gap-x-5 gap-y-3 py-4 md:flex-nowrap md:py-5">
             <Brand />
-            <form action="/shop" method="get" role="search" className="order-3 flex h-11 w-full overflow-hidden rounded-full border border-neutral-300 bg-neutral-50 focus-within:border-neutral-500 md:order-none md:mx-auto md:max-w-xl">
+            <form action="/shop" method="get" role="search" className="order-3 flex h-11 w-full overflow-hidden rounded-full border border-neutral-300 bg-neutral-50 focus-within:border-brand-red focus-within:ring-2 focus-within:ring-brand-red md:order-none md:mx-auto md:max-w-xl">
               <label htmlFor="site-search" className="sr-only">Search products</label>
               <input id="site-search" type="search" name="q" maxLength={120} placeholder="Search for products, brands and more" className="min-w-0 flex-1 bg-transparent px-5 text-sm text-neutral-900 outline-none placeholder:text-neutral-500" />
-              <button type="submit" aria-label="Search" className="flex w-14 items-center justify-center bg-brand-red text-white hover:bg-brand-red-hover"><Search size={19} /></button>
+              <button type="submit" aria-label="Search" className="flex w-14 items-center justify-center bg-brand-red text-white hover:bg-brand-red-hover focus-visible:outline-white focus-visible:outline-offset-[-4px]"><Search size={19} /></button>
             </form>
             <div className="flex items-center gap-4 sm:gap-6">
               <Link href="/account" aria-label="Account" className="flex items-center gap-2 text-sm font-semibold text-neutral-800 hover:text-brand-red"><UserRound size={22} strokeWidth={1.7} /><span className="hidden lg:inline">Account</span></Link>

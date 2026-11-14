@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrivilegedPrismaService, setRls } from '../common/prisma.js';
-import { assertLatitudeLongitude, assertOperatingHours, authorize, hasPermission, inGeographicScope, isStoreDispatchServiceable, type AccessContext, type OperatingHourInput } from '@getstoopy/core';
+import { assertLatitudeLongitude, assertOperatingHours, authorize, hasPermission, inGeographicScope, isAllowedPickupReview, isAllowedServiceAreaReview, isStoreDispatchServiceable, type AccessContext, type OperatingHourInput } from '@getstoopy/core';
 import { MAX_PUBLIC_SERVICEABLE_CITIES, serviceableStoreWhere } from './serviceable-store.js';
 
 function reasonText(reason: string): string {
@@ -12,6 +12,10 @@ function reasonText(reason: string): string {
 function assertVersion(version: number): void {
   if (!Number.isInteger(version) || version < 1) throw new BadRequestException({ code: 'VERSION_INVALID', message: 'Invalid version' });
 }
+const OPERATING_HOURS_ERRORS = new Set([
+  'OPERATING_HOURS_INVALID', 'OPERATING_DAY_INVALID', 'OPERATING_OPEN_INVALID',
+  'OPERATING_CLOSE_INVALID', 'OPERATING_WINDOW_INVALID', 'OPERATING_HOURS_OVERLAP',
+]);
 
 @Injectable()
 export class ServiceabilityService {
@@ -57,6 +61,12 @@ export class ServiceabilityService {
 
   private async audit(tx: any, ctx: AccessContext, action: string, resourceType: string, resourceId: string, countryId: string, reason?: string) {
     await tx.$executeRaw`INSERT INTO "AuditLog"(id,"actorId","actorType","sessionId",action,"resourceType","resourceId","scopeSnapshot",reason,"requestId") VALUES (gen_random_uuid(), ${ctx.userId}::uuid, 'USER'::"ActorType", ${ctx.sessionId}::uuid, ${action}, ${resourceType}, ${resourceId}::uuid, ${JSON.stringify({ countryId })}::jsonb, ${reason ?? null}, ${randomUUID()}::uuid)`;
+  }
+  // proposedByUserId is immutable and identifies only the first submitter.
+  // Deny every recorded contributor, not just the latest, to keep review
+  // independent even after a later amendment by a different vendor member.
+  private async hasProposed(tx: any, userId: string, resourceType: string, resourceId: string, action: string): Promise<boolean> {
+    return (await tx.auditLog.findFirst({ where: { actorId: userId, resourceType, resourceId, action }, select: { id: true } })) !== null;
   }
   private async outbox(tx: any, aggregateType: string, aggregateId: string, eventType: string, eventKey: string, countryId: string, data: Record<string, unknown>) {
     const occurredAt = new Date();
@@ -119,8 +129,9 @@ export class ServiceabilityService {
       this.requireAdmin(ctx, 'catalog:store:serviceability:review', store.countryId);
       const pickup = await tx.storePickupPoint.findUnique({ where: { storeId } });
       if (!pickup) throw new NotFoundException({ code: 'PICKUP_NOT_FOUND', message: 'Pickup point not found' });
-      if (pickup.proposedByUserId === ctx.userId || store.ownerUserId === ctx.userId) throw new ForbiddenException({ code: 'SELF_REVIEW_DENIED', message: 'Proposer/owner cannot review their own pickup point' });
+      if (pickup.proposedByUserId === ctx.userId || store.ownerUserId === ctx.userId || await this.hasProposed(tx, ctx.userId, 'StorePickupPoint', pickup.id, 'catalog.store.pickup.proposed')) throw new ForbiddenException({ code: 'SELF_REVIEW_DENIED', message: 'Proposer/owner cannot review their own pickup point' });
       if (pickup.version !== input.version) throw new ConflictException({ code: 'PICKUP_VERSION_CONFLICT', message: 'Pickup version conflict' });
+      if (!isAllowedPickupReview(pickup.status, input.decision)) throw new ConflictException({ code: 'PICKUP_INVALID_TRANSITION', message: 'Pickup review is not allowed in its current state' });
       const status = input.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
       const updated = await tx.storePickupPoint.update({ where: { id: pickup.id }, data: { status, reviewedByUserId: ctx.userId, reviewReason: reason, reviewedAt: new Date(), version: { increment: 1 } } });
       await this.audit(tx, ctx, `catalog.store.pickup.${status.toLowerCase()}`, 'StorePickupPoint', pickup.id, store.countryId, reason);
@@ -130,7 +141,12 @@ export class ServiceabilityService {
   }
 
   async replaceOperatingHours(ctx: AccessContext, storeId: string, hours: OperatingHourInput[]) {
-    try { assertOperatingHours(hours); } catch (e: any) { throw new BadRequestException({ code: e.message ?? 'OPERATING_HOURS_INVALID', message: 'Invalid operating hours' }); }
+    try { assertOperatingHours(hours); } catch (error: unknown) {
+      // Only known domain codes are client errors. Unexpected internal errors
+      // must go through the generic exception filter, not into the response.
+      if (!(error instanceof Error) || !OPERATING_HOURS_ERRORS.has(error.message)) throw error;
+      throw new BadRequestException({ code: error.message, message: 'Invalid operating hours' });
+    }
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
       const store = await this.lockStore(tx, storeId);
@@ -152,11 +168,18 @@ export class ServiceabilityService {
       this.vendorWrite(ctx, store.vendorId, store.countryId, store.id);
       const zone = await tx.serviceZone.findUnique({ where: { id: serviceZoneId } });
       if (!zone || zone.status !== 'ACTIVE' || zone.cityId !== store.cityId) throw new BadRequestException({ code: 'SERVICE_ZONE_MISMATCH', message: 'Service zone must be active and in the store city' });
-      const existing = await tx.storeServiceArea.findUnique({ where: { storeId_serviceZoneId: { storeId, serviceZoneId } } });
+      // Store lock serializes first proposals; this area lock also serializes
+      // duplicate/rejected proposals with an overlapping reviewer. The review
+      // path locks the area but never locks the store, preserving lock order.
+      const locked = await tx.$queryRaw`SELECT "id" FROM "StoreServiceArea" WHERE "storeId"=${storeId}::uuid AND "serviceZoneId"=${serviceZoneId}::uuid FOR UPDATE`;
+      const existingId = (locked as { id: string }[])[0]?.id;
+      const existing = existingId ? await tx.storeServiceArea.findUniqueOrThrow({ where: { id: existingId } }) : null;
       if (existing) {
         if (existing.status === 'DRAFT') return { serviceAreaId: existing.id, status: existing.status, version: existing.version, duplicate: true };
         if (existing.status !== 'REJECTED') throw new ConflictException({ code: 'SERVICE_AREA_EXISTS', message: 'Service area already exists' });
         const updated = await tx.storeServiceArea.update({ where: { id: existing.id }, data: { status: 'DRAFT', reviewedByUserId: null, reviewReason: null, reviewedAt: null, version: { increment: 1 } } });
+        await this.audit(tx, ctx, 'catalog.store.service_area.proposed', 'StoreServiceArea', updated.id, store.countryId);
+        await this.outbox(tx, 'Store', storeId, 'catalog.store.service_area.proposed', `store-service-area-proposed-${updated.id}-${updated.version}`, store.countryId, { serviceZoneId, version: updated.version });
         return { serviceAreaId: updated.id, status: updated.status, version: updated.version, duplicate: false };
       }
       const area = await tx.storeServiceArea.create({ data: { storeId, serviceZoneId, proposedByUserId: ctx.userId } });
@@ -170,11 +193,18 @@ export class ServiceabilityService {
     assertVersion(input.version); const reason = reasonText(input.reason);
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      // Lock before reading the version and review metadata. Without this, two
+      // reviewers can both accept the same version before either update commits.
+      // The later update might otherwise apply a different decision or fail as
+      // an opaque database error rather than a stable version conflict.
+      const locked = await tx.$queryRaw`SELECT "id" FROM "StoreServiceArea" WHERE "id"=${serviceAreaId}::uuid FOR UPDATE`;
+      if (!(locked as unknown[]).length) throw new NotFoundException({ code: 'SERVICE_AREA_NOT_FOUND', message: 'Service area not found' });
       const area = await tx.storeServiceArea.findUnique({ where: { id: serviceAreaId }, include: { store: { include: { vendor: true } } } });
       if (!area) throw new NotFoundException({ code: 'SERVICE_AREA_NOT_FOUND', message: 'Service area not found' });
       this.requireAdmin(ctx, 'catalog:store:serviceability:review', area.store.countryId);
-      if (area.proposedByUserId === ctx.userId || area.store.vendor.ownerUserId === ctx.userId) throw new ForbiddenException({ code: 'SELF_REVIEW_DENIED', message: 'Proposer/owner cannot review their own service area' });
+      if (area.proposedByUserId === ctx.userId || area.store.vendor.ownerUserId === ctx.userId || await this.hasProposed(tx, ctx.userId, 'StoreServiceArea', serviceAreaId, 'catalog.store.service_area.proposed')) throw new ForbiddenException({ code: 'SELF_REVIEW_DENIED', message: 'Proposer/owner cannot review their own service area' });
       if (area.version !== input.version) throw new ConflictException({ code: 'SERVICE_AREA_VERSION_CONFLICT', message: 'Service area version conflict' });
+      if (!isAllowedServiceAreaReview(area.status, input.decision)) throw new ConflictException({ code: 'SERVICE_AREA_INVALID_TRANSITION', message: 'Service area review is not allowed in its current state' });
       const status = input.decision === 'APPROVE' ? 'APPROVED' : input.decision === 'REJECT' ? 'REJECTED' : 'SUSPENDED';
       const updated = await tx.storeServiceArea.update({ where: { id: serviceAreaId }, data: { status, reviewedByUserId: ctx.userId, reviewReason: reason, reviewedAt: new Date(), version: { increment: 1 } } });
       await this.audit(tx, ctx, `catalog.store.service_area.${status.toLowerCase()}`, 'StoreServiceArea', serviceAreaId, area.store.countryId, reason);

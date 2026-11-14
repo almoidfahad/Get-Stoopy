@@ -15,10 +15,13 @@ vi.mock('@/components/cart-controls', () => ({ CartLineControls: () => null }));
 import CheckoutPage from '../src/app/checkout/page';
 import CartPage from '../src/app/cart/page';
 
+const quoteId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const cartId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const cityId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const item = { id: 'item', variantId: 'variant', productId: 'product', title: 'Rice', storeName: 'Store', storeId: 'store', vendorId: 'vendor', quantity: 1, unitPriceMinor: '100', lineTotalMinor: '100', currency: 'BDT', availableToPromise: 0, sellable: true };
-const cart = { cartId: 'cart', countryId: 'country', currency: 'BDT', version: 1, activeQuoteId: 'quote', items: [item] };
-const quote = { quoteId: 'quote', state: 'RESERVED' };
-const cities = { state: 'ok', data: { countryId: 'country', currency: 'BDT', items: [{ cityId: 'city', name: 'City', code: 'C', storeCount: 1 }], truncated: false } };
+const cart = { cartId: cartId, countryId: 'country', currency: 'BDT', version: 1, activeQuoteId: quoteId, items: [item] };
+const quote = { quoteId: quoteId, cartId: cartId, currency: 'BDT', state: 'RESERVED', destinationCityId: cityId, subtotalMinor: '100', version: 1, expiresAt: '2100-01-01T00:00:00Z', closedAt: null, deliveryFeeMinor: null, totalMinor: null, paymentStatus: 'NOT_IMPLEMENTED', groups: [], items: [] };
+const cities = { state: 'ok', data: { countryId: 'country', currency: 'BDT', items: [{ cityId: cityId, name: 'City', code: 'C', storeCount: 1 }], truncated: false } };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -42,20 +45,20 @@ describe('reserved quote recovery', () => {
 
   it('shows the reserved quote despite insufficient stock in the current cart', async () => {
     const html = renderToStaticMarkup(await CheckoutPage());
-    expect(html).toContain('quote|Your cart is not ready');
-    expect(mocks.quote).toHaveBeenCalledWith('quote');
+    expect(html).toContain(`${quoteId}|Your cart is not ready`);
+    expect(mocks.quote).toHaveBeenCalledWith(quoteId);
   });
 
   it.each(['unavailable', 'not-configured'] as const)('keeps recovery available when cities are %s', async state => {
     mocks.cart.mockResolvedValue({ state: 'ok', cart: { ...cart, items: [{ ...item, availableToPromise: 2 }] } });
     mocks.cities.mockResolvedValue({ state });
-    expect(renderToStaticMarkup(await CheckoutPage())).toContain('quote|Delivery cities could not be loaded');
+    expect(renderToStaticMarkup(await CheckoutPage())).toContain(`${quoteId}|Delivery cities could not be loaded`);
   });
 
   it('keeps recovery available when no city is currently serviceable', async () => {
     mocks.cart.mockResolvedValue({ state: 'ok', cart: { ...cart, items: [{ ...item, availableToPromise: 2 }] } });
     mocks.cities.mockResolvedValue({ ...cities, data: { ...cities.data, items: [] } });
-    expect(renderToStaticMarkup(await CheckoutPage())).toContain('quote|No delivery cities are currently available');
+    expect(renderToStaticMarkup(await CheckoutPage())).toContain(`${quoteId}|No delivery cities are currently available`);
   });
 
   it('warns rather than silently hiding a quote that could not be loaded', async () => {
@@ -63,9 +66,35 @@ describe('reserved quote recovery', () => {
     const html = renderToStaticMarkup(await CheckoutPage());
     expect(html).toContain('Reserved quote unavailable');
     expect(html).toContain('reservation may still be active');
+    expect(html).toMatch(/<a href="\/checkout"[^>]*>Try again<\/a>/);
     expect(mocks.cities).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['missing fields', {}],
+    ['invalid quote ID', { ...quote, quoteId: '../bad-quote' }],
+    ['invalid cart ID', { ...quote, cartId: 'bad-cart' }],
+    ['invalid city ID', { ...quote, destinationCityId: 'bad-city' }],
+    ['wrong quote', { ...quote, quoteId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' }],
+    ['wrong cart', { ...quote, cartId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' }],
+    ['unknown state', { ...quote, state: 'NEW_STATE' }],
+    ['malformed item', { ...quote, items: [{ itemId: 'bad' }] }],
+    ['invalid version', { ...quote, version: 0 }],
+    ['unsafe version', { ...quote, version: Number.MAX_SAFE_INTEGER + 1 }],
+  ])('shows a recovery notice instead of adopting a %s response', async (_label, body) => {
+    mocks.quote.mockResolvedValue({ status: 200, body });
+    const html = renderToStaticMarkup(await CheckoutPage());
+    expect(html).toContain('Reserved quote unavailable');
+    expect(html).toContain('reservation may still be active');
+    expect(html).toContain('Try again');
+    expect(html).not.toContain('data-testid="panel"');
+    expect(mocks.cities).not.toHaveBeenCalled();
+  });
+  it('accepts equivalent case for recovered quote and cart identifiers', async () => {
+    mocks.cart.mockResolvedValue({ state: 'ok', cart: { ...cart, cartId: cartId.toUpperCase(), activeQuoteId: quoteId.toUpperCase() } });
+    const html = renderToStaticMarkup(await CheckoutPage());
+    expect(html).toContain(`${quoteId}|Your cart is not ready`);
+  });
   it('still blocks a new quote for an invalid cart without a reservation', async () => {
     mocks.cart.mockResolvedValue({ state: 'ok', cart: { ...cart, activeQuoteId: null } });
     expect(renderToStaticMarkup(await CheckoutPage())).toContain('Resolve your cart first');

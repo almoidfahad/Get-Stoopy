@@ -1,9 +1,8 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { CoreModule } from './common/core.module.js';
 import { StableExceptionFilter } from './common/errors.js';
-import { RequestContextMiddleware } from './common/request-context.js';
 import { HealthModule } from './health/health.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AdminModule } from './admin/admin.module.js';
@@ -26,6 +25,4 @@ import { NotificationModule } from './notification/notification.module.js';
   imports: [CoreModule, ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]), HealthModule, AuthModule, AdminModule, SecurityModule, StorageModule, KycModule, PartyModule, CatalogModule, InventoryModule, CommerceModule, PaymentsModule, FulfillmentModule, ServiceabilityModule, DispatchModule, DeliveryModule, FinanceModule, RiskModule, NotificationModule],
   providers: [{ provide: APP_FILTER, useClass: StableExceptionFilter }, { provide: APP_GUARD, useClass: ThrottlerGuard }]
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) { consumer.apply(RequestContextMiddleware).forRoutes('{*path}'); }
-}
+export class AppModule {}

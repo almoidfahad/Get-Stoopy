@@ -1,9 +1,12 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
+import type { Prisma } from '@prisma/client';
 import { serviceableStoreWhere } from '../serviceability/serviceable-store.js';
 import { PrismaService, PrivilegedPrismaService, setRls } from '../common/prisma.js';
 import { InventoryService } from '../inventory/inventory.service.js';
-import { assertCartItemCount, assertCartQuantity, groupQuoteItems, MAX_ACTIVE_QUOTES_PER_USER, MAX_CART_ITEMS, type AccessContext, type QuotePricedItem } from '@getstoopy/core';
+import { assertCartItemCount, assertCartQuantity, assertLatitudeLongitude, groupQuoteItems, MAX_ACTIVE_QUOTES_PER_USER, MAX_CART_ITEMS, normalizeRecipientPhone, type AccessContext, type QuotePricedItem } from '@getstoopy/core';
+
+export type DeliveryPreviewInput = { expectedVersion: number; serviceZoneId: string; boundaryVersionId: string; latitude: number; longitude: number; name: string; phone: string; addressLine: string };
 
 function hashPayload(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 function assertCommandKey(key: string): void { if (!/^[A-Za-z0-9:_-]{8,128}$/.test(key)) throw new BadRequestException({ code: 'CHECKOUT_COMMAND_KEY_INVALID', message: 'Invalid checkout command key' }); }
@@ -86,8 +89,19 @@ export class CommerceService {
   async createCart(ctx: AccessContext, countryId: string) {
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      // A unique constraint alone makes concurrent first requests race: both can
+      // miss the row and one can fail on insert instead of returning the cart.
+      // Normalize UUID case so equivalent IDs share a transaction-scoped lock.
+      // This is coordination, not authorization; ownership checks remain required.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`cart-create:${ctx.userId.toLowerCase()}:${countryId.toLowerCase()}`}, 0))`;
       const existing = await tx.cart.findUnique({ where: { userId_countryId: { userId: ctx.userId, countryId } } });
-      if (existing) return { ...(await this.cartJson(tx, existing)), duplicate: true };
+      // Re-read under the same cart-row lock used by mutations. Otherwise a
+      // concurrent change between the lookup and cartJson can pair an old
+      // version with new lines in this get-or-create response.
+      if (existing) {
+        const locked = await this.lockCart(tx, ctx.userId, existing.id);
+        return { ...(await this.cartJson(tx, locked)), duplicate: true };
+      }
       const country = await tx.country.findFirst({ where: { id: countryId, status: 'ACTIVE' } });
       if (!country) throw new NotFoundException({ code: 'COUNTRY_NOT_AVAILABLE', message: 'Country is not available' });
       const cart = await tx.cart.create({ data: { userId: ctx.userId, countryId, currency: country.currencyCode } });
@@ -98,12 +112,14 @@ export class CommerceService {
   }
 
   async getCart(ctx: AccessContext, cartId: string) {
+    // Version, lines, stock and active quote are read in separate statements.
+    // A single snapshot prevents a concurrent commit from mixing their states.
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
       const cart = await tx.cart.findFirst({ where: { id: cartId, userId: ctx.userId } });
       if (!cart) throw new NotFoundException({ code: 'CART_NOT_FOUND', message: 'Cart not found' });
       return this.cartJson(tx, cart);
-    });
+    }, { isolationLevel: 'RepeatableRead' });
   }
 
   async addItem(ctx: AccessContext, cartId: string, input: { variantId: string; quantity: number; expectedVersion: number }) {
@@ -168,12 +184,82 @@ export class CommerceService {
     });
   }
 
+  /** Validate recipient input and zone coverage without saving PII or reserving stock. */
+  async previewDelivery(ctx: AccessContext, cartId: string, input: DeliveryPreviewInput) {
+    return this.privileged.$transaction(async tx => {
+      await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      return this.previewDeliveryTx(tx, ctx, cartId, input);
+    }, { isolationLevel: 'RepeatableRead' });
+  }
+
+  /** Caller owns transaction, RLS context and snapshot. This is not a reservation. */
+  async previewDeliveryTx(tx: Prisma.TransactionClient, ctx: AccessContext, cartId: string, input: DeliveryPreviewInput) {
+    assertVersion(input.expectedVersion);
+    try { assertLatitudeLongitude(input.latitude, input.longitude); } catch (e: any) { throw new BadRequestException({ code: e.message ?? 'COORDINATE_INVALID', message: 'Invalid destination coordinates' }); }
+    const name = input.name?.trim(); const addressLine = input.addressLine?.trim();
+    if (!name || name.length < 2 || name.length > 120) throw new BadRequestException({ code: 'RECIPIENT_NAME_INVALID', message: 'Recipient name is invalid' });
+    if (!addressLine || addressLine.length < 5 || addressLine.length > 500) throw new BadRequestException({ code: 'ADDRESS_INVALID', message: 'Destination address is invalid' });
+    const cart = await tx.cart.findFirst({ where: { id: cartId, userId: ctx.userId }, include: { country: true } });
+    if (!cart) throw new NotFoundException({ code: 'CART_NOT_FOUND', message: 'Cart not found' });
+    if (cart.version !== input.expectedVersion) throw new ConflictException({ code: 'CHECKOUT_CART_VERSION_CONFLICT', message: 'Cart changed; refresh before checking delivery' });
+    try { normalizeRecipientPhone(input.phone, cart.country.callingCode); } catch (e: any) { throw new BadRequestException({ code: e.message ?? 'RECIPIENT_PHONE_INVALID', message: 'Recipient phone is invalid' }); }
+    const items = await tx.cartItem.findMany({ where: { cartId }, select: { storeId: true } });
+    if (!items.length) throw new ConflictException({ code: 'CART_EMPTY', message: 'Cart is empty' });
+    if (items.length > MAX_CART_ITEMS) throw new ConflictException({ code: 'CART_ITEM_LIMIT', message: 'Cart item limit exceeded' });
+    // There is no active-boundary pointer in the implemented schema. Until
+    // that policy is implemented, never guess between multiple approved,
+    // effective versions (even if only one covers the point). Sample time
+    // once so a scheduled version cannot activate halfway through this query.
+    // Only coordinates reach PostGIS; contact/address stay in memory. Do not
+    // guess between different active zones covering the same point either;
+    // even an adjacent shared edge is ambiguous until an approved tie policy.
+    const rows = await tx.$queryRaw<{ cityId: string; covered: boolean }[]>`
+      WITH instant AS MATERIALIZED (SELECT gs_dispatch_now() AS checked_at),
+      destination AS MATERIALIZED (SELECT ST_SetSRID(ST_MakePoint(${input.longitude}, ${input.latitude}), 4326) AS point)
+      SELECT z."cityId", ST_Covers(b."boundary", destination.point) AS covered
+      FROM "ServiceZone" z JOIN "City" c ON c."id"=z."cityId"
+      JOIN "District" d ON d."id"=c."districtId" JOIN "Region" r ON r."id"=d."regionId"
+      JOIN "BoundaryVersion" b ON b."id"=${input.boundaryVersionId}::uuid
+      CROSS JOIN instant CROSS JOIN destination
+      WHERE z."id"=${input.serviceZoneId}::uuid AND z.status='ACTIVE' AND c.status='ACTIVE'
+        AND r."countryId"=${cart.countryId}::uuid AND b."ownerType"='ZONE' AND b."ownerId"=z.id
+        AND b."approvedBy" IS NOT NULL AND b."validFrom"<=instant.checked_at
+        AND NOT EXISTS (SELECT 1 FROM "BoundaryVersion" other
+          WHERE other."ownerType"='ZONE' AND other."ownerId"=z.id AND other.id<>b.id
+            AND other."approvedBy" IS NOT NULL AND other."validFrom"<=instant.checked_at)
+        AND NOT EXISTS (
+          SELECT 1 FROM "ServiceZone" other_zone
+          JOIN "City" other_city ON other_city.id=other_zone."cityId"
+          JOIN "District" other_district ON other_district.id=other_city."districtId"
+          JOIN "Region" other_region ON other_region.id=other_district."regionId"
+          JOIN "BoundaryVersion" other_boundary ON other_boundary."ownerType"='ZONE' AND other_boundary."ownerId"=other_zone.id
+          WHERE other_zone.id<>z.id AND other_zone.status='ACTIVE' AND other_city.status='ACTIVE'
+            AND other_region."countryId"=${cart.countryId}::uuid AND other_boundary."approvedBy" IS NOT NULL
+            AND other_boundary."validFrom"<=instant.checked_at AND ST_Covers(other_boundary."boundary", destination.point)
+        )`;
+    const zone = rows[0];
+    if (!zone?.covered) throw new ConflictException({ code: 'CHECKOUT_DESTINATION_NOT_SERVICEABLE', message: 'Destination is not currently covered by an approved zone' });
+    const storeIds = [...new Set(items.map(item => item.storeId))];
+    const stores = await tx.store.findMany({ where: {
+      ...serviceableStoreWhere(cart.countryId, new Date()), id: { in: storeIds }, cityId: zone.cityId,
+      serviceAreas: { some: { status: 'APPROVED', serviceZoneId: input.serviceZoneId, serviceZone: { status: 'ACTIVE' } } },
+    }, select: { id: true } });
+    if (stores.length !== storeIds.length) throw new ConflictException({ code: 'CHECKOUT_DESTINATION_NOT_SERVICEABLE', message: 'Destination zone is not served by every store in this cart' });
+    return { cartId: cart.id, cartVersion: cart.version, destinationCityId: zone.cityId, serviceZoneId: input.serviceZoneId, boundaryVersionId: input.boundaryVersionId, status: 'PREVIEW_ONLY', recipientSaved: false, stockReserved: false, orderAvailable: false, deliveryFeeMinor: null, totalMinor: null };
+  }
+
   async createQuote(ctx: AccessContext, cartId: string, input: { expectedVersion: number; destinationCityId: string; commandKey: string; ttlSeconds?: number }) {
     assertVersion(input.expectedVersion); assertCommandKey(input.commandKey);
     const ttlSeconds = input.ttlSeconds ?? 900;
     const payloadHash = hashPayload({ cartId, cartVersion: input.expectedVersion, destinationCityId: input.destinationCityId, ttlSeconds });
     return this.privileged.$transaction(async tx => {
       await setRls(tx, { userId: ctx.userId, authorizationVersion: ctx.authorizationVersion, isSuper: true });
+      // Serialize this buyer's quote creations before the idempotency lookup.
+      // Otherwise two transactions can both see no command and the second can
+      // fail after waiting on the cart, rather than replaying the first quote.
+      // A per-buyer lock also protects the active-quote limit across their carts.
+      // The namespace and 64-bit hash only identify a lock, not authorization.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`checkout-quote-create:${ctx.userId}`}, 0))`;
       const existing = await tx.checkoutQuote.findUnique({ where: { userId_commandKey: { userId: ctx.userId, commandKey: input.commandKey } } });
       if (existing) {
         if (existing.payloadHash !== payloadHash) throw new ConflictException({ code: 'CHECKOUT_IDEMPOTENCY_CONFLICT', message: 'Checkout command key already used with different payload' });
@@ -219,7 +305,17 @@ export class CommerceService {
         const snapshot = (rows as any[])[0];
         priced.push({ variantId: item.variantId, vendorId: item.vendorId, storeId: item.storeId, currency: snapshot.currency, quantity: item.quantity, unitPriceMinor: BigInt(snapshot.priceAmountMinor) });
       }
-      const totals = groupQuoteItems(priced);
+      let totals: ReturnType<typeof groupQuoteItems>;
+      try {
+        totals = groupQuoteItems(priced);
+      } catch (error) {
+        // The reservations above are in this transaction and roll back with the
+        // rejection; never pass an unrepresentable subtotal to PostgreSQL.
+        if (error instanceof Error && error.message === 'CHECKOUT_SUBTOTAL_LIMIT') {
+          throw new ConflictException({ code: 'CHECKOUT_SUBTOTAL_LIMIT', message: 'Cart subtotal exceeds the supported limit' });
+        }
+        throw error;
+      }
       const expiresAt = new Date(Math.min(...[...reservations.values()].map(r => r.expiresAt.getTime())));
       const quote = await tx.checkoutQuote.create({ data: { id: quoteId, userId: ctx.userId, countryId: cart.countryId, cartId, cartVersion: cart.version, destinationCityId: input.destinationCityId, commandKey: input.commandKey, payloadHash, currency: totals.currency, subtotalMinor: totals.subtotalMinor, expiresAt } });
       const groupIds = new Map<string, string>();

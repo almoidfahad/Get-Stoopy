@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID, createHash } from 'node:crypto';
 import request from 'supertest';
+import pg from 'pg';
 import { urls, asSuper } from './helpers';
 const u = urls();
 let app: any;
@@ -60,6 +61,120 @@ describe('private encrypted storage API with quarantine review', () => {
     const other = await makeUser('other');
     await post(`/api/v1/storage/objects/${objectId}/download-url`, other).expect(404);
     await request(app.getHttpServer()).get(`/api/v1/storage/downloads/${objectId}?token=bad`).expect(403);
+  });
+  it('serializes overlapping uploads of one object and keeps bytes consistent with metadata', async () => {
+    const owner = await makeUser('upload-race');
+    const other = await makeUser('upload-other');
+    const prefix = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const firstBytes = Buffer.concat([prefix, Buffer.from('first-image')]);
+    const secondBytes = Buffer.concat([prefix, Buffer.from('other-image')]);
+    const create = await post('/api/v1/storage/uploads', owner, { purpose: 'profile-avatar', contentType: 'image/png', sizeBytes: firstBytes.length }).expect(201);
+    const objectId = create.body.objectId as string;
+    const upload = (user: typeof owner, data: Buffer) => request(app.getHttpServer()).put(`/api/v1/storage/uploads/${objectId}`)
+      .set('Cookie', `gs_session_dev=${user.token}`).set('X-Storage-Token', create.body.token).set('Content-Type', 'image/png').send(data);
+    // A valid upload token does not grant another user access to the row.
+    await upload(other, firstBytes).expect(404);
+    const holder = new pg.Client({ connectionString: u.runtime });
+    const monitor = new pg.Client({ connectionString: u.runtime });
+    await holder.connect();
+    await monitor.connect();
+    let first: Promise<any> | undefined;
+    let second: Promise<any> | undefined;
+    let earlyFirst: any;
+    let earlySecond: any;
+    try {
+      await holder.query('BEGIN');
+      await holder.query("SELECT set_config('app.user_id',$1,true)", [owner.userId]);
+      await holder.query("SELECT set_config('app.auth_version','1',true)");
+      await holder.query("SELECT set_config('app.is_super','false',true)");
+      const locked = await holder.query('SELECT id FROM "StorageObject" WHERE id=$1 FOR UPDATE', [objectId]);
+      expect(locked.rowCount).toBe(1);
+      const holderPid = (await holder.query('SELECT pg_backend_pid() AS pid')).rows[0].pid as number;
+      first = upload(owner, firstBytes).then((res: any) => { earlyFirst = res; return res; });
+      second = upload(owner, secondBytes).then((res: any) => { earlySecond = res; return res; });
+      const deadline = Date.now() + 4000;
+      let blocked = 0;
+      while (Date.now() < deadline) {
+        // A separate autocommit monitor avoids PostgreSQL's transaction-cached statistics.
+        const waiting = await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+          WHERE state='active' AND wait_event_type='Lock' AND pid <> $1 AND query LIKE '%StorageObject%'`, [holderPid]);
+        blocked = waiting.rows[0].n;
+        if (blocked >= 2 || earlyFirst || earlySecond) break;
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      if (blocked !== 2) throw new Error(`Expected 2 waiting uploads; got ${blocked}. Completed statuses: ${earlyFirst?.status ?? 'pending'}, ${earlySecond?.status ?? 'pending'}; codes: ${earlyFirst?.body?.code ?? '-'}, ${earlySecond?.body?.code ?? '-'}`);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end();
+      await monitor.end();
+      if (first && second) await Promise.allSettled([first, second]);
+    }
+    const [a, b] = await Promise.all([first!, second!]);
+    expect([a.status, b.status].sort()).toEqual([200, 400]);
+    const winner = a.status === 200 ? firstBytes : secondBytes;
+    expect((a.status === 400 ? a : b).body.code).toBe('OBJECT_NOT_PENDING');
+    const metadata = await asSuper(u.privileged, c => c.query('SELECT state, sha256, "sizeBytes" FROM "StorageObject" WHERE id=$1', [objectId]));
+    expect(metadata.rows[0]).toMatchObject({ state: 'UPLOADED', sha256: createHash('sha256').update(winner).digest('hex'), sizeBytes: String(winner.length) });
+    const url = await post(`/api/v1/storage/objects/${objectId}/download-url`, owner).expect(201);
+    const downloaded = await request(app.getHttpServer()).get(url.body.downloadUrl).expect(200);
+    expect(Buffer.from(downloaded.body).equals(winner)).toBe(true);
+  });
+  it('serializes conflicting KYC reviews and records exactly one decision', async () => {
+    const owner = await makeUser('review-race-owner');
+    const reviewerA = await makeUser('review-race-a');
+    const reviewerB = await makeUser('review-race-b');
+    await grantReviewer(reviewerA);
+    await grantReviewer(reviewerB);
+    const data = Buffer.from('%PDF-1.4 race review bytes');
+    const create = await post('/api/v1/storage/uploads', owner, { purpose: 'kyc-document', contentType: 'application/pdf', sizeBytes: data.length }).expect(201);
+    const objectId = create.body.objectId as string;
+    await request(app.getHttpServer()).put(`/api/v1/storage/uploads/${objectId}`).set('Cookie', `gs_session_dev=${owner.token}`)
+      .set('X-Storage-Token', create.body.token).set('Content-Type', 'application/pdf').send(data).expect(200);
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect();
+    await monitor.connect();
+    let approve: Promise<any> | undefined;
+    let reject: Promise<any> | undefined;
+    let earlyApprove: any;
+    let earlyReject: any;
+    try {
+      await holder.query('BEGIN');
+      await holder.query("SELECT set_config('app.is_super','true',true)");
+      const locked = await holder.query('SELECT id FROM "StorageObject" WHERE id=$1 FOR UPDATE', [objectId]);
+      expect(locked.rowCount).toBe(1);
+      const holderPid = (await holder.query('SELECT pg_backend_pid() AS pid')).rows[0].pid as number;
+      approve = post(`/api/v1/storage/objects/${objectId}/review`, reviewerA, { decision: 'approve', reason: 'document approved' })
+        .then((res: any) => { earlyApprove = res; return res; });
+      reject = post(`/api/v1/storage/objects/${objectId}/review`, reviewerB, { decision: 'reject', reason: 'document rejected' })
+        .then((res: any) => { earlyReject = res; return res; });
+      const deadline = Date.now() + 4000;
+      let blocked = 0;
+      while (Date.now() < deadline) {
+        const waiting = await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+          WHERE state='active' AND wait_event_type='Lock' AND pid <> $1 AND query LIKE '%StorageObject%'`, [holderPid]);
+        blocked = waiting.rows[0].n;
+        if (blocked >= 2 || earlyApprove || earlyReject) break;
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      if (blocked !== 2) throw new Error(`Expected 2 waiting reviews; got ${blocked}. Statuses: ${earlyApprove?.status ?? 'pending'}, ${earlyReject?.status ?? 'pending'}`);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end();
+      await monitor.end();
+      if (approve && reject) await Promise.allSettled([approve, reject]);
+    }
+    const [a, b] = await Promise.all([approve!, reject!]);
+    expect([a.status, b.status].sort()).toEqual([201, 400]);
+    expect((a.status === 400 ? a : b).body.code).toBe('OBJECT_NOT_QUARANTINED');
+    const approved = a.status === 201;
+    const metadata = await asSuper(u.privileged, c => c.query('SELECT state, "reviewedByUserId", "reviewReason", "deletedAt" FROM "StorageObject" WHERE id=$1', [objectId]));
+    expect(metadata.rows[0]).toMatchObject({ state: approved ? 'UPLOADED' : 'DELETED', reviewedByUserId: approved ? reviewerA.userId : reviewerB.userId, reviewReason: approved ? 'document approved' : 'document rejected' });
+    expect(metadata.rows[0].deletedAt === null).toBe(approved);
+    const audits = await asSuper(u.privileged, c => c.query(`SELECT action, "actorId", reason FROM "AuditLog" WHERE "resourceId"=$1 AND action IN ('storage.review.approve', 'storage.review.reject')`, [objectId]));
+    expect(audits.rows).toEqual([{ action: approved ? 'storage.review.approve' : 'storage.review.reject', actorId: approved ? reviewerA.userId : reviewerB.userId, reason: approved ? 'document approved' : 'document rejected' }]);
   });
   it('denies self-review and rejects magic-byte mismatch', async () => {
     const owner = await makeUser('self'); await grantReviewer(owner, true);

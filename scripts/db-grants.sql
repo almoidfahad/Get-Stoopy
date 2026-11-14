@@ -1,15 +1,67 @@
--- Run as the migration/owner role after migrations. No BYPASSRLS is granted.
-GRANT USAGE ON SCHEMA public TO gs_runtime, gs_privileged;
+-- Run only as the dedicated migration owner after all migrations. This script
+-- changes grants for an explicit inventory of Get Stoopy tables, never every
+-- table in a shared public schema. Failure rolls back the whole grant operation.
+BEGIN;
+SET LOCAL search_path = pg_catalog, public;
 DO $$
-DECLARE t text;
+DECLARE
+  t text;
+  app_tables constant text[] := ARRAY[
+    'AdminActivation', 'AdminScope', 'AuditLog', 'BoundaryVersion',
+    'Cart', 'CartItem', 'Category', 'CheckoutQuote',
+    'CheckoutQuoteGroup', 'CheckoutQuoteItem', 'CheckoutRecipientDraft', 'City', 'CodAllocation',
+    'CodCollection', 'CodDeposit', 'CodPolicy', 'Country',
+    'Delivery', 'DeliveryEvent', 'DeliveryOtpAttempt', 'DeliveryOtpChallenge',
+    'DeliveryProof', 'DeliveryRecipient', 'DispatchEvent', 'DispatchOffer',
+    'DispatchRun', 'District', 'FeatureFlag', 'FinanceAdjustment',
+    'IdempotencyRecord', 'InboxDeadLetter', 'InboxReceipt', 'Inventory',
+    'InventoryMovement', 'InventoryReservation', 'KycCase', 'KycDeletionRequest',
+    'KycDocument', 'KycLegalHold', 'KycRetentionEvent', 'KycRetentionPolicy',
+    'KycReview', 'LedgerAccount', 'LedgerJournal', 'LedgerLine',
+    'Neighborhood', 'Notification', 'NotificationAttempt', 'NotificationPreference',
+    'Order', 'OrderCancellation', 'OrderDeliveryDestination', 'OrderItem',
+    'OutboxEvent', 'PaymentIntent', 'PaymentWebhookEvent', 'PayoutDestination',
+    'PayoutDestinationReview', 'Permission', 'Product', 'ProductImage',
+    'ProductVariant', 'ProviderStatementEntry', 'RecoveryCode', 'RefundExecution',
+    'RefundRequest', 'RefundReview', 'Region', 'RiderAssignment',
+    'RiderEarning', 'RiderLocationConsent', 'RiderLocationSample', 'RiderProfile',
+    'RiderRateRule', 'RiderRateSlab', 'RiderRateSnapshot', 'RiderShift',
+    'RiderZoneGrant', 'RiskCase', 'RiskCaseReview', 'RiskSignal',
+    'Role', 'RolePermission', 'ServiceZone', 'Session',
+    'StorageObject', 'Store', 'StoreOperatingHour', 'StorePickupPoint',
+    'StoreServiceArea', 'TransferAttempt', 'User', 'UserIdentity',
+    'UserMfa', 'UserRole', 'Vendor', 'VendorCommissionPolicy',
+    'VendorMembership', 'VendorPayout', 'VendorSettlement', 'VendorSettlementItem',
+    'VendorSettlementReview', 'VendorSuborder', 'VendorSuborderStatusEvent',
+    'ZoneBoundaryPointer', 'ZoneBoundaryPointerHistory'
+  ];
 BEGIN
-  FOR t IN SELECT tablename FROM pg_tables WHERE schemaname='public' AND tableowner=current_user LOOP
-    EXECUTE format('GRANT SELECT ON TABLE %I TO gs_runtime, gs_privileged', t);
-    EXECUTE format('GRANT INSERT, UPDATE ON TABLE %I TO gs_privileged', t);
-    EXECUTE format('REVOKE INSERT, UPDATE, DELETE ON TABLE %I FROM gs_runtime', t);
-    EXECUTE format('REVOKE DELETE ON TABLE %I FROM gs_privileged', t);
+  IF current_user <> 'gs_owner' THEN
+    RAISE EXCEPTION 'db-grants must run as gs_owner';
+  END IF;
+  -- Check the complete inventory before changing privileges. The owner check
+  -- prevents accidentally modifying a same-named table belonging to another app.
+  FOREACH t IN ARRAY app_tables LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_class c
+      JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = t AND c.relkind IN ('r', 'p')
+        AND pg_catalog.pg_get_userbyid(c.relowner) = current_user
+    ) THEN
+      RAISE EXCEPTION 'missing or incorrectly owned Get Stoopy table: %', t;
+    END IF;
+  END LOOP;
+  GRANT USAGE ON SCHEMA public TO gs_runtime, gs_privileged;
+  FOREACH t IN ARRAY app_tables LOOP
+    EXECUTE format('GRANT SELECT ON TABLE public.%I TO gs_runtime, gs_privileged', t);
+    EXECUTE format('GRANT INSERT, UPDATE ON TABLE public.%I TO gs_privileged', t);
+    EXECUTE format('REVOKE INSERT, UPDATE, DELETE ON TABLE public.%I FROM gs_runtime', t);
+    EXECUTE format('REVOKE DELETE ON TABLE public.%I FROM gs_privileged', t);
   END LOOP;
 END $$;
+-- Not an application-accessible activation workflow. Keep the isolated
+-- pointer inaccessible even when the general inventory grants are rerun.
+REVOKE ALL ON TABLE "ZoneBoundaryPointer", "ZoneBoundaryPointerHistory" FROM PUBLIC, gs_runtime, gs_privileged;
 -- Runtime may create/revoke its own sessions and write operational records, subject to RLS.
 GRANT INSERT, UPDATE ON TABLE "User" TO gs_runtime;
 GRANT INSERT, UPDATE ON TABLE "UserIdentity" TO gs_runtime;
@@ -99,6 +151,9 @@ REVOKE ALL ON TABLE "CartItem" FROM gs_runtime;
 REVOKE ALL ON TABLE "CheckoutQuote" FROM gs_runtime;
 REVOKE ALL ON TABLE "CheckoutQuoteGroup" FROM gs_runtime;
 REVOKE ALL ON TABLE "CheckoutQuoteItem" FROM gs_runtime;
+REVOKE ALL ON TABLE "CheckoutRecipientDraft" FROM gs_runtime;
+GRANT SELECT, INSERT, UPDATE ON TABLE "CheckoutRecipientDraft" TO gs_privileged;
+REVOKE DELETE ON TABLE "CheckoutRecipientDraft" FROM gs_privileged;
 GRANT SELECT ON TABLE "Cart" TO gs_runtime;
 GRANT SELECT ON TABLE "CartItem" TO gs_runtime;
 GRANT SELECT ON TABLE "CheckoutQuote" TO gs_runtime;
@@ -283,8 +338,8 @@ GRANT EXECUTE ON FUNCTION gs_inventory_reservation_update_guard() TO gs_privileg
 GRANT EXECUTE ON FUNCTION gs_inventory_reserved_consistent() TO gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_inventory_movement_required() TO gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_expire_inventory_reservations(INTEGER) TO gs_privileged;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO gs_runtime, gs_privileged;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT INSERT, UPDATE ON TABLES TO gs_privileged;
+-- Future tables require an explicit inventory and privilege review.
+-- This does not revoke default privileges configured previously; review them separately.
 GRANT EXECUTE ON FUNCTION gs_cart_insert_guard() TO gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_cart_update_guard() TO gs_privileged;
 GRANT EXECUTE ON FUNCTION gs_cart_variant_sellable(UUID) TO gs_privileged;
@@ -381,3 +436,5 @@ GRANT SELECT,INSERT,UPDATE ON "RiskCase" TO gs_privileged;
 GRANT SELECT,INSERT ON "RiskSignal","RiskCaseReview" TO gs_privileged;
 REVOKE DELETE ON "RiskCase","RiskSignal","RiskCaseReview" FROM gs_runtime,gs_privileged;
 REVOKE UPDATE ON "RiskSignal","RiskCaseReview" FROM gs_runtime,gs_privileged;
+
+COMMIT;

@@ -2,7 +2,9 @@
 
 **Shop Smart. Live Better.**
 
-Status: **Architecture approved for development 2026-11-01; Phase 2 in progress.** The original review package remains below. Executable foundation slices now include API/BFF/RLS, local Keycloak OIDC, worker/outbox/inbox, privileged TOTP/session controls and private local encrypted storage. Current local verification on **Node 26.13.0 / npm 10.8.2**: **155 unit tests / 32 files PASS** and **121 integration tests / 22 files PASS** against isolated PostgreSQL/PostGIS + Redis. The runtime engine is `26.x`; CI generates Prisma Client before typechecking and builds workspace packages before integration tests. This is still not a running marketplace; no paid resource, live payment collection or production deployment exists. See `docs/17-phase2-foundation.md` through `docs/43-sandbox-finance-operations.md`.
+**Current status:** A web-only release is available at <https://getstoopy.vercel.app/>. The Vercel deployment does not include the API or worker, and the live market, identity and backend are not configured or verified; order placement and payment are incomplete. This is not a production-ready marketplace. The source branch may contain later changes that have not been deployed. See `docs/95-getstoopy-production-release.md` for release boundaries and `docs/97-supabase-preflight-connection-safety.md` for database preflight limits.
+
+**Historical architecture status:** Architecture was approved for development on 2026-11-01. The foundation includes API/BFF/RLS, local Keycloak OIDC, worker/outbox/inbox, privileged TOTP/session controls and private local encrypted storage; integration checks run against isolated infrastructure. Production functionality and security remain unverified. See `docs/17-phase2-foundation.md` onward for the historical development record.
 
 ## Source control
 

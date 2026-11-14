@@ -10,7 +10,7 @@ describe('rider dashboard layout', () => {
   it('shows a safe layout with unavailable reporting and no fictional rider data', async () => {
     mocks.apiFetch.mockResolvedValue(new Response(null, { status: 401 }));
     const html = await render();
-    expect(mocks.apiFetch).toHaveBeenCalledWith('/auth/me');
+    expect(mocks.apiFetch).toHaveBeenCalledWith('/auth/me', expect.objectContaining({ redirect: 'manual', signal: expect.any(AbortSignal) }));
     expect(html).toContain('Sign in to check rider access');
     expect(html).toContain('href="/login"');
     expect(html).toContain('Live delivery');
@@ -36,7 +36,7 @@ describe('rider dashboard layout', () => {
     mocks.apiFetch.mockResolvedValue(Response.json({ user: { id: 'user' }, riderId: null }));
     expect(await render()).toContain('No eligible rider profile found');
   });
-  it.each([403, 500])('does not mistake HTTP %s for a signed-out session', async status => {
+  it.each([201, 302, 403, 429, 500])('does not mistake HTTP %s for a signed-out session', async status => {
     mocks.apiFetch.mockResolvedValue(new Response(null, { status }));
     const html = await render();
     expect(html).toContain('Rider access could not be checked');
@@ -44,7 +44,9 @@ describe('rider dashboard layout', () => {
   });
   it('treats network or configuration failures as unavailable', async () => {
     mocks.apiFetch.mockRejectedValue(new Error('unavailable'));
-    expect(await render()).toContain('Rider access could not be checked');
+    const html = await render();
+    expect(html).toContain('Rider access could not be checked');
+    expect(html).toMatch(/<a href="\/rider"[^>]*>Try again<\/a>/);
   });
   it.each([{}, { user: { id: 'u' } }, { user: { id: 'u' }, riderId: '' }, { user: { id: 'u' }, riderId: 3 }])('fails closed on malformed session data', async data => {
     mocks.apiFetch.mockResolvedValue(Response.json(data));

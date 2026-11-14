@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight, CircleUserRound, LogOut, ShoppingBag, ShoppingCart } from 'lucide-react';
 import { Shell } from '@/components/shell';
-import { apiFetch } from '@/lib/bff';
+import { readSession } from '@/lib/session-read';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,12 +18,10 @@ type AccountResult =
 /** The session endpoint is the source of truth; never turn a service failure into a sign-out claim. */
 async function loadAccount(): Promise<AccountResult> {
   try {
-    const response = await apiFetch('/auth/me');
-    if (response.status === 401) return { state: 'signed-out' };
-    if (!response.ok) return { state: 'unavailable' };
-    const data: unknown = await response.json();
-    if (!data || typeof data !== 'object') return { state: 'unavailable' };
-    const account = data as { user?: { id?: unknown; assurance?: unknown }; permissions?: unknown };
+    const result = await readSession();
+    if (result.state === 'signed-out') return { state: 'signed-out' };
+    if (result.state !== 'ok') return { state: 'unavailable' };
+    const account = result.data as { user?: { id?: unknown; assurance?: unknown }; permissions?: unknown };
     if (!account.user || typeof account.user.id !== 'string' || !account.user.id ||
         typeof account.user.assurance !== 'string' || !account.user.assurance ||
         !Array.isArray(account.permissions) || !account.permissions.every(permission => typeof permission === 'string')) {
@@ -35,8 +33,9 @@ async function loadAccount(): Promise<AccountResult> {
   }
 }
 
-export default async function Account() {
+export default async function Account({ searchParams }: { searchParams?: Promise<{ link?: string | string[] }> }) {
   const result = await loadAccount();
+  const link = (await searchParams)?.link;
   return (
     <Shell>
       <nav aria-label="Breadcrumb" className="mb-6 text-sm text-neutral-600"><Link href="/" className="hover:text-brand-red">Home</Link><span aria-hidden="true" className="mx-2 text-neutral-400">/</span><span aria-current="page" className="font-semibold text-neutral-900">Account</span></nav>
@@ -46,13 +45,20 @@ export default async function Account() {
         <p className="mt-3 max-w-xl text-sm leading-6 text-neutral-600">A place to access your session and continue shopping.</p>
       </header>
 
+      {link === 'unavailable' || link === 'failed' || link === 'unconfirmed' || link === 'success' ? (
+        <section aria-labelledby="link-result-heading" role="status" className="mt-6 max-w-2xl rounded-xl border border-neutral-300 bg-neutral-50 p-5 text-sm leading-6 text-neutral-800">
+          <h2 id="link-result-heading" className="font-bold">{link === 'unavailable' ? 'Account linking is unavailable' : link === 'failed' ? 'Account linking did not start or could not be completed' : link === 'unconfirmed' ? 'Account linking could not be confirmed' : 'Account linking response received'}</h2>
+          <p className="mt-1">{link === 'unconfirmed' ? 'The request may have completed even though its response was unavailable. Do not repeat it until the linked identity can be verified with the service.' : link === 'success' ? 'The return URL indicates success, but this page cannot independently verify linked identities. Account linking is not yet available to manage here.' : 'No link request was sent. Please return to your account; account linking is not yet available to manage here.'}</p>
+        </section>
+      ) : null}
+
       {result.state !== 'signed-in' ? (
         <section aria-labelledby="account-notice" className="mt-8 max-w-2xl rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-8 sm:p-10">
           <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-brand-red"><CircleUserRound size={28} strokeWidth={1.5} aria-hidden="true" /></span>
           <h2 id="account-notice" className="mt-5 text-xl font-bold text-neutral-950">{result.state === 'signed-out' ? 'Sign in to your account' : 'Account temporarily unavailable'}</h2>
           <p className="mt-2 text-sm leading-6 text-neutral-700">{result.state === 'signed-out' ? 'You are not signed in. Continue to the sign-in service to access your account.' : 'We could not load your account right now. Please try again shortly.'}</p>
           <div className="mt-6 flex flex-wrap gap-3">
-            {result.state === 'signed-out' ? <Link href="/login" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-brand-red px-6 py-3 text-sm font-bold text-white hover:bg-brand-red-hover">Sign in <ArrowRight size={16} /></Link> : <Link href="/account" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-brand-red px-6 py-3 text-sm font-bold text-white hover:bg-brand-red-hover">Try again <ArrowRight size={16} /></Link>}
+            {result.state === 'signed-out' ? <Link href="/login" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-brand-red px-6 py-3 text-sm font-bold text-white hover:bg-brand-red-hover">Sign in <ArrowRight size={16} /></Link> : <a href="/account" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-brand-red px-6 py-3 text-sm font-bold text-white hover:bg-brand-red-hover">Try again <ArrowRight size={16} aria-hidden="true" /></a>}
             <Link href="/shop" className="inline-flex min-h-12 items-center rounded-full border border-neutral-300 bg-white px-6 py-3 text-sm font-bold hover:border-neutral-900">Browse products</Link>
           </div>
         </section>
@@ -62,10 +68,10 @@ export default async function Account() {
             <div className="flex items-start gap-4"><span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-brand-red"><CircleUserRound size={28} strokeWidth={1.5} aria-hidden="true" /></span><div><p className="section-eyebrow">Account overview</p><h2 id="session-heading" className="mt-2 text-xl font-bold text-neutral-950">Signed in</h2><p className="mt-2 text-sm leading-6 text-neutral-600">Your session is active. Access to account actions is checked by the service.</p></div></div>
             <dl className="mt-7 grid gap-4 border-t border-neutral-200 pt-6 sm:grid-cols-2">
               <div><dt className="text-xs font-bold uppercase tracking-wide text-neutral-500">User ID</dt><dd className="mt-2 break-all font-mono text-sm text-neutral-900">{result.account.user.id}</dd></div>
-              <div><dt className="text-xs font-bold uppercase tracking-wide text-neutral-500">Session assurance</dt><dd className="mt-2 text-sm font-semibold text-neutral-900">{result.account.user.assurance}</dd></div>
+              <div><dt className="text-xs font-bold uppercase tracking-wide text-neutral-500">Session assurance</dt><dd className="mt-2 break-words text-sm font-semibold text-neutral-900 [overflow-wrap:anywhere]">{result.account.user.assurance}</dd></div>
             </dl>
-            <details className="mt-6 rounded-xl border border-neutral-200 bg-neutral-50 p-4"><summary className="cursor-pointer text-sm font-bold text-neutral-900">View access permissions</summary>{result.account.permissions.length ? <ul className="mt-3 space-y-1 break-words text-sm text-neutral-700">{result.account.permissions.map((permission, index) => <li key={`${permission}-${index}`}>{permission}</li>)}</ul> : <p className="mt-3 text-sm text-neutral-600">None assigned</p>}</details>
-            <form action="/api/auth/logout" method="post" className="mt-6"><button type="submit" className="inline-flex min-h-12 items-center gap-2 rounded-full border border-neutral-300 px-6 py-3 text-sm font-bold text-neutral-900 hover:border-neutral-900"><LogOut size={16} aria-hidden="true" /> Sign out</button></form>
+            <details className="mt-6 rounded-xl border border-neutral-200 bg-neutral-50 p-4"><summary className="cursor-pointer text-sm font-bold text-neutral-900">View access permissions</summary>{result.account.permissions.length ? <ul className="mt-3 space-y-1 break-words text-sm text-neutral-700 [overflow-wrap:anywhere]">{result.account.permissions.map((permission, index) => <li key={`${permission}-${index}`}>{permission}</li>)}</ul> : <p className="mt-3 text-sm text-neutral-600">None assigned</p>}</details>
+            <form action="/api/auth/logout" method="post" className="mt-6"><button type="submit" className="inline-flex min-h-12 items-center gap-2 rounded-full border border-neutral-300 px-6 py-3 text-sm font-bold text-neutral-900 hover:border-neutral-900"><LogOut size={16} aria-hidden="true" /> Sign out</button><p className="mt-2 text-sm leading-6 text-neutral-600">This signs out this Get Stoopy session; your sign-in provider or other devices may stay signed in.</p></form>
           </section>
           <aside aria-labelledby="quick-links-heading" className="h-fit rounded-2xl border border-[#eee4d8] bg-[#faf5ee] p-6">
             <h2 id="quick-links-heading" className="text-lg font-bold text-neutral-950">Continue shopping</h2>

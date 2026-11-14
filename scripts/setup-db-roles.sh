@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-: "${DB_OWNER_PASSWORD:?set DB_OWNER_PASSWORD}"
-: "${DB_RUNTIME_PASSWORD:?set DB_RUNTIME_PASSWORD}"
-: "${DB_PRIVILEGED_PASSWORD:?set DB_PRIVILEGED_PASSWORD}"
-PSQL=(psql -v ON_ERROR_STOP=1)
-"${PSQL[@]}" <<SQL
-DO \$\$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='gs_owner') THEN
-    CREATE ROLE gs_owner LOGIN PASSWORD '${DB_OWNER_PASSWORD}';
-  ELSE ALTER ROLE gs_owner LOGIN PASSWORD '${DB_OWNER_PASSWORD}'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='gs_runtime') THEN
-    CREATE ROLE gs_runtime LOGIN PASSWORD '${DB_RUNTIME_PASSWORD}' NOBYPASSRLS;
-  ELSE ALTER ROLE gs_runtime LOGIN PASSWORD '${DB_RUNTIME_PASSWORD}' NOBYPASSRLS; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='gs_privileged') THEN
-    CREATE ROLE gs_privileged LOGIN PASSWORD '${DB_PRIVILEGED_PASSWORD}' NOBYPASSRLS;
-  ELSE ALTER ROLE gs_privileged LOGIN PASSWORD '${DB_PRIVILEGED_PASSWORD}' NOBYPASSRLS; END IF;
-END \$\$;
-SQL
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+exec node "$script_dir/setup-db-roles.mjs"

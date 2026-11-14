@@ -29,6 +29,7 @@ export type CartIssueKind =
   | 'price-invalid'
   | 'line-total-mismatch'
   | 'currency-mismatch'
+  | 'currency-invalid'
   | 'too-many-items';
 
 export interface CartIssue {
@@ -57,6 +58,10 @@ export function summarizeCart(lines: readonly CartLineInput[]): CartSummary {
   if (lines.length > MAX_CART_ITEMS) issues.push({ variantId: null, kind: 'too-many-items' });
 
   for (const line of lines) {
+    if (typeof line.currency !== 'string' || !/^[A-Z]{3}$/.test(line.currency)) {
+      issues.push({ variantId: line.variantId, kind: 'currency-invalid' });
+      priceable = false;
+    }
     if (currency === null) currency = line.currency;
     else if (currency !== line.currency) {
       issues.push({ variantId: line.variantId, kind: 'currency-mismatch' });
@@ -123,6 +128,7 @@ export const CART_ISSUE_MESSAGES: Record<CartIssueKind, string> = {
   'price-invalid': 'This item has no valid price right now.',
   'line-total-mismatch': 'The price changed while you were shopping. Refresh to see the current price.',
   'currency-mismatch': 'Items in different currencies cannot be ordered together.',
+  'currency-invalid': 'The currency for this item is unavailable. Refresh to try again.',
   'too-many-items': `A cart can hold at most ${MAX_CART_ITEMS} different items.`,
 };
 export type CartMutationOp = 'add' | 'update' | 'remove';

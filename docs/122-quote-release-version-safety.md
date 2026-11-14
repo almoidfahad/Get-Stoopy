@@ -1,0 +1,11 @@
+# Quote release version safety
+
+Checkout previously accepted a closed release response with the same version as the reserved quote. That contradicts the current backend contract: releasing increments the quote version, and the database's inventory-close trigger increments it for other transitions out of RESERVED. An inconsistent 2xx response therefore could have caused the UI to declare no stock held and offer another reservation without confirmation.
+
+A closed release response must now identify the same quote and cart and have a strictly newer, safe-integer version. If a refresh has already shown a different state at the same version, the response is also treated as uncertain. The existing uncertainty UI preserves focus, blocks further actions and offers reload; it does not claim whether the stock was released. Quote recovery, create and conflict-read validation now reject unsafe numeric versions as well.
+
+Quote and cart identity comparisons during refresh/release and city selection now handle UUID letter case consistently, so a case-only difference cannot overwrite a newer quote or hide the correct city. A quote-issue alert wraps a real list instead of overriding the list's native role, fixing automated accessibility failures for this error state.
+
+Verification: 723 unit/component tests, typecheck and isolated production web build passed. Interaction tests cover same/older/unsafe versions, contradictory same-version refreshes, case-equivalent IDs, a valid newer closure, keyboard focus and blocked retry. At 320, 390 and 1440 CSS pixels, Chromium tested a synthetic API that actually applied a release but returned an inconsistent same-version response through the local BFF; the interface showed uncertainty, blocked another release, and recovered with a keyboard reload. Selected Axe and overflow checks passed, including a quote price-issue list. The fixture is not a real identity, inventory or checkout backend.
+
+Version checks are consistency checks, not proof that stock is currently held or released. The uncertainty guard is local to this page; reload does not ensure a delayed request has finished. Full cross-tab concurrency, real-service E2E and accessibility/device testing remain outstanding. No Supabase connection, user data changes or production deployment were made.

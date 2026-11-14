@@ -24,6 +24,37 @@ describe('shop page', () => {
     expect(html).toContain('rel="next"');
   });
 
+  it('keeps the applied search, category and current page on product links', async () => {
+    mocks.products.mockResolvedValue({ state: 'ok', data: { items: [{ id: 'p1', title: 'Item', currency: 'BDT', variants: [], images: [] }], nextCursor: null } });
+    const cursor = '00000000-0000-4000-8000-000000000003';
+    const html = await render({ q: 'chair & table', categoryId: category.id, cursor, ignored: 'https://evil.example' });
+    expect(html).toContain(`/shop/p1?q=chair+%26+table&amp;categoryId=${category.id}&amp;cursor=${cursor}`);
+    expect(html).not.toContain('evil.example');
+  });
+
+  it('keeps the shop search button focus outline visible inside the clipped field', async () => {
+    mocks.products.mockResolvedValue({ state: 'ok', data: { items: [], nextCursor: null } });
+    const html = await render();
+    expect(html).toMatch(/aria-label="Search the collection" class="[^"]*focus-visible:outline-white[^"]*focus-visible:outline-offset-\[-4px\]/);
+  });
+  it('offers a mobile category disclosure and individually removable applied filters', async () => {
+    mocks.products.mockResolvedValue({ state: 'ok', data: { items: [], nextCursor: null } });
+    const html = await render({ q: 'chair & table', categoryId: category.id, cursor: '00000000-0000-4000-8000-000000000003' });
+    expect(html).toContain('<details class="group mt-6');
+    expect(html).toContain('All categories');
+    expect(html).toContain('aria-label="Remove search filter"');
+    expect(html).toMatch(/<a aria-label="Remove search filter"[^>]*href="\/shop\?categoryId=00000000-0000-4000-8000-000000000001"/);
+    expect(html).toMatch(/<a aria-label="Remove category filter"[^>]*href="\/shop\?q=chair\+%26\+table"/);
+  });
+  it('retains a valid selected category when its name cannot be loaded', async () => {
+    mocks.categories.mockResolvedValue({ state: 'unavailable' });
+    mocks.products.mockResolvedValue({ state: 'ok', data: { items: [], nextCursor: null } });
+    const html = await render({ categoryId: category.id });
+    expect(html).toContain('Selected category');
+    expect(html).toContain('Categories are temporarily unavailable');
+    expect(html).toContain('aria-label="Remove category filter"');
+    expect(mocks.products).toHaveBeenCalledWith({ q: undefined, categoryId: category.id, cursor: undefined });
+  });
   it('warns when invalid URL filters are dropped and only shows applied filters', async () => {
     mocks.products.mockResolvedValue({ state: 'ok', data: { items: [], nextCursor: null } });
     const html = await render({ q: 'x'.repeat(121), categoryId: 'invalid', cursor: 'invalid' });
@@ -60,8 +91,15 @@ describe('shop page', () => {
   it.each(['not-configured', 'unavailable'] as const)('shows %s honestly without demo products', async state => {
     mocks.products.mockResolvedValue({ state });
     const html = await render();
-    expect(html).toContain(state === 'not-configured' ? 'Market not configured' : 'Catalog unavailable');
+    expect(html).toContain(state === 'not-configured' ? 'Our shop is getting ready' : 'Catalog unavailable');
     expect(html).not.toContain('A real product');
+  });
+
+  it('offers a real reload preserving applied filters when the catalog is unavailable', async () => {
+    mocks.products.mockResolvedValue({ state: 'unavailable' });
+    const html = await render({ q: 'chair', categoryId: category.id, cursor: '00000000-0000-4000-8000-000000000003' });
+    expect(html).toContain('Try again');
+    expect(html).toContain('q=chair&amp;categoryId=00000000-0000-4000-8000-000000000001&amp;cursor=00000000-0000-4000-8000-000000000003');
   });
 
   it('explains an empty category and allows clearing filters', async () => {

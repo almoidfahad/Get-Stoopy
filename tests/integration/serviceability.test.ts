@@ -152,6 +152,220 @@ describe('store serviceability and rider eligibility foundation', () => {
     expect(suspended.body.serviceable).toBe(false);
   });
 
+  it('denies recorded pickup and service-area contributors from reviewing their own amendments', async () => {
+    const manager = await makeUser('manager-reviewer');
+    await grantKeys(manager, ['catalog:store:serviceability:review']);
+    await setStepUp(owner);
+    const membership = await post(`/api/v1/parties/vendors/${vendorId}/memberships`, owner, { userId: manager.userId, role: 'MANAGER' }).expect(201);
+    const activationAdmin = await makeUser('second-store-admin');
+    await grantKeys(activationAdmin, ['catalog:store:activate']);
+    const created = await post('/api/v1/catalog/stores', owner, { vendorId, cityId, name: 'Amendment Store', slug: `amend-${randomUUID().slice(0, 8)}`, addressLine: '456 Pilot Road' }).expect(201);
+    const secondStoreId = created.body.storeId as string;
+    await post(`/api/v1/catalog/admin/stores/${secondStoreId}/activate`, activationAdmin, { version: 1, reason: 'store evidence verified' }).expect(201);
+    const pickupPath = `/api/v1/catalog/stores/${secondStoreId}/pickup-point`;
+    const pickupReview = `/api/v1/catalog/admin/stores/${secondStoreId}/pickup-point/review`;
+    const initial = await post(pickupPath, owner, { latitude: 24.75, longitude: 90.4 }).expect(201);
+    await post(pickupPath, manager, { latitude: 24.76, longitude: 90.41, expectedVersion: 1 }).expect(201);
+    // Even after another contributor makes the latest edit, the prior editor
+    // cannot review this record. Revoking membership must not erase history.
+    await post(pickupPath, owner, { latitude: 24.77, longitude: 90.42, expectedVersion: 2 }).expect(201);
+    const areaPath = `/api/v1/catalog/stores/${secondStoreId}/service-areas`;
+    const area = await post(areaPath, owner, { serviceZoneId: zoneId }).expect(201);
+    const areaReview = `/api/v1/catalog/admin/service-areas/${area.body.serviceAreaId}/review`;
+    await post(areaReview, serviceabilityAdmin, { version: 1, decision: 'REJECT', reason: 'coverage requires correction' }).expect(201);
+    await post(areaPath, manager, { serviceZoneId: zoneId }).expect(201);
+    await post(`/api/v1/parties/vendors/${vendorId}/memberships/${membership.body.membershipId}/revoke`, owner).expect(201);
+    for (const [path, version] of [[pickupReview, 3], [areaReview, 3]] as const) {
+      const response = await post(path, manager, { version, decision: 'APPROVE', reason: 'attempted self review' }).expect(403);
+      expect(response.body.code).toBe('SELF_REVIEW_DENIED');
+    }
+    const beforeIndependent = await asSuper(u.privileged, c => c.query(`SELECT
+      (SELECT count(*)::int FROM "AuditLog" WHERE "actorId"=$1 AND action IN ('catalog.store.pickup.approved','catalog.store.service_area.approved')) AS audits,
+      (SELECT count(*)::int FROM "StorePickupPoint" WHERE id=$2 AND status='DRAFT' AND version=3) AS pickup,
+      (SELECT count(*)::int FROM "StoreServiceArea" WHERE id=$3 AND status='DRAFT' AND version=3) AS area`,
+      [manager.userId, initial.body.pickupId, area.body.serviceAreaId]));
+    expect(beforeIndependent.rows[0]).toEqual({ audits: 0, pickup: 1, area: 1 });
+    await post(pickupReview, serviceabilityAdmin, { version: 3, decision: 'APPROVE', reason: 'independent pickup review' }).expect(201);
+    await post(areaReview, serviceabilityAdmin, { version: 3, decision: 'APPROVE', reason: 'independent coverage review' }).expect(201);
+  });
+
+  it('rejects invalid review transitions without changing state or recording decisions', async () => {
+    const current = await get(`/api/v1/catalog/stores/${storeId}/serviceability`, owner).expect(200);
+    expect(current.body.pickup.status).toBe('APPROVED');
+    const pickupPath = `/api/v1/catalog/admin/stores/${storeId}/pickup-point/review`;
+    for (const decision of ['APPROVE', 'REJECT']) {
+      const res = await post(pickupPath, serviceabilityAdmin, { version: current.body.pickup.version, decision, reason: 'invalid pickup transition' }).expect(409);
+      expect(res.body.code).toBe('PICKUP_INVALID_TRANSITION');
+    }
+    const afterPickup = await get(`/api/v1/catalog/stores/${storeId}/serviceability`, owner).expect(200);
+    expect(afterPickup.body.pickup).toEqual(current.body.pickup);
+
+    const zone = await asSuper(u.privileged, async c => (await c.query(
+      `INSERT INTO "ServiceZone"(id,"cityId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`,
+      [randomUUID(), cityId, `transition-${randomUUID().slice(0, 8)}`, 'Transition test zone'],
+    )).rows[0].id as string);
+    const proposal = await post(`/api/v1/catalog/stores/${storeId}/service-areas`, owner, { serviceZoneId: zone }).expect(201);
+    const areaId = proposal.body.serviceAreaId as string;
+    const path = `/api/v1/catalog/admin/service-areas/${areaId}/review`;
+    async function review(version: number, decision: string, status: number) {
+      return post(path, serviceabilityAdmin, { version, decision, reason: 'check review transition' }).expect(status);
+    }
+    async function invalid(version: number, ...decisions: string[]) {
+      for (const decision of decisions) expect((await review(version, decision, 409)).body.code).toBe('SERVICE_AREA_INVALID_TRANSITION');
+    }
+    try {
+      await invalid(1, 'SUSPEND');
+      expect((await review(1, 'REJECT', 201)).body.status).toBe('REJECTED');
+      await invalid(2, 'APPROVE', 'REJECT', 'SUSPEND');
+      const retried = await post(`/api/v1/catalog/stores/${storeId}/service-areas`, owner, { serviceZoneId: zone }).expect(201);
+      expect(retried.body).toMatchObject({ status: 'DRAFT', version: 3, duplicate: false });
+      const duplicate = await post(`/api/v1/catalog/stores/${storeId}/service-areas`, owner, { serviceZoneId: zone }).expect(201);
+      expect(duplicate.body).toMatchObject({ status: 'DRAFT', version: 3, duplicate: true });
+      const proposalRecords = await asSuper(u.privileged, c => c.query(`SELECT
+        (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$1 AND "actorId"=$2 AND action='catalog.store.service_area.proposed') AS audits,
+        (SELECT count(*)::int FROM "OutboxEvent" WHERE "eventKey" IN ($3,$4)) AS events`,
+        [areaId, owner.userId, `store-service-area-proposed-${areaId}`, `store-service-area-proposed-${areaId}-3`]));
+      expect(proposalRecords.rows[0]).toEqual({ audits: 2, events: 2 });
+      expect((await review(3, 'APPROVE', 201)).body.status).toBe('APPROVED');
+      await invalid(4, 'APPROVE', 'REJECT');
+      const stale = await review(3, 'SUSPEND', 409);
+      expect(stale.body.code).toBe('SERVICE_AREA_VERSION_CONFLICT');
+      expect((await review(4, 'SUSPEND', 201)).body.status).toBe('SUSPENDED');
+      await invalid(5, 'REJECT', 'SUSPEND');
+      const counts = await asSuper(u.privileged, c => c.query(`SELECT
+        (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$1 AND action IN ('catalog.store.service_area.approved','catalog.store.service_area.rejected','catalog.store.service_area.suspended')) AS audits,
+        (SELECT count(*)::int FROM "OutboxEvent" WHERE "aggregateId"=$2 AND "eventKey" IN ($3,$4,$5)) AS events`,
+        [areaId, storeId, `store-service-area-rejected-${areaId}-2`, `store-service-area-approved-${areaId}-4`, `store-service-area-suspended-${areaId}-5`]));
+      expect(counts.rows[0]).toEqual({ audits: 3, events: 3 });
+    } finally {
+      // Avoid leaving additional approved coverage that affects later tests.
+      await asSuper(u.privileged, c => c.query('UPDATE "ServiceZone" SET status=\'INACTIVE\' WHERE id=$1', [zone]));
+    }
+  });
+
+  it('serializes a duplicate proposal with an overlapping area review', async () => {
+    const zone = await asSuper(u.privileged, async c => (await c.query(
+      `INSERT INTO "ServiceZone"(id,"cityId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`,
+      [randomUUID(), cityId, `proposal-race-${randomUUID().slice(0, 8)}`, 'Proposal race zone'],
+    )).rows[0].id as string);
+    try {
+      const proposal = await post(`/api/v1/catalog/stores/${storeId}/service-areas`, owner, { serviceZoneId: zone }).expect(201);
+      const areaId = proposal.body.serviceAreaId as string;
+      const holder = new pg.Client({ connectionString: u.privileged });
+      const monitor = new pg.Client({ connectionString: u.privileged });
+      await holder.connect(); await monitor.connect();
+      let duplicate: Promise<any> | undefined; let review: Promise<any> | undefined;
+      try {
+        await holder.query('BEGIN');
+        await holder.query("SELECT set_config('app.is_super','true',true)");
+        await holder.query('SELECT id FROM "StoreServiceArea" WHERE id=$1 FOR UPDATE', [areaId]);
+        duplicate = post(`/api/v1/catalog/stores/${storeId}/service-areas`, owner, { serviceZoneId: zone }).then((r: any) => r);
+        review = post(`/api/v1/catalog/admin/service-areas/${areaId}/review`, serviceabilityAdmin, { version: 1, decision: 'APPROVE', reason: 'verified coverage area' }).then((r: any) => r);
+        const deadline = Date.now() + 10000;
+        let count = 0;
+        while (Date.now() < deadline) {
+          count = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+            WHERE state='active' AND wait_event_type='Lock' AND query LIKE '%StoreServiceArea%' AND query LIKE '%FOR UPDATE%'`)).rows[0].n;
+          if (count >= 2) break;
+          await new Promise(resolve => setTimeout(resolve, 40));
+        }
+        expect(count).toBe(2);
+        await holder.query('COMMIT');
+      } finally {
+        await holder.query('ROLLBACK').catch(() => undefined);
+        await holder.end(); await monitor.end();
+      }
+      const [duplicateResult, reviewResult] = await Promise.all([duplicate!, review!]);
+      expect(reviewResult.status).toBe(201);
+      expect(reviewResult.body).toMatchObject({ status: 'APPROVED', version: 2 });
+      if (duplicateResult.status === 201) expect(duplicateResult.body).toMatchObject({ status: 'DRAFT', version: 1, duplicate: true });
+      else { expect(duplicateResult.status).toBe(409); expect(duplicateResult.body.code).toBe('SERVICE_AREA_EXISTS'); }
+      const rows = await asSuper(u.privileged, c => c.query(`SELECT
+        (SELECT count(*)::int FROM "StoreServiceArea" WHERE id=$1 AND status='APPROVED' AND version=2) AS areas,
+        (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$1 AND action='catalog.store.service_area.proposed') AS proposals,
+        (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$1 AND action='catalog.store.service_area.approved') AS approvals,
+        (SELECT count(*)::int FROM "OutboxEvent" WHERE "eventKey" IN ($2,$3)) AS events`,
+        [areaId, `store-service-area-proposed-${areaId}`, `store-service-area-approved-${areaId}-2`]));
+      expect(rows.rows[0]).toEqual({ areas: 1, proposals: 1, approvals: 1, events: 2 });
+    } finally {
+      await asSuper(u.privileged, c => c.query('UPDATE "ServiceZone" SET status=\'INACTIVE\' WHERE id=$1', [zone]));
+    }
+  });
+
+  it('serializes opposing reviews so the same area version succeeds only once', async () => {
+    const zone = await asSuper(u.privileged, async c => (await c.query(
+      `INSERT INTO "ServiceZone"(id,"cityId",code,name,status) VALUES ($1,$2,$3,$4,'ACTIVE') RETURNING id`,
+      [randomUUID(), cityId, `review-race-${randomUUID().slice(0, 8)}`, 'Review race zone'],
+    )).rows[0].id as string);
+    const proposal = await post(`/api/v1/catalog/stores/${storeId}/service-areas`, owner, { serviceZoneId: zone }).expect(201);
+    const areaId = proposal.body.serviceAreaId as string;
+    const reviewer2 = await makeUser('second-serviceability-reviewer');
+    await grantKeys(reviewer2, ['catalog:store:serviceability:review']);
+    const holder = new pg.Client({ connectionString: u.privileged });
+    const monitor = new pg.Client({ connectionString: u.privileged });
+    await holder.connect(); await monitor.connect();
+    let first: Promise<any> | undefined; let second: Promise<any> | undefined;
+    try {
+      await holder.query('BEGIN');
+      await holder.query("SELECT set_config('app.is_super','true',true)");
+      await holder.query('SELECT id FROM "StoreServiceArea" WHERE id=$1 FOR UPDATE', [areaId]);
+      const path = `/api/v1/catalog/admin/service-areas/${areaId}/review`;
+      first = post(path, serviceabilityAdmin, { version: 1, decision: 'APPROVE', reason: 'verified coverage area' }).then((r: any) => r);
+      second = post(path, reviewer2, { version: 1, decision: 'REJECT', reason: 'coverage needs correction' }).then((r: any) => r);
+      const deadline = Date.now() + 10000;
+      let count = 0;
+      while (Date.now() < deadline) {
+        // PostgreSQL can queue the second waiter behind the first waiter
+        // rather than directly behind the holder. Observe both lock-waiting
+        // review queries, not just processes directly blocked by the holder.
+        count = (await monitor.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+          WHERE state='active' AND wait_event_type='Lock'
+            AND query LIKE '%StoreServiceArea%' AND query LIKE '%FOR UPDATE%'`)).rows[0].n;
+        if (count >= 2) break;
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      expect(count).toBe(2);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end(); await monitor.end();
+    }
+    const results = await Promise.all([first!, second!]);
+    // Keep this extra fixture zone from making later coverage tests pass for
+    // the wrong reason if APPROVE won the race.
+    await asSuper(u.privileged, c => c.query('UPDATE "ServiceZone" SET status=\'INACTIVE\' WHERE id=$1', [zone]));
+    expect(results.map(r => r.status).sort()).toEqual([201, 409]);
+    expect(results.find(r => r.status === 409).body.code).toBe('SERVICE_AREA_VERSION_CONFLICT');
+    const winner = results.find(r => r.status === 201).body;
+    expect(['APPROVED', 'REJECTED']).toContain(winner.status);
+    expect(winner.version).toBe(2);
+    const rows = await asSuper(u.privileged, c => c.query(`SELECT
+      (SELECT count(*)::int FROM "StoreServiceArea" WHERE id=$1 AND version=2 AND status=$2::"StoreServiceAreaStatus") AS areas,
+      (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$1 AND action IN ('catalog.store.service_area.approved','catalog.store.service_area.rejected')) AS audits,
+      (SELECT count(*)::int FROM "OutboxEvent" WHERE "eventKey" IN ($3,$4)) AS events`,
+      [areaId, winner.status, `store-service-area-approved-${areaId}-2`, `store-service-area-rejected-${areaId}-2`]));
+    expect(rows.rows[0]).toEqual({ areas: 1, audits: 1, events: 1 });
+  });
+
+  it('rejects malformed operating windows without changing the existing schedule or writing audit events', async () => {
+    const path = `/api/v1/catalog/stores/${storeId}/operating-hours`;
+    const before = (await get(`/api/v1/catalog/stores/${storeId}/serviceability`, owner).expect(200)).body.operatingHours;
+    const countRecords = async () => (await asSuper(u.privileged, c => c.query(`SELECT
+      (SELECT count(*)::int FROM "AuditLog" WHERE "resourceId"=$1 AND action='catalog.store.hours.replaced') AS audits,
+      (SELECT count(*)::int FROM "OutboxEvent" WHERE "aggregateId"=$1 AND "eventType"='catalog.store.hours.replaced') AS events`, [storeId]))).rows[0];
+    const counts = await countRecords();
+    for (const window of [null, false, 42, 'invalid', []]) {
+      const res = await put(path, owner, { hours: [window] }).expect(400);
+      expect(res.body.code).toBe('OPERATING_HOURS_INVALID');
+      expect(res.body.message).toBe('Invalid operating hours');
+      expect(Object.keys(res.body).sort()).toEqual(['code', 'message', 'requestId']);
+    }
+    const missingDay = await put(path, owner, { hours: [{ openMinute: 540, closeMinute: 1020 }] }).expect(400);
+    expect(missingDay.body.code).toBe('OPERATING_DAY_INVALID');
+    expect((await get(`/api/v1/catalog/stores/${storeId}/serviceability`, owner).expect(200)).body.operatingHours).toEqual(before);
+    expect(await countRecords()).toEqual(counts);
+  });
+
   it('validates operating hours and keeps location samples append-only', async () => {
     await put(`/api/v1/catalog/stores/${storeId}/operating-hours`, owner, { hours: [{ dayOfWeek: 0, openMinute: 540, closeMinute: 1020 }, { dayOfWeek: 0, openMinute: 1000, closeMinute: 1200 }] }).expect(400);
     await put(`/api/v1/catalog/stores/${storeId}/operating-hours`, owner, { hours: [] }).expect(400);
@@ -242,12 +456,14 @@ describe('public serviceable-city lookup', () => {
   });
 
   it('filters by name and rejects an over-long query', async () => {
-    const hit = await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}&q=Serviceability`).expect(200);
+    const hit = await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId.toUpperCase()}&q=Serviceability`).expect(200);
     expect(hit.body.items.some((c: any) => c.cityId === cityId)).toBe(true);
     const miss = await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}&q=NoSuchCityName`).expect(200);
     expect(miss.body.items).toEqual([]);
     const tooLong = await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}&q=${'x'.repeat(61)}`).expect(400);
     expect(tooLong.body.code).toBe('QUERY_INVALID');
+    expect((await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}&q=a&q=b`).expect(400)).body.code).toBe('QUERY_INVALID');
+    expect((await publicGet(`/api/v1/public/serviceability/cities?countryId=${countryId}&q=a%00b`).expect(400)).body.code).toBe('QUERY_INVALID');
   });
 
   it('rejects a malformed country id and an unknown country', async () => {

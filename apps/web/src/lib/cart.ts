@@ -3,6 +3,7 @@ import { csrfTokenForSession } from '@getstoopy/bff';
 import type { CartLineInput } from '@getstoopy/core';
 import { webConfig } from './config';
 import { marketCountryId } from './catalog';
+import { commerceFailure } from './commerce-response';
 
 /**
  * Server-side access to the session-scoped cart API.
@@ -42,6 +43,35 @@ export type CartResult =
   | { state: 'not-configured' }
   | { state: 'unavailable' };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(value: unknown): value is string { return typeof value === 'string' && UUID_RE.test(value); }
+
+/** Check data needed for rendering and mutation routing, not ownership or prices. */
+function isCartResponse(value: unknown, countryId: string): value is Cart {
+  if (!value || typeof value !== 'object') return false;
+  const cart = value as Record<string, unknown>;
+  if (!isUuid(cart.cartId) || !isUuid(cart.countryId) || cart.countryId.toLowerCase() !== countryId.toLowerCase() ||
+      typeof cart.currency !== 'string' || !Number.isSafeInteger(cart.version) || (cart.version as number) < 1 ||
+      !(cart.activeQuoteId === null || isUuid(cart.activeQuoteId)) || !Array.isArray(cart.items)) return false;
+  const ids = new Set<string>();
+  const variants = new Set<string>();
+  for (const raw of cart.items) {
+    if (!raw || typeof raw !== 'object') return false;
+    const item = raw as Record<string, unknown>;
+    if (!isUuid(item.id) || !isUuid(item.variantId) || !isUuid(item.productId) || !isUuid(item.storeId) || !isUuid(item.vendorId) ||
+        typeof item.title !== 'string' || typeof item.storeName !== 'string' || typeof item.currency !== 'string' ||
+        typeof item.quantity !== 'number' || !Number.isFinite(item.quantity) ||
+        typeof item.unitPriceMinor !== 'string' || typeof item.lineTotalMinor !== 'string' ||
+        typeof item.availableToPromise !== 'number' || !Number.isSafeInteger(item.availableToPromise) || item.availableToPromise < 0 ||
+        typeof item.sellable !== 'boolean') return false;
+    const id = item.id.toLowerCase();
+    const variant = item.variantId.toLowerCase();
+    if (ids.has(id) || variants.has(variant)) return false;
+    ids.add(id); variants.add(variant);
+  }
+  return true;
+}
+
 async function sessionToken(): Promise<string | null> {
   const cfg = webConfig();
   return (await cookies()).get(cfg.sessionCookieName)?.value ?? null;
@@ -59,7 +89,11 @@ export async function cartFetch(path: string, init: RequestInit = {}): Promise<R
     headers.set('x-csrf-token', csrfTokenForSession(token));
     if (init.body) headers.set('content-type', 'application/json');
   }
-  return fetch(`${cfg.apiUrl}/api/v1${path}`, { ...init, headers, cache: 'no-store' });
+  // Do not forward session or CSRF credentials to a redirect target. The
+  // deadline remains active while callers consume the response body.
+  const timeout = AbortSignal.timeout(8_000);
+  const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+  return fetch(`${cfg.apiUrl}/api/v1${path}`, { ...init, headers, cache: 'no-store', redirect: 'manual', signal });
 }
 
 /** Whether a session cookie is present. Authorization is still decided by the API. */
@@ -73,9 +107,11 @@ export async function getOrCreateCart(): Promise<CartResult> {
   if (!countryId) return { state: 'not-configured' };
   try {
     const res = await cartFetch('/commerce/carts', { method: 'POST', body: JSON.stringify({ countryId }) });
-    if (!res) return { state: 'sign-in' };
-    if (!res.ok) return { state: 'unavailable' };
-    return { state: 'ok', cart: (await res.json()) as Cart };
+    if (!res || res.status === 401) return { state: 'sign-in' };
+    if (res.status !== 200 && res.status !== 201) return { state: 'unavailable' };
+    const cart: unknown = await res.json();
+    if (!isCartResponse(cart, countryId)) return { state: 'unavailable' };
+    return { state: 'ok', cart };
   } catch {
     return { state: 'unavailable' };
   }
@@ -131,11 +167,23 @@ export async function mutateCart(
       res = await cartFetch(`${base}/${input.variantId}?expectedVersion=${expectedVersion}`, { method: 'DELETE' });
     }
   } catch {
-    return { status: 502, body: { code: 'CART_UNAVAILABLE' } };
+    return { status: 502, body: { code: 'CART_RESULT_UNKNOWN' } };
   }
   if (!res) return { status: 401, body: { code: 'SIGN_IN_REQUIRED' } };
-  const body = await res.json().catch(() => ({ code: 'CART_UNAVAILABLE' }));
-  return { status: res.status, body };
+  const expectedSuccess = res.status === 200 || (op === 'add' && res.status === 201);
+  if (!expectedSuccess) return commerceFailure(res, 'CART_RESULT_UNKNOWN');
+  const body: unknown = await res.json().catch(() => null);
+
+  // A successful HTTP status does not establish what the mutation did. Check
+  // the returned cart and the specific line before confirming it to the client.
+  if (!isCartResponse(body, cart.cart.countryId) || body.cartId.toLowerCase() !== cart.cart.cartId.toLowerCase() ||
+      body.version <= (expectedVersion as number)) return { status: 502, body: { code: 'CART_RESULT_UNKNOWN' } };
+  const updated = body.items.find(item => item.variantId.toLowerCase() === input.variantId.toLowerCase());
+  const previous = cart.cart.items.find(item => item.variantId.toLowerCase() === input.variantId.toLowerCase());
+  const matches = op === 'remove' ? !updated : op === 'update' ? updated?.quantity === input.quantity :
+    typeof input.quantity === 'number' && updated?.quantity === (previous?.quantity ?? 0) + input.quantity;
+  if (!matches) return { status: 502, body: { code: 'CART_RESULT_UNKNOWN' } };
+  return { status: res.status, body: { ...body, mutationConfirmed: true } };
 }
 
 export { parseCartMutation } from '@getstoopy/core';

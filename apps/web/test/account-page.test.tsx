@@ -5,19 +5,19 @@ const mocks = vi.hoisted(() => ({ apiFetch: vi.fn() }));
 vi.mock('@/lib/bff', () => ({ apiFetch: mocks.apiFetch }));
 import Account from '../src/app/account/page';
 
-async function render() { return renderToStaticMarkup(await Account()); }
+async function render() { return renderToStaticMarkup(await Account({})); }
 beforeEach(() => vi.resetAllMocks());
 
 describe('account page', () => {
   it('shows signed-out state only for an unauthenticated response', async () => {
     mocks.apiFetch.mockResolvedValue(new Response(null, { status: 401 }));
     const html = await render();
-    expect(mocks.apiFetch).toHaveBeenCalledWith('/auth/me');
+    expect(mocks.apiFetch).toHaveBeenCalledWith('/auth/me', expect.objectContaining({ redirect: 'manual', signal: expect.any(AbortSignal) }));
     expect(html).toContain('Sign in to your account');
     expect(html).toContain('href="/login"');
     expect(html).not.toContain('Account temporarily unavailable');
   });
-  it.each([403, 500])('shows an unavailable state for HTTP %s, not a false signed-out state', async status => {
+  it.each([201, 302, 403, 429, 500])('shows an unavailable state for HTTP %s, not a false signed-out state', async status => {
     mocks.apiFetch.mockResolvedValue(new Response(null, { status }));
     const html = await render();
     expect(html).toContain('Account temporarily unavailable');
@@ -27,7 +27,7 @@ describe('account page', () => {
     mocks.apiFetch.mockRejectedValue(new Error('service unreachable'));
     const html = await render();
     expect(html).toContain('Account temporarily unavailable');
-    expect(html).toContain('Try again');
+    expect(html).toMatch(/<a href="\/account"[^>]*>Try again/);
     expect(html).not.toContain('service unreachable');
   });
   it('treats invalid response JSON as unavailable', async () => {
@@ -47,9 +47,31 @@ describe('account page', () => {
     expect(html).toContain('<details');
     expect(html).toContain('action="/api/auth/logout"');
     expect(html).toContain('method="post"');
+    expect(html).toContain('sign-in provider or other devices may stay signed in');
     expect(html).toContain('href="/cart"');
     expect(html).not.toContain('do-not-render');
     expect(html).not.toContain('href="/orders"');
+  });
+  it.each([
+    ['unavailable', 'Account linking is unavailable', 'No link request was sent'],
+    ['failed', 'Account linking did not start or could not be completed', 'No link request was sent'],
+    ['unconfirmed', 'Account linking could not be confirmed', 'Do not repeat it until'],
+    ['success', 'Account linking response received', 'cannot independently verify'],
+  ])('shows an honest %s linking outcome even if account is unavailable', async (outcome, title, explanation) => {
+    mocks.apiFetch.mockRejectedValue(new Error('offline'));
+    const html = renderToStaticMarkup(await Account({ searchParams: Promise.resolve({ link: outcome }) }));
+    expect(html).toContain(title);
+    expect(html).toContain(explanation);
+    expect(html).toContain('role="status"');
+    expect(html).not.toContain('href="/api/auth/link/start"');
+  });
+  it('does not render a linking outcome for unrecognised or repeated parameters', async () => {
+    mocks.apiFetch.mockResolvedValue(new Response(null, { status: 401 }));
+    for (const link of ['attacker text', ['success', 'failed']]) {
+      const html = renderToStaticMarkup(await Account({ searchParams: Promise.resolve({ link }) }));
+      expect(html).not.toContain('attacker text');
+      expect(html).not.toContain('link-result-heading');
+    }
   });
   it('states when no permissions are assigned', async () => {
     mocks.apiFetch.mockResolvedValue(Response.json({ user: { id: 'u', assurance: 'PASSWORD' }, permissions: [] }));
