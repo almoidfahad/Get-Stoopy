@@ -1,0 +1,17 @@
+# Disposable COD fee coordination experiment
+
+This is a **test-only database experiment**, not an implementation of COD, a migration, or permission to collect money. `tests/integration/cod-fee-coordination.test.ts` creates randomly named synthetic tables in the repository's disposable CI PostGIS database and drops only those generated tables afterwards. It requires the test migration URL to name the local `getstoopy_test` database and `gs_owner`; a loopback proxy could still target valuable data, so those checks are not a guarantee of isolation. Never point the suite at hosted or valuable data.
+
+The toy model serializes supported synthetic delivery-completion, failure and retry operations by locking the same order row. The transaction marks one delivery successful and, only if every synthetic delivery is now successful, creates a single order-level **candidate** for the final delivery. A primary key on the order is a second database uniqueness check. A failed or pending delivery blocks the candidate; a failed attempt can be reset in the synthetic test and the successful retry then becomes the candidate. Duplicate completion requests return a prior result; the replay flag is not a new permission to collect money. An injected pre-commit error rolls back both updates. These are narrow mechanics, not the full owner policy.
+
+The disposable integration suite exercises row-lock contention, simultaneous successful deliveries, duplicate requests, a failed delivery before or after an earlier success, successful retry, pre-commit rollback, wrong-order rejection and the database uniqueness backstop. Seven focused tests passed on a freshly initialized local PostgreSQL 16 cluster, which was stopped afterwards. It uses synthetic states only, no real cash, routes, riders, accounts or order data. Unit-test-only and in-memory concurrency simulation would not establish PostgreSQL locking behavior; the CI integration job runs PostgreSQL/PostGIS.
+
+## Important gaps before any real use
+
+- Selecting a candidate when database completion commits does not tell a rider how much to collect **before** physical handoff. Commit order is not necessarily the order in which deliveries occur in the real world. Concurrent riders may already have left. Do not use this candidate to charge a customer.
+- Unique rows and row locks cannot prove cash was collected exactly once. They work only if every relevant writer follows the same protocol; out-of-band updates or privileged SQL may bypass it. Existing app services and database triggers do not implement this experiment.
+- This is not an immutable price or allocation, a journal, a reconciliation process, an idempotency-key/request-binding scheme, or a solution to a timeout with an unknown commit outcome. It has no verified actor authorization, proof of delivery, audit trail, delivery grouping, fee amount or settlement.
+- Cancellation, partial handoff, never-successful retry, shortage, disputes and refunds remain undecided. A failed or pending delivery simply prevents finalization in this experiment; it does not prescribe a real-world terminal policy.
+- Review and approval are required for a real coordination protocol and any database changes. Preserve the existing safety gates and do not deploy or enable COD on the basis of this test.
+
+Policy context: `docs/179-cod-multi-delivery-safety.md`, `docs/185-cod-highest-slab-once-draft.md`, and `docs/187-cod-last-delivery-collection-decision.md`.
